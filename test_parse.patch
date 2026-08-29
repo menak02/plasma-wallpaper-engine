@@ -1,0 +1,12 @@
+--- daemon/src/scene/scene_parser.cpp
++++ daemon/src/scene/scene_parser.cpp
+@@ -244,6 +244,9 @@
+ 
+         if (!layer.image.isNull()) {
+             outScene.layers.push_back(std::move(layer));
++        } else if (!layer.isText) {
++            std::cout << "SceneParser: Failed to load image for visual layer '" << layer.name 
++                      << "' with targetModel '" << targetModel << "'" << std::endl;
+         }
+     }
+ 

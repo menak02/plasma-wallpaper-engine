@@ -1,0 +1,16 @@
+--- daemon/src/assets/tex_parser.cpp
++++ daemon/src/assets/tex_parser.cpp
+@@ -144,9 +144,7 @@
+             } else {
+-                // LZ4 block stream inside TEXB0003: 8 ints total per mip
++                // LZ4 block stream inside TEXB0003: 7 ints total per mip (no flags field)
+                 int32_t compFormat = file.readInt32();
+-                int32_t flags = file.readInt32();
+-                Q_UNUSED(flags);
+                 uint32_t mipWidth = file.readUInt32();
+                 uint32_t mipHeight = file.readUInt32();
+ EOF
+patch daemon/src/assets/tex_parser.cpp < patch_texb3.patch
+cd build
+make -j$(nproc)
+./bin/plasma-wallpaper-engine-verifier

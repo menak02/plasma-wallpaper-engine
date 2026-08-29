@@ -1,0 +1,23 @@
+--- daemon/src/tools/batch_verifier.cpp
++++ daemon/src/tools/batch_verifier.cpp
+@@ -32,6 +32,7 @@
+         if (entry.is_directory()) {
+             std::string pkgPath = entry.path().string() + "/scene.pkg";
+             if (fs::exists(pkgPath)) {
++                if (entry.path().string().find("1103032583") != std::string::npos)
+                 itemDirs.push_back(entry.path().string());
+             }
+         }
+@@ -107,6 +108,12 @@
+         }
+         particleEngine.render(painter, 1920, 1080);
+         painter.end();
++        
++        for (const auto& layer : sceneDesc.layers) {
++            std::cout << "Layer " << layer.name << " width=" << layer.image.width() << " height=" << layer.image.height() << std::endl;
++            std::string layerDump = outputDir + "/layer_" + layer.name + ".png";
++            layer.image.save(QString::fromStdString(layerDump), "PNG");
++        }
+ 
+         std::string snapshotFile = outputDir + "/" + id + ".png";
+         canvas.save(QString::fromStdString(snapshotFile), "PNG");

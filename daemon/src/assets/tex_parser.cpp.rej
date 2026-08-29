@@ -1,0 +1,11 @@
+--- scene_parser.cpp
++++ scene_parser.cpp
+@@ -428,7 +428,7 @@
+     if (Assets::TexParser::parse(bytes, texImg)) {
+         auto rgba = Assets::DxtDecoder::decodeToRgba(texImg, 0);
+         if (!rgba.empty()) {
+-            QImage img(rgba.data(), texImg.width, texImg.height, texImg.width * 4, QImage::Format_RGBA8888);
++            QImage img(rgba.data(), texImg.width, texImg.height, texImg.mipmaps[0].width * 4, QImage::Format_RGBA8888);
+             outImage = img.copy();
+             return true;
+         }

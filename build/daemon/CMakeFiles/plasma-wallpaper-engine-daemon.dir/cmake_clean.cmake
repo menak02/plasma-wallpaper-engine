@@ -1,0 +1,43 @@
+file(REMOVE_RECURSE
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/link.d"
+  "CMakeFiles/plasma-wallpaper-engine-daemon_autogen.dir/AutogenUsed.txt"
+  "CMakeFiles/plasma-wallpaper-engine-daemon_autogen.dir/ParseCache.txt"
+  "plasma-wallpaper-engine-daemon_autogen"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/plasma-wallpaper-engine-daemon_autogen/mocs_compilation.cpp.o"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/plasma-wallpaper-engine-daemon_autogen/mocs_compilation.cpp.o.d"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/dxt_decoder.cpp.o"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/dxt_decoder.cpp.o.d"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/library_scanner.cpp.o"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/library_scanner.cpp.o.d"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/pkg_reader.cpp.o"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/pkg_reader.cpp.o.d"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/tex_parser.cpp.o"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/tex_parser.cpp.o.d"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/video_decoder.cpp.o"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/video_decoder.cpp.o.d"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.o"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.o.d"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/ipc/wallpaper_service.cpp.o"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/ipc/wallpaper_service.cpp.o.d"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.o"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.o.d"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/mesh_renderer.cpp.o"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/mesh_renderer.cpp.o.d"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/render_graph.cpp.o"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/render_graph.cpp.o.d"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/scene/particle_engine.cpp.o"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/scene/particle_engine.cpp.o.d"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/scene/scene_compositor.cpp.o"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/scene/scene_compositor.cpp.o.d"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/scene/scene_parser.cpp.o"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/scene/scene_parser.cpp.o.d"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/vulkan/vulkan_context.cpp.o"
+  "CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/vulkan/vulkan_context.cpp.o.d"
+  "plasma-wallpaper-engine-daemon"
+  "plasma-wallpaper-engine-daemon.pdb"
+)
+
+# Per-language clean rules from dependency scanning.
+foreach(lang CXX)
+  include(CMakeFiles/plasma-wallpaper-engine-daemon.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()

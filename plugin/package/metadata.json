@@ -1,0 +1,17 @@
+{
+    "KPackageStructure": "Plasma/Wallpaper",
+    "X-KDE-ParentApp": "org.kde.plasmashell",
+    "X-Plasma-MainScript": "ui/main.qml",
+    "KPlugin": {
+        "Name": "Wallpaper Engine (Native AGY)",
+        "Description": "Native Wayland Wallpaper Engine for Plasma 6",
+        "Icon": "preferences-desktop-wallpaper",
+        "Id": "org.antigravity.plasma.wallpaperengine",
+        "Version": "0.1",
+        "Category": "Wallpaper",
+        "License": "GPL-3.0+",
+        "ServiceTypes": [
+            "Plasma/Wallpaper"
+        ]
+    }
+}

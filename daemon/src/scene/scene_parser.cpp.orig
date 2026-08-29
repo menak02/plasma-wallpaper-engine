@@ -1,0 +1,484 @@
+#include "scene_parser.h"
+#include "../assets/dxt_decoder.h"
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QPainter>
+#include <QDateTime>
+#include <QDebug>
+#include <iostream>
+#include <algorithm>
+
+namespace WallpaperEngine::Scene {
+
+static float resolveUserFloat(const QJsonValue& val, float defaultVal = 0.0f) {
+    if (val.isDouble()) return static_cast<float>(val.toDouble());
+    if (val.isObject()) {
+        return static_cast<float>(val.toObject().value(QStringLiteral("value")).toDouble(defaultVal));
+    }
+    return defaultVal;
+}
+
+static bool resolveUserBool(const QJsonValue& val, bool defaultVal = true) {
+    if (val.isBool()) return val.toBool();
+    if (val.isObject()) {
+        return val.toObject().value(QStringLiteral("value")).toBool(defaultVal);
+    }
+    return defaultVal;
+}
+
+static BlendMode parseBlendMode(const QString& str) {
+    QString s = str.toLower();
+    if (s == QStringLiteral("additive") || s == QStringLiteral("linear_dodge")) return BlendMode::Additive;
+    if (s == QStringLiteral("multiply")) return BlendMode::Multiply;
+    if (s == QStringLiteral("screen") || s == QStringLiteral("lighten")) return BlendMode::Screen;
+    if (s == QStringLiteral("colordodge") || s == QStringLiteral("color_dodge")) return BlendMode::ColorDodge;
+    if (s == QStringLiteral("overlay")) return BlendMode::Overlay;
+    if (s == QStringLiteral("softlight") || s == QStringLiteral("soft_light")) return BlendMode::SoftLight;
+    if (s == QStringLiteral("opaque")) return BlendMode::Opaque;
+    return BlendMode::Translucent;
+}
+
+static QVector3D parseVector3D(const QJsonValue& val, const QVector3D& defaultVal = QVector3D()) {
+    if (val.isArray()) {
+        QJsonArray arr = val.toArray();
+        return QVector3D(
+            static_cast<float>(arr.at(0).toDouble(defaultVal.x())),
+            static_cast<float>(arr.at(1).toDouble(defaultVal.y())),
+            static_cast<float>(arr.at(2).toDouble(defaultVal.z()))
+        );
+    } else if (val.isString()) {
+        QStringList parts = val.toString().split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        if (parts.size() >= 3) {
+            return QVector3D(parts[0].toFloat(), parts[1].toFloat(), parts[2].toFloat());
+        }
+    }
+    return defaultVal;
+}
+
+static QVector2D parseVector2D(const QJsonValue& val, const QVector2D& defaultVal = QVector2D()) {
+    if (val.isArray()) {
+        QJsonArray arr = val.toArray();
+        return QVector2D(
+            static_cast<float>(arr.at(0).toDouble(defaultVal.x())),
+            static_cast<float>(arr.at(1).toDouble(defaultVal.y()))
+        );
+    } else if (val.isString()) {
+        QStringList parts = val.toString().split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        if (parts.size() >= 2) {
+            return QVector2D(parts[0].toFloat(), parts[1].toFloat());
+        }
+    }
+    return defaultVal;
+}
+
+void SceneParser::generateLiveTextImage(SceneLayer& layer) {
+    int tw = layer.size.x() > 0 ? static_cast<int>(layer.size.x()) : 400;
+    int th = layer.size.y() > 0 ? static_cast<int>(layer.size.y()) : 120;
+    if (tw < 100) tw = 400;
+    if (th < 50) th = 120;
+
+    QImage txtImg(tw, th, QImage::Format_RGBA8888);
+    txtImg.fill(Qt::transparent);
+    QPainter txtPainter(&txtImg);
+    txtPainter.setRenderHint(QPainter::Antialiasing, true);
+    txtPainter.setRenderHint(QPainter::TextAntialiasing, true);
+
+    QString textToRender;
+    QDateTime now = QDateTime::currentDateTime();
+
+    if (layer.isClock) {
+        textToRender = now.toString(QStringLiteral("hh:mm"));
+    } else if (layer.isDate) {
+        textToRender = now.toString(QStringLiteral("dddd, MMMM d"));
+    } else if (!layer.textContent.empty()) {
+        textToRender = QString::fromStdString(layer.textContent);
+    } else {
+        textToRender = QString::fromStdString(layer.name);
+    }
+
+    QFont f = txtPainter.font();
+    f.setPointSizeF(std::max(layer.fontSize, 18.0f));
+    f.setBold(true);
+    txtPainter.setFont(f);
+
+    // Drop shadow
+    txtPainter.setPen(QColor(0, 0, 0, 180));
+    txtPainter.drawText(txtImg.rect().translated(2, 2), Qt::AlignCenter, textToRender);
+
+    // Foreground text
+    txtPainter.setPen(layer.textColor);
+    txtPainter.drawText(txtImg.rect(), Qt::AlignCenter, textToRender);
+    txtPainter.end();
+
+    layer.image = txtImg;
+}
+
+bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& outScene) {
+    std::string sceneJsonStr = pkgReader.readTextFile("scene.json");
+    if (sceneJsonStr.empty()) {
+        return false;
+    }
+
+    QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(sceneJsonStr));
+    if (!doc.isObject()) {
+        return false;
+    }
+
+    QJsonObject root = doc.object();
+    QJsonObject general = root.value(QStringLiteral("general")).toObject();
+    outScene.title = general.value(QStringLiteral("title")).toString().toStdString();
+
+    QJsonObject ortho = general.value(QStringLiteral("orthogonalprojection")).toObject();
+    if (!ortho.isEmpty()) {
+        outScene.sceneWidth = static_cast<float>(ortho.value(QStringLiteral("width")).toDouble(3840.0));
+        outScene.sceneHeight = static_cast<float>(ortho.value(QStringLiteral("height")).toDouble(2160.0));
+    }
+
+    QJsonArray clearColorArr = general.value(QStringLiteral("clearcolor")).toArray();
+    if (clearColorArr.size() >= 3) {
+        outScene.clearColor = QColor::fromRgbF(
+            clearColorArr.at(0).toDouble(0.0),
+            clearColorArr.at(1).toDouble(0.0),
+            clearColorArr.at(2).toDouble(0.0)
+        );
+    }
+
+    // Sound OST detection
+    auto allFiles = pkgReader.listFiles();
+    for (const auto& file : allFiles) {
+        if (file.ends_with(".mp3") || file.ends_with(".ogg") || file.ends_with(".wav") || file.ends_with(".flac")) {
+            outScene.soundPath = file;
+            break;
+        }
+    }
+
+    QJsonArray objects = root.value(QStringLiteral("objects")).toArray();
+    int zOrder = 0;
+    outScene.totalVisualObjectsDeclared = 0;
+    outScene.totalParticleEmittersDeclared = 0;
+
+    for (const auto& objVal : objects) {
+        if (!objVal.isObject()) continue;
+        QJsonObject obj = objVal.toObject();
+
+        QString imageField = obj.value(QStringLiteral("image")).toString();
+        QString modelField = obj.value(QStringLiteral("model")).toString();
+        QString particleField = obj.value(QStringLiteral("particle")).toString();
+        QString presetField = obj.value(QStringLiteral("preset")).toString();
+        QJsonObject textObj = obj.value(QStringLiteral("text")).toObject();
+
+        // 1. Particle System Object
+        if (!particleField.isEmpty() || !presetField.isEmpty()) {
+            outScene.totalParticleEmittersDeclared++;
+            std::string pPath = !particleField.isEmpty() ? particleField.toStdString() : presetField.toStdString();
+            ParticleEmitterConfig emitter;
+            if (resolveParticle(pkgReader, pPath, emitter)) {
+                outScene.emitters.push_back(std::move(emitter));
+            }
+            continue;
+        }
+
+        // Check if object is a visual layer
+        bool isVisual = (!imageField.isEmpty() || !modelField.isEmpty() || !textObj.isEmpty());
+        if (!isVisual) {
+            continue;
+        }
+
+        outScene.totalVisualObjectsDeclared++;
+
+        SceneLayer layer;
+        layer.zOrder = zOrder++;
+        layer.name = obj.value(QStringLiteral("name")).toString().toStdString();
+        layer.visible = resolveUserBool(obj.value(QStringLiteral("visible")), true);
+        layer.opacity = resolveUserFloat(obj.value(QStringLiteral("opacity")), 1.0f);
+
+        layer.origin = parseVector3D(obj.value(QStringLiteral("origin")), QVector3D(outScene.sceneWidth / 2.0f, outScene.sceneHeight / 2.0f, 0.0f));
+        layer.scale = parseVector3D(obj.value(QStringLiteral("scale")), QVector3D(1.0f, 1.0f, 1.0f));
+        layer.size = parseVector2D(obj.value(QStringLiteral("size")), QVector2D(0.0f, 0.0f));
+        layer.parallaxDepth = parseVector3D(obj.value(QStringLiteral("parallaxDepth")), QVector3D(0.0f, 0.0f, 0.0f));
+
+        QString nameLower = QString::fromStdString(layer.name).toLower();
+        if (nameLower.contains(QStringLiteral("clock")) || nameLower.contains(QStringLiteral("time"))) {
+            layer.isClock = true;
+        } else if (nameLower.contains(QStringLiteral("date")) || nameLower.contains(QStringLiteral("day"))) {
+            layer.isDate = true;
+        }
+        if (nameLower.contains(QStringLiteral("hover")) || nameLower.contains(QStringLiteral("jill")) || nameLower.contains(QStringLiteral("zombie")) || nameLower.contains(QStringLiteral("switch"))) {
+            layer.isInteractive = true;
+        }
+
+        // 2. Text / Widget Layer
+        if (!textObj.isEmpty() || layer.isClock || layer.isDate) {
+            layer.isText = true;
+            layer.textContent = textObj.value(QStringLiteral("value")).toString().toStdString();
+            layer.fontSize = static_cast<float>(obj.value(QStringLiteral("pointsize")).toDouble(24.0));
+            generateLiveTextImage(layer);
+            outScene.layers.push_back(std::move(layer));
+            continue;
+        }
+
+        // 3. Image / Model Layer
+        std::string targetModel = !imageField.isEmpty() ? imageField.toStdString() : modelField.toStdString();
+        if (!targetModel.empty()) {
+            if (targetModel.find("composelayer") != std::string::npos || targetModel.find("solidlayer") != std::string::npos) {
+                // Internal engine post-processing utility shaders: do not draw as opaque dummy rectangles
+                continue;
+            }
+
+            if (targetModel.ends_with(".json")) {
+                resolveModel(pkgReader, targetModel, layer);
+            } else if (targetModel.ends_with(".tex")) {
+                resolveTexture(pkgReader, targetModel, layer.image);
+            }
+        }
+
+        // 4. Parse Layer Effects Chain
+        QJsonArray effectsArr = obj.value(QStringLiteral("effects")).toArray();
+        for (const auto& effVal : effectsArr) {
+            if (effVal.isObject()) {
+                LayerEffect eff;
+                if (resolveEffect(pkgReader, effVal.toObject(), eff)) {
+                    layer.effects.push_back(std::move(eff));
+                }
+            }
+        }
+
+        if (!layer.image.isNull()) {
+            outScene.layers.push_back(std::move(layer));
+        } else if (!layer.isText) {
+            std::cout << "SceneParser: Failed to load image for visual layer '" << layer.name 
+                      << "' with targetModel '" << targetModel << "'" << std::endl;
+        }
+    }
+
+    std::cout << "SceneParser: Parsed " << outScene.layers.size() << "/" << outScene.totalVisualObjectsDeclared 
+              << " visual layers and " << outScene.emitters.size() << "/" << outScene.totalParticleEmittersDeclared 
+              << " particle emitters" << std::endl;
+    return true;
+}
+
+bool SceneParser::resolveEffect(Assets::PkgReader& pkgReader, const QJsonObject& effObj, LayerEffect& outEffect) {
+    outEffect.file = effObj.value(QStringLiteral("file")).toString().toStdString();
+    outEffect.name = effObj.value(QStringLiteral("name")).toString().toStdString();
+    outEffect.visible = resolveUserBool(effObj.value(QStringLiteral("visible")), true);
+
+    std::string fileLower = outEffect.file;
+    std::transform(fileLower.begin(), fileLower.end(), fileLower.begin(), ::tolower);
+    std::string nameLower = outEffect.name;
+    std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+
+    if (fileLower.find("waterwaves") != std::string::npos || fileLower.find("waterripple") != std::string::npos || nameLower.find("water") != std::string::npos) {
+        outEffect.type = EffectType::WaterWaves;
+    } else if (fileLower.find("wind") != std::string::npos || nameLower.find("wind") != std::string::npos || nameLower.find("cape") != std::string::npos) {
+        outEffect.type = EffectType::Wind;
+    } else if (fileLower.find("breath") != std::string::npos || nameLower.find("breath") != std::string::npos) {
+        outEffect.type = EffectType::Breath;
+    } else if (fileLower.find("pulse") != std::string::npos || nameLower.find("pulse") != std::string::npos) {
+        outEffect.type = EffectType::Pulse;
+    } else if (fileLower.find("scroll") != std::string::npos) {
+        outEffect.type = EffectType::Scroll;
+    } else if (fileLower.find("godrays") != std::string::npos || fileLower.find("lightshafts") != std::string::npos) {
+        outEffect.type = EffectType::GodRays;
+    } else if (fileLower.find("shine") != std::string::npos) {
+        outEffect.type = EffectType::Shine;
+    } else if (fileLower.find("tint") != std::string::npos || fileLower.find("blend") != std::string::npos) {
+        outEffect.type = EffectType::Tint;
+    } else if (fileLower.find("shake") != std::string::npos) {
+        outEffect.type = EffectType::Shake;
+    } else {
+        outEffect.type = EffectType::WaterWaves;
+    }
+
+    QJsonArray passes = effObj.value(QStringLiteral("passes")).toArray();
+    for (const auto& passVal : passes) {
+        if (!passVal.isObject()) continue;
+        QJsonObject passObj = passVal.toObject();
+        QJsonObject consts = passObj.value(QStringLiteral("constantshadervalues")).toObject();
+
+        if (consts.contains(QStringLiteral("speed"))) {
+            outEffect.speed = resolveUserFloat(consts.value(QStringLiteral("speed")), outEffect.speed);
+        }
+        if (consts.contains(QStringLiteral("strength"))) {
+            outEffect.strength = resolveUserFloat(consts.value(QStringLiteral("strength")), outEffect.strength);
+        }
+        if (consts.contains(QStringLiteral("scale"))) {
+            outEffect.scale = resolveUserFloat(consts.value(QStringLiteral("scale")), outEffect.scale);
+        }
+        if (consts.contains(QStringLiteral("direction"))) {
+            outEffect.direction = resolveUserFloat(consts.value(QStringLiteral("direction")), outEffect.direction);
+        }
+        if (consts.contains(QStringLiteral("rayintensity"))) {
+            outEffect.intensity = resolveUserFloat(consts.value(QStringLiteral("rayintensity")), outEffect.intensity);
+        }
+        if (consts.contains(QStringLiteral("raylength"))) {
+            outEffect.length = resolveUserFloat(consts.value(QStringLiteral("raylength")), outEffect.length);
+        }
+        if (consts.contains(QStringLiteral("center"))) {
+            outEffect.center = parseVector2D(consts.value(QStringLiteral("center")), outEffect.center);
+        }
+
+        // Parse mask texture if present
+        QJsonArray texArr = passObj.value(QStringLiteral("textures")).toArray();
+        for (const auto& t : texArr) {
+            if (t.isString()) {
+                QString maskName = t.toString();
+                if (!maskName.isEmpty()) {
+                    std::string maskPath = maskName.toStdString();
+                    if (!maskPath.ends_with(".tex")) maskPath += ".tex";
+                    if (!maskPath.starts_with("materials/")) maskPath = "materials/" + maskPath;
+                    outEffect.maskPath = maskPath;
+                    resolveTexture(pkgReader, maskPath, outEffect.maskImage);
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+bool SceneParser::resolveModel(Assets::PkgReader& pkgReader, const std::string& modelPath, SceneLayer& layer) {
+    layer.modelPath = modelPath;
+    std::string modelStr = pkgReader.readTextFile(modelPath);
+    if (modelStr.empty()) {
+        return false;
+    }
+
+    QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(modelStr));
+    if (!doc.isObject()) return false;
+
+    QJsonObject obj = doc.object();
+    if (obj.contains(QStringLiteral("cropoffset"))) {
+        layer.cropOffset = parseVector2D(obj.value(QStringLiteral("cropoffset")), QVector2D(0.0f, 0.0f));
+        layer.hasCropOffset = true;
+    }
+
+    QString matPath = obj.value(QStringLiteral("material")).toString();
+    if (!matPath.isEmpty()) {
+        return resolveMaterial(pkgReader, matPath.toStdString(), layer);
+    }
+    return false;
+}
+
+bool SceneParser::resolveMaterial(Assets::PkgReader& pkgReader, const std::string& matPath, SceneLayer& layer) {
+    layer.materialPath = matPath;
+    std::string matStr = pkgReader.readTextFile(matPath);
+    if (matStr.empty()) {
+        for (const auto& file : pkgReader.listFiles()) {
+            if (file.ends_with(matPath) || file.ends_with("/" + matPath)) {
+                matStr = pkgReader.readTextFile(file);
+                break;
+            }
+        }
+    }
+
+    if (matStr.empty()) return false;
+
+    QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(matStr));
+    if (!doc.isObject()) return false;
+
+    QJsonArray passes = doc.object().value(QStringLiteral("passes")).toArray();
+    if (passes.isEmpty()) return false;
+
+    QJsonObject pass0 = passes.at(0).toObject();
+    layer.blending = parseBlendMode(pass0.value(QStringLiteral("blending")).toString());
+
+    QJsonArray textures = pass0.value(QStringLiteral("textures")).toArray();
+    for (const auto& texVal : textures) {
+        QString texName = texVal.isString() ? texVal.toString() : texVal.toObject().value(QStringLiteral("name")).toString();
+        if (texName.isEmpty()) continue;
+
+        std::string fullTexPath = texName.toStdString();
+        if (!fullTexPath.ends_with(".tex")) {
+            fullTexPath += ".tex";
+        }
+        if (!fullTexPath.starts_with("materials/") && !fullTexPath.starts_with("textures/")) {
+            fullTexPath = "materials/" + fullTexPath;
+        }
+
+        layer.texturePath = fullTexPath;
+        if (resolveTexture(pkgReader, fullTexPath, layer.image)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool SceneParser::resolveTexture(Assets::PkgReader& pkgReader, const std::string& texName, QImage& outImage) {
+    auto bytes = pkgReader.readFile(texName);
+    if (bytes.empty()) {
+        std::string nameOnly = texName;
+        size_t slashPos = nameOnly.find_last_of('/');
+        if (slashPos != std::string::npos) {
+            nameOnly = nameOnly.substr(slashPos + 1);
+        }
+
+        for (const auto& file : pkgReader.listFiles()) {
+            if (file.ends_with(texName) || file.ends_with(nameOnly) || file.ends_with("/" + nameOnly)) {
+                bytes = pkgReader.readFile(file);
+                if (!bytes.empty()) break;
+            }
+        }
+    }
+
+    if (bytes.empty()) return false;
+
+    Assets::TexImage texImg;
+    if (Assets::TexParser::parse(bytes, texImg)) {
+        auto rgba = Assets::DxtDecoder::decodeToRgba(texImg, 0);
+        if (!rgba.empty()) {
+            QImage img(rgba.data(), texImg.width, texImg.height, texImg.width * 4, QImage::Format_RGBA8888);
+            outImage = img.copy();
+            return true;
+        }
+    }
+    return false;
+}
+
+bool SceneParser::resolveParticle(Assets::PkgReader& pkgReader, const std::string& particlePath, ParticleEmitterConfig& outEmitter) {
+    std::string fullPath = particlePath;
+    if (!fullPath.ends_with(".json")) fullPath += ".json";
+    if (!fullPath.starts_with("particles/")) fullPath = "particles/" + fullPath;
+
+    std::string jsonStr = pkgReader.readTextFile(fullPath);
+    if (jsonStr.empty()) {
+        for (const auto& f : pkgReader.listFiles()) {
+            if (f.ends_with(particlePath) || f.ends_with(particlePath + ".json")) {
+                jsonStr = pkgReader.readTextFile(f);
+                break;
+            }
+        }
+    }
+
+    if (jsonStr.empty()) return false;
+
+    QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(jsonStr));
+    if (!doc.isObject()) return false;
+
+    QJsonObject obj = doc.object();
+    outEmitter.name = particlePath;
+    
+    float rate = static_cast<float>(obj.value(QStringLiteral("rate")).toDouble(3.0));
+    QJsonArray emitterArr = obj.value(QStringLiteral("emitter")).toArray();
+    if (!emitterArr.isEmpty()) {
+        QJsonObject e0 = emitterArr.at(0).toObject();
+        if (e0.contains(QStringLiteral("rate"))) {
+            rate = static_cast<float>(e0.value(QStringLiteral("rate")).toDouble(rate));
+        }
+    }
+    outEmitter.rate = std::clamp(rate, 0.2f, 15.0f);
+    outEmitter.lifetime = static_cast<float>(obj.value(QStringLiteral("lifetime")).toDouble(5.0));
+
+    QString mat = obj.value(QStringLiteral("material")).toString();
+    if (!mat.isEmpty()) {
+        SceneLayer tmpLayer;
+        resolveMaterial(pkgReader, mat.toStdString(), tmpLayer);
+        outEmitter.particleSprite = tmpLayer.image;
+        outEmitter.blending = tmpLayer.blending;
+    }
+
+    return true;
+}
+
+} // namespace WallpaperEngine::Scene
