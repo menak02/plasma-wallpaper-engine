@@ -6,8 +6,12 @@ namespace WallpaperEngine::Assets {
 
 static std::string normalizePath(std::string path) {
     std::replace(path.begin(), path.end(), '\\', '/');
-    if (path.starts_with("/")) {
+    if (!path.empty() && path[0] == '/') {
         path.erase(0, 1);
+    }
+    // Reject path traversal attempts
+    if (path.find("..") != std::string::npos) {
+        return {};
     }
     return path;
 }
@@ -23,17 +27,26 @@ bool PkgReader::open(const std::filesystem::path& path) {
 
     try {
         std::string header = readSizedString();
-        if (!header.starts_with("PKGV")) {
+        if (header.size() < 4 || header.compare(0, 4, "PKGV") != 0) {
             std::cerr << "Invalid PKG header: " << header << std::endl;
             close();
             return false;
         }
 
         uint32_t fileCount = readUInt32();
+        if (fileCount > 1024) {
+            std::cerr << "PKG file has too many entries: " << fileCount << std::endl;
+            close();
+            return false;
+        }
         m_entries.reserve(fileCount);
 
         for (uint32_t i = 0; i < fileCount; ++i) {
             std::string filename = normalizePath(readSizedString());
+            if (filename.empty()) {
+                // Skip malicious or empty filename
+                continue;
+            }
             uint32_t offset = readUInt32();
             uint32_t length = readUInt32();
 
@@ -93,6 +106,10 @@ std::vector<uint8_t> PkgReader::readFile(const std::string& filename) {
 std::string PkgReader::readTextFile(const std::string& filename) {
     auto bytes = readFile(filename);
     if (bytes.empty()) {
+        return {};
+    }
+    // Limit text file size to 256KB to prevent excessive memory usage
+    if (bytes.size() > 256 * 1024) {
         return {};
     }
     return std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());

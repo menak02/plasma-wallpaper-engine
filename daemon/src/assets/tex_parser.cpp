@@ -215,6 +215,14 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
                 if (mipWidth == 0 || mipHeight == 0 || compSize == 0 || compSize > file.remaining()) {
                     continue;
                 }
+                // Validate uncompressed size to prevent excessive memory allocation
+                if (uncompSize > 100 * 1024 * 1024) { // 100 MB
+                    continue;
+                }
+                // Validate uncompressed size to prevent excessive memory allocation
+                if (uncompSize < 0 || uncompSize > 100 * 1024 * 1024) { // 100 MB
+                    continue;
+                }
 
                 Mipmap mip;
                 mip.width = mipWidth;
@@ -284,12 +292,30 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
                 for (uint32_t mipIdx = 0; mipIdx < mipmapCount; ++mipIdx) {
                     file.skip(4); // extra1
                     file.skip(4); // extra2
-                    // Null-terminated JSON string
+                    // Null-terminated JSON string - check for path traversal
+                    bool hasPathTraversal = false;
+                    char prev = 0;
                     while (file.remaining() > 0) {
                         uint8_t ch = *file.currentPtr();
                         file.skip(1);
                         if (ch == 0) break;
+                        if (ch == '.' && prev == '.') {
+                            hasPathTraversal = true;
+                        }
+                        prev = ch;
                     }
+
+                    if (hasPathTraversal) {
+                        // Skip the rest of this mipmap: extra3, width, height, compression, uncompressedSize, compressedSize
+                        file.skip(4); // extra3
+                        file.skip(4); // width
+                        file.skip(4); // height
+                        file.skip(4); // compression
+                        file.skip(4); // uncompressedSize
+                        file.skip(4); // compressedSize
+                        continue;
+                    }
+
                     file.skip(4); // extra3
 
                     uint32_t mipWidth = file.readUInt32();
@@ -299,6 +325,10 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
                     int32_t compressedSize = file.readInt32();
 
                     if (compression == 0) uncompressedSize = compressedSize;
+                    // Validate uncompressed size to prevent excessive memory allocation and negative values
+                    if (uncompressedSize < 0 || uncompressedSize > 100 * 1024 * 1024) {
+                        continue;
+                    }
                     if (mipWidth == 0 || mipHeight == 0 || compressedSize <= 0) continue;
                     if (static_cast<uint32_t>(compressedSize) > file.remaining()) continue;
 
@@ -337,6 +367,10 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
                     int32_t compressedSize = file.readInt32();
 
                     if (compression == 0) uncompressedSize = compressedSize;
+                    // Validate uncompressed size to prevent excessive memory allocation and negative values
+                    if (uncompressedSize < 0 || uncompressedSize > 100 * 1024 * 1024) {
+                        continue;
+                    }
                     if (mipWidth == 0 || mipHeight == 0 || compressedSize <= 0) continue;
                     if (static_cast<uint32_t>(compressedSize) > file.remaining()) continue;
 

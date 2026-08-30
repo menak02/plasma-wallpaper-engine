@@ -4,11 +4,17 @@
 #include <QElapsedTimer>
 #include <QDBusConnection>
 #include <QDBusError>
-#include <iostream>
 #include <csignal>
+#include <iostream>
 
 #include "vulkan/vulkan_context.h"
 #include "ipc/wallpaper_service.h"
+
+volatile sig_atomic_t g_quitRequested = 0;
+
+static void signalHandler(int signal) {
+    g_quitRequested = 1;
+}
 
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
@@ -34,14 +40,14 @@ int main(int argc, char *argv[]) {
     // Register DBus service on session bus
     WallpaperEngine::IPC::WallpaperService service(&vulkanCtx);
     QDBusConnection connection = QDBusConnection::sessionBus();
-    
+
     if (!connection.registerService(QStringLiteral("org.antigravity.WallpaperEngine"))) {
         qWarning() << "Service already registered or failed:" << connection.lastError().message();
     }
 
     if (!connection.registerObject(QStringLiteral("/WallpaperEngine"), &service,
-                                  QDBusConnection::ExportAllSlots | 
-                                  QDBusConnection::ExportAllSignals | 
+                                  QDBusConnection::ExportAllSlots |
+                                  QDBusConnection::ExportAllSignals |
                                   QDBusConnection::ExportAllProperties)) {
         qCritical() << "Failed to register DBus object:" << connection.lastError().message();
         return 1;
@@ -52,12 +58,18 @@ int main(int argc, char *argv[]) {
     // 60 FPS Simulation & Render Loop
     QTimer frameTimer;
     frameTimer.setInterval(16); // ~60 FPS
-    
+
     QElapsedTimer elapsed;
     elapsed.start();
     qint64 lastTime = 0;
 
     QObject::connect(&frameTimer, &QTimer::timeout, [&]() {
+        // Check if we have been requested to quit via signal
+        if (g_quitRequested) {
+            QCoreApplication::quit();
+            return;
+        }
+
         qint64 now = elapsed.elapsed();
         float dt = (now - lastTime) / 1000.0f;
         if (dt <= 0.0f || dt > 0.1f) dt = 0.0166f;
@@ -77,9 +89,9 @@ int main(int argc, char *argv[]) {
 
     frameTimer.start();
 
-    // Signal handlers
-    signal(SIGINT, [](int) { QCoreApplication::quit(); });
-    signal(SIGTERM, [](int) { QCoreApplication::quit(); });
+    // Signal handlers using signal() and setting a flag (async-signal-safe)
+    signal(SIGINT, signalHandler);
+    signal(SIGTERM, signalHandler);
 
     return app.exec();
 }

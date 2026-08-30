@@ -65,30 +65,41 @@ int main(int argc, char* argv[]) {
     std::string workshopBase = QDir::homePath().toStdString()
         + "/.local/share/Steam/steamapps/workshop/content/431960";
     std::string outputDir = QDir::homePath().toStdString() + "/.wallpaper-engine-verifier-output";
-
     std::string filterId;
-    if (argc > 1) {
-        std::string a1 = argv[1];
-        if (a1 == "--id" && argc > 2) {
-            filterId = argv[2];
+
+    int argIndex = 1;
+    while (argIndex < argc) {
+        std::string arg = argv[argIndex];
+        if (arg == "--help") {
+            std::cout << "Usage: plasma-wallpaper-engine-verifier [options] [workshopPath]\n"
+                      << "Options:\n"
+                      << "  --id <wallpaper_id>   Only process the specified wallpaper ID\n"
+                      << "  --help                Show this help message\n"
+                      << "Arguments:\n"
+                      << "  workshopPath          Path to the workshop content directory (default: Steam workshop)\n"
+                      << std::endl;
+            return 0;
+        } else if (arg == "--id") {
+            if (argIndex + 1 >= argc) {
+                std::cerr << "Error: --id requires an argument\n";
+                return 1;
+            }
+            filterId = argv[argIndex+1];
+            argIndex += 2;
         } else {
-            workshopBase = a1;
-        }
-    }
-    if (argc > 2) {
-        std::string a2 = argv[2];
-        if (a2 == "--id" && argc > 3) {
-            filterId = argv[3];
-        } else if (filterId.empty()) {
-            outputDir = a2;
-        }
-    }
-    if (argc > 3) {
-        std::string a3 = argv[3];
-        if (a3 == "--id" && argc > 4) {
-            filterId = argv[4];
-        } else if (filterId.empty()) {
-            outputDir = a3;
+            // Non-option argument
+            if (workshopBase == QDir::homePath().toStdString()
+                    + "/.local/share/Steam/steamapps/workshop/content/431960") {
+                // Still using the default workshopBase, so set it
+                workshopBase = arg;
+            } else if (outputDir == QDir::homePath().toStdString()
+                           + "/.wallpaper-engine-verifier-output") {
+                // Still using the default outputDir, so set it
+                outputDir = arg;
+            } else {
+                std::cerr << "Warning: extra argument ignored: " << arg << std::endl;
+            }
+            argIndex++;
         }
     }
 
