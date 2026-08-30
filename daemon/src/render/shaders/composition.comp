@@ -1,0 +1,43 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(set = 0, binding = 0) uniform sampler2D currentImage;
+layout(set = 0, binding = 1) uniform sampler2D backgroundImage;
+layout(set = 0, binding = 2) uniform writeonly image2D outputImage;
+
+layout(push_constant) uniform CompositionParams {
+    int blendMode;
+    uint width;
+    uint height;
+} params;
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    if (coord.x >= int(params.width) || coord.y >= int(params.height)) {
+        return;
+    }
+
+    vec2 uv = vec2(float(coord.x) / float(params.width), float(coord.y) / float(params.height));
+    vec4 current = texture(currentImage, uv);
+    vec4 background = texture(backgroundImage, uv);
+    vec4 result;
+
+    // Blend modes matching Wallpaper Engine
+    // 0 = SourceOver, 1 = Multiply, 2 = Screen, 3 = Additive/Plus
+    if (params.blendMode == 1) {
+        // Multiply
+        result = current * background;
+    } else if (params.blendMode == 2) {
+        // Screen
+        result = vec4(1.0) - (vec4(1.0) - current) * (vec4(1.0) - background);
+    } else if (params.blendMode == 3) {
+        // Additive / Plus
+        result = current + background;
+    } else {
+        // SourceOver (default)
+        result = current + background * (vec4(1.0) - current.a);
+    }
+
+    imageStore(outputImage, coord, result);
+}

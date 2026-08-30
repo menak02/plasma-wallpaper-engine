@@ -1,0 +1,46 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(set = 0, binding = 0) uniform sampler2D inputImage;
+layout(set = 0, binding = 1) uniform writeonly image2D outputImage;
+
+layout(push_constant) uniform BlurParams {
+    float radius;
+    int vertical;
+    uint width;
+    uint height;
+} params;
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    if (coord.x >= int(params.width) || coord.y >= int(params.height)) {
+        return;
+    }
+
+    vec4 color = vec4(0.0);
+    float totalWeight = 0.0;
+    int r = int(params.radius);
+    r = clamp(r, 1, 16);
+
+    if (params.vertical == 1) {
+        // Vertical blur
+        for (int i = -r; i <= r; ++i) {
+            int y = clamp(coord.y + i, 0, int(params.height) - 1);
+            float weight = 1.0 - float(abs(i)) / float(r + 1);
+            color += texture(inputImage, vec2(float(coord.x) / float(params.width), float(y) / float(params.height))) * weight;
+            totalWeight += weight;
+        }
+    } else {
+        // Horizontal blur
+        for (int i = -r; i <= r; ++i) {
+            int x = clamp(coord.x + i, 0, int(params.width) - 1);
+            float weight = 1.0 - float(abs(i)) / float(r + 1);
+            color += texture(inputImage, vec2(float(x) / float(params.width), float(coord.y) / float(params.height))) * weight;
+            totalWeight += weight;
+        }
+    }
+
+    color /= totalWeight;
+    imageStore(outputImage, coord, color);
+}
