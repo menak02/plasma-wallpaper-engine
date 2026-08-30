@@ -306,6 +306,26 @@ daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/render_graph.c
  /usr/include/qt6/QtCore/qscopedpointer.h /usr/include/qt6/QtCore/qspan.h \
  /usr/include/c++/16/cassert /usr/include/qt6/QtCore/q20iterator.h \
  /usr/include/qt6/QtCore/qline.h /usr/include/qt6/QtGui/QColor \
+ /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.h \
+ /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/../vulkan/vulkan_context.h \
+ /usr/include/vulkan/vulkan.h /usr/include/vulkan/vk_platform.h \
+ /usr/include/vulkan/vulkan_core.h \
+ /usr/include/vk_video/vulkan_video_codec_h264std.h \
+ /usr/include/vk_video/vulkan_video_codecs_common.h \
+ /usr/include/vk_video/vulkan_video_codec_h264std_encode.h \
+ /usr/include/vk_video/vulkan_video_codec_h264std.h \
+ /usr/include/vk_video/vulkan_video_codec_h265std.h \
+ /usr/include/vk_video/vulkan_video_codec_h265std_encode.h \
+ /usr/include/vk_video/vulkan_video_codec_h265std.h \
+ /usr/include/vk_video/vulkan_video_codec_h264std_decode.h \
+ /usr/include/vk_video/vulkan_video_codec_h265std_decode.h \
+ /usr/include/vk_video/vulkan_video_codec_av1std.h \
+ /usr/include/vk_video/vulkan_video_codec_av1std_decode.h \
+ /usr/include/vk_video/vulkan_video_codec_av1std.h \
+ /usr/include/vk_video/vulkan_video_codec_av1std_encode.h \
+ /usr/include/vk_video/vulkan_video_codec_vp9std.h \
+ /usr/include/vk_video/vulkan_video_codec_vp9std_decode.h \
+ /usr/include/vk_video/vulkan_video_codec_vp9std.h \
  /usr/include/qt6/QtGui/QPainter /usr/include/qt6/QtGui/qpainter.h \
  /usr/include/qt6/QtGui/qpixmap.h /usr/include/qt6/QtCore/qshareddata.h \
  /usr/include/qt6/QtGui/qtextoption.h /usr/include/qt6/QtCore/qmetatype.h \

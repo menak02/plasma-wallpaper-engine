@@ -60,6 +60,12 @@
 			null
 		],
 		[
+			"/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/plugin/wallpaper_plugin.h",
+			"Mu",
+			"A5X77Q3VFH/moc_wallpaper_plugin.cpp",
+			null
+		],
+		[
 			"/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/mesh_renderer.h",
 			"Mu",
 			"JXX2CMMHHR/moc_mesh_renderer.cpp",
@@ -69,6 +75,12 @@
 			"/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/render_graph.h",
 			"Mu",
 			"JXX2CMMHHR/moc_render_graph.cpp",
+			null
+		],
+		[
+			"/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.h",
+			"Mu",
+			"JXX2CMMHHR/moc_vulkan_compute.cpp",
 			null
 		],
 		[
@@ -197,12 +209,22 @@
 			null
 		],
 		[
+			"/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/plugin/wallpaper_plugin.cpp",
+			"Mu",
+			null
+		],
+		[
 			"/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/mesh_renderer.cpp",
 			"Mu",
 			null
 		],
 		[
 			"/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/render_graph.cpp",
+			"Mu",
+			null
+		],
+		[
+			"/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.cpp",
 			"Mu",
 			null
 		],

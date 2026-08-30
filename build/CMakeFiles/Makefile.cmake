@@ -8,8 +8,8 @@ set(CMAKE_DEPENDS_GENERATOR "Unix Makefiles")
 set(CMAKE_MAKEFILE_DEPENDS
   "CMakeCache.txt"
   "/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/CMakeLists.txt"
-  "CMakeFiles/4.4.2/CMakeCXXCompiler.cmake"
-  "CMakeFiles/4.4.2/CMakeSystem.cmake"
+  "CMakeFiles/4.4.3/CMakeCXXCompiler.cmake"
+  "CMakeFiles/4.4.3/CMakeSystem.cmake"
   "/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/CMakeLists.txt"
   "/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/viewer/CMakeLists.txt"
   "/usr/lib/cmake/Qt6/FindWrapAtomic.cmake"

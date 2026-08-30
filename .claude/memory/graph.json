@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "learning-js-visibility-for-wallpaper-engine-layers",
+      "type": "learning",
+      "title": "JS visibility for Wallpaper Engine layers",
+      "scope": "project"
+    },
+    {
+      "id": "learning-scene-compositor-effect-rendering",
+      "type": "learning",
+      "title": "Scene compositor effect rendering",
+      "scope": "project"
+    },
+    {
+      "id": "decision-js-engine-choice",
+      "type": "decision",
+      "title": "Use QJSEngine for JS visibility evaluation",
+      "scope": "project"
+    },
+    {
+      "id": "learning-worktree-isolation-for-cpp-edits",
+      "type": "learning",
+      "title": "Worktree isolation for cpp edits",
+      "scope": "project"
+    },
+    {
+      "id": "artifact-wallpaper-batch-verifier",
+      "type": "artifact",
+      "title": "Wallaper Engine batch verifier",
+      "scope": "project"
+    },
+    {
+      "id": "learning-video-decoder-uaf-fix",
+      "type": "learning",
+      "title": "video-decoder-uaf-fix",
+      "scope": "project"
+    },
+    {
+      "id": "learning-security-priorities-plasma-wallpaper",
+      "type": "learning",
+      "title": "security-priorities-plasma-wallpaper",
+      "scope": "project"
+    },
+    {
+      "id": "decision-dbus-path-validation",
+      "type": "decision",
+      "title": "dbus-path-validation",
+      "scope": "project"
+    },
+    {
+      "id": "artifact-qt-stub-pattern",
+      "type": "artifact",
+      "title": "qt-stub-pattern",
+      "scope": "project"
+    }
+  ],
+  "edges": []
+}

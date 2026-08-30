@@ -16,10 +16,14 @@ plasma-wallpaper-engine-daemon_autogen/timestamp: \
 	/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/ipc/wallpaper_service.cpp \
 	/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/ipc/wallpaper_service.h \
 	/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/main.cpp \
+	/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/plugin/wallpaper_plugin.cpp \
+	/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/plugin/wallpaper_plugin.h \
 	/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/mesh_renderer.cpp \
 	/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/mesh_renderer.h \
 	/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/render_graph.cpp \
 	/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/render_graph.h \
+	/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.cpp \
+	/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.h \
 	/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/particle_engine.cpp \
 	/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/particle_engine.h \
 	/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/scene_compositor.cpp \

@@ -506,6 +506,33 @@ src/main.cpp.s:
 	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build && $(MAKE) $(MAKESILENT) -f daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/build.make daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.s
 .PHONY : src/main.cpp.s
 
+src/plugin/wallpaper_plugin.o: src/plugin/wallpaper_plugin.cpp.o
+.PHONY : src/plugin/wallpaper_plugin.o
+
+# target to build an object file
+src/plugin/wallpaper_plugin.cpp.o:
+	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build && $(MAKE) $(MAKESILENT) -f daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/build.make daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/plugin/wallpaper_plugin.cpp.o
+	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build && $(MAKE) $(MAKESILENT) -f daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/build.make daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.o
+.PHONY : src/plugin/wallpaper_plugin.cpp.o
+
+src/plugin/wallpaper_plugin.i: src/plugin/wallpaper_plugin.cpp.i
+.PHONY : src/plugin/wallpaper_plugin.i
+
+# target to preprocess a source file
+src/plugin/wallpaper_plugin.cpp.i:
+	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build && $(MAKE) $(MAKESILENT) -f daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/build.make daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/plugin/wallpaper_plugin.cpp.i
+	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build && $(MAKE) $(MAKESILENT) -f daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/build.make daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.i
+.PHONY : src/plugin/wallpaper_plugin.cpp.i
+
+src/plugin/wallpaper_plugin.s: src/plugin/wallpaper_plugin.cpp.s
+.PHONY : src/plugin/wallpaper_plugin.s
+
+# target to generate assembly for a file
+src/plugin/wallpaper_plugin.cpp.s:
+	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build && $(MAKE) $(MAKESILENT) -f daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/build.make daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/plugin/wallpaper_plugin.cpp.s
+	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build && $(MAKE) $(MAKESILENT) -f daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/build.make daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.s
+.PHONY : src/plugin/wallpaper_plugin.cpp.s
+
 src/render/mesh_renderer.o: src/render/mesh_renderer.cpp.o
 .PHONY : src/render/mesh_renderer.o
 
@@ -559,6 +586,33 @@ src/render/render_graph.cpp.s:
 	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build && $(MAKE) $(MAKESILENT) -f daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/build.make daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/render_graph.cpp.s
 	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build && $(MAKE) $(MAKESILENT) -f daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/build.make daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/render_graph.cpp.s
 .PHONY : src/render/render_graph.cpp.s
+
+src/render/vulkan_compute.o: src/render/vulkan_compute.cpp.o
+.PHONY : src/render/vulkan_compute.o
+
+# target to build an object file
+src/render/vulkan_compute.cpp.o:
+	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build && $(MAKE) $(MAKESILENT) -f daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/build.make daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/vulkan_compute.cpp.o
+	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build && $(MAKE) $(MAKESILENT) -f daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/build.make daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.o
+.PHONY : src/render/vulkan_compute.cpp.o
+
+src/render/vulkan_compute.i: src/render/vulkan_compute.cpp.i
+.PHONY : src/render/vulkan_compute.i
+
+# target to preprocess a source file
+src/render/vulkan_compute.cpp.i:
+	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build && $(MAKE) $(MAKESILENT) -f daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/build.make daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/vulkan_compute.cpp.i
+	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build && $(MAKE) $(MAKESILENT) -f daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/build.make daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.i
+.PHONY : src/render/vulkan_compute.cpp.i
+
+src/render/vulkan_compute.s: src/render/vulkan_compute.cpp.s
+.PHONY : src/render/vulkan_compute.s
+
+# target to generate assembly for a file
+src/render/vulkan_compute.cpp.s:
+	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build && $(MAKE) $(MAKESILENT) -f daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/build.make daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/vulkan_compute.cpp.s
+	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build && $(MAKE) $(MAKESILENT) -f daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/build.make daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.s
+.PHONY : src/render/vulkan_compute.cpp.s
 
 src/scene/particle_engine.o: src/scene/particle_engine.cpp.o
 .PHONY : src/scene/particle_engine.o
@@ -740,12 +794,18 @@ help:
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
+	@echo "... src/plugin/wallpaper_plugin.o"
+	@echo "... src/plugin/wallpaper_plugin.i"
+	@echo "... src/plugin/wallpaper_plugin.s"
 	@echo "... src/render/mesh_renderer.o"
 	@echo "... src/render/mesh_renderer.i"
 	@echo "... src/render/mesh_renderer.s"
 	@echo "... src/render/render_graph.o"
 	@echo "... src/render/render_graph.i"
 	@echo "... src/render/render_graph.s"
+	@echo "... src/render/vulkan_compute.o"
+	@echo "... src/render/vulkan_compute.i"
+	@echo "... src/render/vulkan_compute.s"
 	@echo "... src/scene/particle_engine.o"
 	@echo "... src/scene/particle_engine.i"
 	@echo "... src/scene/particle_engine.s"

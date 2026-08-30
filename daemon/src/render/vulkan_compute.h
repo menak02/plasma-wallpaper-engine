@@ -1,17 +1,21 @@
 #pragma once
 
-#include "vulkan/vulkan_context.h"
+#include "../vulkan/vulkan_context.h"
 #include <string>
 #include <vector>
 #include <unordered_map>
 #include <memory>
+#include <functional>
+#include <span>
 #include <vulkan/vulkan.h>
 
 namespace WallpaperEngine::Render {
 
 struct ComputeShader {
     VkShaderModule module = VK_NULL_HANDLE;
-    std::string entryPoint = "main";
+    std::string entryPoint;
+
+    ComputeShader() : entryPoint("main") {}
 };
 
 struct ComputePipeline {

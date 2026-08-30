@@ -17,6 +17,8 @@ plasma-wallpaper-engine-verifier: \
   CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/audio/audio_player.cpp.o \
   CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/vulkan/vulkan_context.cpp.o \
   CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/ipc/wallpaper_service.cpp.o \
+  CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.o \
+  CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.o \
   /usr/lib/libQt6Gui.so.6.11.2 \
   /usr/lib/libQt6DBus.so.6.11.2 \
   /usr/lib/libQt6Network.so.6.11.2 \
@@ -301,6 +303,10 @@ CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/audio/audio_player.cpp.o:
 CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/vulkan/vulkan_context.cpp.o:
 
 CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/ipc/wallpaper_service.cpp.o:
+
+CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.o:
+
+CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.o:
 
 /usr/lib/libQt6Gui.so.6.11.2:
 

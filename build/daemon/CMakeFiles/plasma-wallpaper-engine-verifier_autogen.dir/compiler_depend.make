@@ -17,10 +17,14 @@ daemon/plasma-wallpaper-engine-verifier_autogen/timestamp: daemon/plasma-wallpap
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/audio/audio_player.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/ipc/wallpaper_service.cpp \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/ipc/wallpaper_service.h \
+  /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/plugin/wallpaper_plugin.cpp \
+  /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/plugin/wallpaper_plugin.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/mesh_renderer.cpp \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/mesh_renderer.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/render_graph.cpp \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/render_graph.h \
+  /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.cpp \
+  /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/particle_engine.cpp \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/particle_engine.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/scene_compositor.cpp \
@@ -704,9 +708,11 @@ daemon/plasma-wallpaper-engine-verifier_autogen/timestamp: daemon/plasma-wallpap
 
 /usr/include/qt6/QtCore/qyieldcpu.h:
 
-/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/audio/audio_player.cpp:
+/usr/include/qt6/QtCore/qvariantmap.h:
 
-/usr/include/c++/16/cstdio:
+/usr/include/qt6/QtCore/qvariant.h:
+
+/usr/include/qt6/QtCore/quuid.h:
 
 /usr/include/c++/16/cstdint:
 
@@ -842,10 +848,6 @@ daemon/plasma-wallpaper-engine-verifier_autogen/timestamp: daemon/plasma-wallpap
 
 /usr/include/bits/struct_mutex.h:
 
-/usr/include/c++/16/bits/string_view.tcc:
-
-/usr/include/c++/16/ext/atomicity.h:
-
 /usr/share/cmake/Modules/FindPkgConfig.cmake:
 
 /usr/include/c++/16/bits/move.h:
@@ -862,15 +864,15 @@ daemon/plasma-wallpaper-engine-verifier_autogen/timestamp: daemon/plasma-wallpap
 
 /usr/include/bits/mathcalls-narrow.h:
 
-/usr/include/c++/16/bits/stl_bvector.h:
-
-/usr/include/c++/16/bits/functional_hash.h:
-
 /usr/include/c++/16/bits/functexcept.h:
 
 /usr/include/c++/16/bits/utility.h:
 
 /usr/include/c++/16/bits/hash_bytes.h:
+
+/usr/include/qt6/QtCore/qvariantlist.h:
+
+/usr/include/c++/16/bits/erase_if.h:
 
 /usr/include/c++/16/tr1/gamma.tcc:
 
@@ -879,8 +881,6 @@ daemon/plasma-wallpaper-engine-verifier_autogen/timestamp: daemon/plasma-wallpap
 /usr/include/c++/16/bits/stl_multimap.h:
 
 /usr/include/qt6/QtCore/qhashfunctions.h:
-
-/usr/include/c++/16/bits/codecvt.h:
 
 /usr/include/c++/16/bits/chrono.h:
 
@@ -899,8 +899,6 @@ daemon/plasma-wallpaper-engine-verifier_autogen/timestamp: daemon/plasma-wallpap
 /usr/include/c++/16/bits/char_traits.h:
 
 /usr/include/bits/types/__fpos_t.h:
-
-/usr/include/qt6/QtCore/qvariantmap.h:
 
 /usr/include/qt6/QtCore/qfunctionpointer.h:
 
@@ -926,6 +924,18 @@ daemon/plasma-wallpaper-engine-verifier_autogen/timestamp: daemon/plasma-wallpap
 
 /usr/include/c++/16/bits/alloc_traits.h:
 
+/usr/include/c++/16/bits/algorithmfwd.h:
+
+/usr/include/c++/16/bits/list.tcc:
+
+/usr/include/bits/libm-simd-decl-stubs.h:
+
+/usr/include/c++/16/tr1/bessel_function.tcc:
+
+/usr/include/qt6/QtCore/QTimer:
+
+/usr/include/c++/16/bits/stl_list.h:
+
 /usr/include/c++/16/bits/ios_base.h:
 
 /usr/include/bits/iscanonical.h:
@@ -935,16 +945,6 @@ daemon/plasma-wallpaper-engine-verifier_autogen/timestamp: daemon/plasma-wallpap
 /usr/include/c++/16/bits/stl_raw_storage_iter.h:
 
 /usr/include/bits/fp-fast.h:
-
-/usr/include/c++/16/bits/list.tcc:
-
-/usr/include/bits/libm-simd-decl-stubs.h:
-
-/usr/include/c++/16/bits/algorithmfwd.h:
-
-/usr/include/c++/16/tr1/bessel_function.tcc:
-
-/usr/include/qt6/QtCore/QTimer:
 
 /usr/include/bits/endianness.h:
 
@@ -969,12 +969,6 @@ daemon/plasma-wallpaper-engine-verifier_autogen/timestamp: daemon/plasma-wallpap
 /usr/include/qt6/QtCore/qeventloop.h:
 
 /usr/include/bits/byteswap.h:
-
-/usr/include/c++/16/bits/iterator_concepts.h:
-
-/usr/include/bits/local_lim.h:
-
-/usr/include/qt6/QtCore/qtcoreexports.h:
 
 /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/ipc/wallpaper_service.h:
 
@@ -1010,11 +1004,31 @@ daemon/plasma-wallpaper-engine-verifier_autogen/timestamp: daemon/plasma-wallpap
 
 /usr/include/c++/16/clocale:
 
-/usr/include/qt6/QtCore/qtclasshelpermacros.h:
+/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/assets/video_decoder.h:
 
-/usr/include/c++/16/x86_64-pc-linux-gnu/bits/atomic_word.h:
+/usr/include/bits/stdlib-float.h:
 
-/usr/include/qt6/QtCore/quuid.h:
+/usr/include/qt6/QtGui/qfontmetrics.h:
+
+/usr/include/qt6/QtGui/QVector4D:
+
+/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/tools/batch_verifier.cpp:
+
+/usr/include/c++/16/bits/exception_defines.h:
+
+/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/CMakeLists.txt:
+
+/usr/include/qt6/QtCore/qstringtokenizer.h:
+
+/usr/include/c++/16/concepts:
+
+/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/scene_parser.h:
+
+/usr/include/bits/types.h:
+
+/usr/include/qt6/QtCore/qiodevice.h:
+
+/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/audio/audio_player.cpp:
 
 /usr/include/c++/16/bits/stl_map.h:
 
@@ -1044,36 +1058,6 @@ daemon/plasma-wallpaper-engine-verifier_autogen/moc_predefs.h:
 
 /usr/include/bits/types/struct_FILE.h:
 
-/usr/share/cmake/Modules/FindPackageMessage.cmake:
-
-/usr/include/qt6/QtCore/QVariantMap:
-
-/usr/include/c++/16/bits/sstream.tcc:
-
-/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/scene_compositor.cpp:
-
-/usr/include/qt6/QtGui/qvectornd.h:
-
-/usr/include/bits/types/__locale_t.h:
-
-/usr/include/bits/posix1_lim.h:
-
-/usr/include/c++/16/cctype:
-
-/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/assets/dxt_decoder.h:
-
-/usr/include/c++/16/concepts:
-
-/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/scene_parser.h:
-
-/usr/include/bits/types.h:
-
-/usr/include/qt6/QtCore/qiodevice.h:
-
-/usr/include/c++/16/bits/invoke.h:
-
-/usr/include/bits/floatn-common.h:
-
 /usr/include/qt6/QtCore/q17memory.h:
 
 /usr/include/c++/16/bits/enable_special_members.h:
@@ -1084,17 +1068,19 @@ daemon/plasma-wallpaper-engine-verifier_autogen/moc_predefs.h:
 
 /usr/include/bits/timex.h:
 
-/usr/include/c++/16/bits/exception_defines.h:
+/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/plugin/wallpaper_plugin.h:
 
-/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/CMakeLists.txt:
+/usr/include/bits/setjmp.h:
 
-/usr/include/qt6/QtCore/qstringtokenizer.h:
+/usr/include/libavutil/macros.h:
 
-/usr/include/qt6/QtGui/qfontmetrics.h:
+/usr/include/c++/16/x86_64-pc-linux-gnu/bits/c++config.h:
 
-/usr/include/qt6/QtGui/QVector4D:
+/usr/include/bits/types/struct_timespec.h:
 
-/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/tools/batch_verifier.cpp:
+/usr/include/qt6/QtGui/qgenericmatrix.h:
+
+/usr/include/qt6/QtCore/qiterable.h:
 
 /usr/include/sched.h:
 
@@ -1116,19 +1102,9 @@ daemon/plasma-wallpaper-engine-verifier_autogen/moc_predefs.h:
 
 /usr/include/c++/16/bits/ostream_insert.h:
 
-/usr/include/qt6/QtCore/qvariant.h:
-
 /usr/include/bits/floatn.h:
 
 /usr/include/c++/16/bits/vector.tcc:
-
-/usr/lib/gcc/x86_64-pc-linux-gnu/16/include/stdarg.h:
-
-/usr/include/c++/16/bits/stl_uninitialized.h:
-
-/usr/include/c++/16/cstring:
-
-/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/assets/dxt_decoder.cpp:
 
 /usr/include/c++/16/bits/specfun.h:
 
@@ -1137,8 +1113,6 @@ daemon/plasma-wallpaper-engine-verifier_autogen/moc_predefs.h:
 /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/assets/pkg_reader.cpp:
 
 /usr/include/bits/math-vector.h:
-
-/usr/include/c++/16/bits/stl_list.h:
 
 /usr/include/c++/16/bits/std_function.h:
 
@@ -1172,11 +1146,15 @@ daemon/plasma-wallpaper-engine-verifier_autogen/moc_predefs.h:
 
 /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/vulkan/vulkan_context.cpp:
 
+/usr/include/c++/16/bits/codecvt.h:
+
+/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/plugin/wallpaper_plugin.cpp:
+
+/usr/include/qt6/QtCore/qtclasshelpermacros.h:
+
+/usr/include/c++/16/x86_64-pc-linux-gnu/bits/atomic_word.h:
+
 /usr/include/bits/endian.h:
-
-/usr/include/qt6/QtCore/qprocessordetection.h:
-
-/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/mesh_renderer.cpp:
 
 /usr/include/bits/posix2_lim.h:
 
@@ -1194,9 +1172,45 @@ daemon/plasma-wallpaper-engine-verifier_autogen/moc_predefs.h:
 
 /usr/include/qt6/QtCore/QObject:
 
+/usr/share/cmake/Modules/FindPackageMessage.cmake:
+
+/usr/include/qt6/QtCore/QVariantMap:
+
+/usr/include/c++/16/bits/sstream.tcc:
+
+/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/scene_compositor.cpp:
+
+/usr/include/qt6/QtGui/qvectornd.h:
+
+/usr/include/bits/types/__locale_t.h:
+
 /usr/include/bits/errno.h:
 
 /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/render_graph.h:
+
+/usr/include/bits/posix1_lim.h:
+
+/usr/include/c++/16/cctype:
+
+/usr/include/bits/floatn-common.h:
+
+/usr/include/c++/16/bits/invoke.h:
+
+/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/mesh_renderer.cpp:
+
+/usr/include/qt6/QtCore/qprocessordetection.h:
+
+/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/assets/dxt_decoder.h:
+
+/usr/include/c++/16/bits/stl_bvector.h:
+
+/usr/include/c++/16/bits/functional_hash.h:
+
+/usr/include/c++/16/bits/string_view.tcc:
+
+/usr/include/c++/16/ext/atomicity.h:
+
+/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.h:
 
 /usr/include/qt6/QtCore/qbytearraylist.h:
 
@@ -1206,9 +1220,13 @@ daemon/plasma-wallpaper-engine-verifier_autogen/moc_predefs.h:
 
 /usr/include/c++/16/new:
 
-/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/assets/video_decoder.h:
+/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.cpp:
 
-/usr/include/bits/stdlib-float.h:
+/usr/include/c++/16/bits/iterator_concepts.h:
+
+/usr/include/bits/local_lim.h:
+
+/usr/include/qt6/QtCore/qtcoreexports.h:
 
 /usr/include/bits/long-double.h:
 
@@ -1277,12 +1295,6 @@ daemon/plasma-wallpaper-engine-verifier_autogen/moc_predefs.h:
 /usr/include/bits/types/cookie_io_functions_t.h:
 
 /usr/include/bits/select.h:
-
-/usr/include/bits/setjmp.h:
-
-/usr/include/libavutil/macros.h:
-
-/usr/include/c++/16/x86_64-pc-linux-gnu/bits/c++config.h:
 
 /usr/include/bits/types/struct___jmp_buf_tag.h:
 
@@ -1396,11 +1408,13 @@ daemon/plasma-wallpaper-engine-verifier_autogen/moc_predefs.h:
 
 /usr/include/qt6/QtCore/qcompilerdetection.h:
 
-/usr/include/bits/types/struct_timespec.h:
+/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/assets/dxt_decoder.cpp:
 
-/usr/include/qt6/QtGui/qgenericmatrix.h:
+/usr/lib/gcc/x86_64-pc-linux-gnu/16/include/stdarg.h:
 
-/usr/include/qt6/QtCore/qiterable.h:
+/usr/include/c++/16/bits/stl_uninitialized.h:
+
+/usr/include/c++/16/cstring:
 
 /usr/include/bits/types/struct_tm.h:
 
@@ -1419,6 +1433,8 @@ daemon/plasma-wallpaper-engine-verifier_autogen/moc_predefs.h:
 /usr/include/qt6/QtCore/qsize.h:
 
 /usr/include/qt6/QtCore/qtnoop.h:
+
+/usr/include/c++/16/cstdio:
 
 /usr/include/qt6/QtCore/qcompare_impl.h:
 
@@ -1501,10 +1517,6 @@ daemon/plasma-wallpaper-engine-verifier_autogen/moc_predefs.h:
 /usr/include/qt6/QtCore/q23utility.h:
 
 /usr/include/c++/16/tr1/beta_function.tcc:
-
-/usr/include/c++/16/bits/erase_if.h:
-
-/usr/include/qt6/QtCore/qvariantlist.h:
 
 /usr/include/c++/16/iosfwd:
 

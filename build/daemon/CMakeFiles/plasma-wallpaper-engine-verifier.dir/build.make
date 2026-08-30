@@ -282,6 +282,34 @@ daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/ipc/wallpaper_service
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/ipc/wallpaper_service.cpp.s"
 	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build/daemon && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/ipc/wallpaper_service.cpp -o CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/ipc/wallpaper_service.cpp.s
 
+daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.o: daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/flags.make
+daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.o: /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/plugin/wallpaper_plugin.cpp
+daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.o: daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.o"
+	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build/daemon && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.o -MF CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.o.d -o CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.o -c /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/plugin/wallpaper_plugin.cpp
+
+daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.i"
+	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build/daemon && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/plugin/wallpaper_plugin.cpp > CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.i
+
+daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.s"
+	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build/daemon && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/plugin/wallpaper_plugin.cpp -o CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.s
+
+daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.o: daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/flags.make
+daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.o: /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.cpp
+daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.o: daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.o"
+	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build/daemon && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.o -MF CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.o.d -o CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.o -c /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.cpp
+
+daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.i"
+	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build/daemon && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.cpp > CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.i
+
+daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.s"
+	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build/daemon && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.cpp -o CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.s
+
 # Object files for target plasma-wallpaper-engine-verifier
 plasma__wallpaper__engine__verifier_OBJECTS = \
 "CMakeFiles/plasma-wallpaper-engine-verifier.dir/plasma-wallpaper-engine-verifier_autogen/mocs_compilation.cpp.o" \
@@ -298,7 +326,9 @@ plasma__wallpaper__engine__verifier_OBJECTS = \
 "CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/mesh_renderer.cpp.o" \
 "CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/audio/audio_player.cpp.o" \
 "CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/vulkan/vulkan_context.cpp.o" \
-"CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/ipc/wallpaper_service.cpp.o"
+"CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/ipc/wallpaper_service.cpp.o" \
+"CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.o" \
+"CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.o"
 
 # External object files for target plasma-wallpaper-engine-verifier
 plasma__wallpaper__engine__verifier_EXTERNAL_OBJECTS =
@@ -318,6 +348,8 @@ daemon/plasma-wallpaper-engine-verifier: daemon/CMakeFiles/plasma-wallpaper-engi
 daemon/plasma-wallpaper-engine-verifier: daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/audio/audio_player.cpp.o
 daemon/plasma-wallpaper-engine-verifier: daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/vulkan/vulkan_context.cpp.o
 daemon/plasma-wallpaper-engine-verifier: daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/ipc/wallpaper_service.cpp.o
+daemon/plasma-wallpaper-engine-verifier: daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/plugin/wallpaper_plugin.cpp.o
+daemon/plasma-wallpaper-engine-verifier: daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/src/render/vulkan_compute.cpp.o
 daemon/plasma-wallpaper-engine-verifier: daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/build.make
 daemon/plasma-wallpaper-engine-verifier: daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/compiler_depend.ts
 daemon/plasma-wallpaper-engine-verifier: /usr/lib/libQt6Gui.so.6.11.2
@@ -328,7 +360,7 @@ daemon/plasma-wallpaper-engine-verifier: /usr/lib/libGLX.so
 daemon/plasma-wallpaper-engine-verifier: /usr/lib/libOpenGL.so
 daemon/plasma-wallpaper-engine-verifier: /usr/lib/libQt6Core.so.6.11.2
 daemon/plasma-wallpaper-engine-verifier: daemon/CMakeFiles/plasma-wallpaper-engine-verifier.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Linking CXX executable plasma-wallpaper-engine-verifier"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Linking CXX executable plasma-wallpaper-engine-verifier"
 	cd /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build/daemon && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/plasma-wallpaper-engine-verifier.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

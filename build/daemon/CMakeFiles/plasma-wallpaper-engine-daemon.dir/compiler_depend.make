@@ -11,6 +11,7 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/plasma-wallpaper-engine-dae
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/assets/video_decoder.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/mesh_renderer.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/render_graph.h \
+  /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/particle_engine.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/scene_compositor.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/scene_parser.h \
@@ -3354,6 +3355,7 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/ipc/wallpaper_service.c
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/assets/video_decoder.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/mesh_renderer.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/render_graph.h \
+  /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/particle_engine.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/scene_compositor.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/scene_parser.h \
@@ -3997,10 +3999,12 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.o: /home/mena/
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/assets/video_decoder.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/mesh_renderer.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/render_graph.h \
+  /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/particle_engine.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/scene_compositor.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/scene_parser.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/ipc/wallpaper_service.h \
+  /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/plugin/wallpaper_plugin.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/vulkan/vulkan_context.h \
   /usr/include/alloca.h \
   /usr/include/asm-generic/bitsperlong.h \
@@ -4664,6 +4668,252 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.o: /home/mena/
   /usr/lib/gcc/x86_64-pc-linux-gnu/16/include/stdint.h \
   /usr/lib/gcc/x86_64-pc-linux-gnu/16/include/syslimits.h
 
+daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/plugin/wallpaper_plugin.cpp.o: /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/plugin/wallpaper_plugin.cpp \
+  /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/plugin/wallpaper_plugin.h \
+  /usr/include/alloca.h \
+  /usr/include/asm-generic/bitsperlong.h \
+  /usr/include/asm-generic/errno-base.h \
+  /usr/include/asm-generic/errno.h \
+  /usr/include/asm-generic/int-ll64.h \
+  /usr/include/asm-generic/posix_types.h \
+  /usr/include/asm-generic/types.h \
+  /usr/include/asm/bitsperlong.h \
+  /usr/include/asm/errno.h \
+  /usr/include/asm/posix_types.h \
+  /usr/include/asm/posix_types_64.h \
+  /usr/include/asm/types.h \
+  /usr/include/bits/atomic_wide_counter.h \
+  /usr/include/bits/byteswap.h \
+  /usr/include/bits/cpu-set.h \
+  /usr/include/bits/endian.h \
+  /usr/include/bits/endianness.h \
+  /usr/include/bits/errno.h \
+  /usr/include/bits/floatn-common.h \
+  /usr/include/bits/floatn.h \
+  /usr/include/bits/libc-header-start.h \
+  /usr/include/bits/locale.h \
+  /usr/include/bits/long-double.h \
+  /usr/include/bits/pthread_stack_min-dynamic.h \
+  /usr/include/bits/pthreadtypes-arch.h \
+  /usr/include/bits/pthreadtypes.h \
+  /usr/include/bits/sched.h \
+  /usr/include/bits/select.h \
+  /usr/include/bits/setjmp.h \
+  /usr/include/bits/stdint-intn.h \
+  /usr/include/bits/stdio_lim.h \
+  /usr/include/bits/stdlib-float.h \
+  /usr/include/bits/struct_mutex.h \
+  /usr/include/bits/struct_rwlock.h \
+  /usr/include/bits/thread-shared-types.h \
+  /usr/include/bits/time.h \
+  /usr/include/bits/time64.h \
+  /usr/include/bits/timesize.h \
+  /usr/include/bits/timex.h \
+  /usr/include/bits/types.h \
+  /usr/include/bits/types/FILE.h \
+  /usr/include/bits/types/__FILE.h \
+  /usr/include/bits/types/__fpos64_t.h \
+  /usr/include/bits/types/__fpos_t.h \
+  /usr/include/bits/types/__locale_t.h \
+  /usr/include/bits/types/__mbstate_t.h \
+  /usr/include/bits/types/__sigset_t.h \
+  /usr/include/bits/types/clock_t.h \
+  /usr/include/bits/types/clockid_t.h \
+  /usr/include/bits/types/cookie_io_functions_t.h \
+  /usr/include/bits/types/error_t.h \
+  /usr/include/bits/types/locale_t.h \
+  /usr/include/bits/types/mbstate_t.h \
+  /usr/include/bits/types/sigset_t.h \
+  /usr/include/bits/types/struct_FILE.h \
+  /usr/include/bits/types/struct___jmp_buf_tag.h \
+  /usr/include/bits/types/struct_itimerspec.h \
+  /usr/include/bits/types/struct_sched_param.h \
+  /usr/include/bits/types/struct_timespec.h \
+  /usr/include/bits/types/struct_timeval.h \
+  /usr/include/bits/types/struct_tm.h \
+  /usr/include/bits/types/time_t.h \
+  /usr/include/bits/types/timer_t.h \
+  /usr/include/bits/types/wint_t.h \
+  /usr/include/bits/typesizes.h \
+  /usr/include/bits/uintn-identity.h \
+  /usr/include/bits/waitflags.h \
+  /usr/include/bits/waitstatus.h \
+  /usr/include/bits/wchar.h \
+  /usr/include/bits/wctype-wchar.h \
+  /usr/include/bits/wordsize.h \
+  /usr/include/c++/16/array \
+  /usr/include/c++/16/backward/auto_ptr.h \
+  /usr/include/c++/16/backward/binders.h \
+  /usr/include/c++/16/bit \
+  /usr/include/c++/16/bits/align.h \
+  /usr/include/c++/16/bits/alloc_traits.h \
+  /usr/include/c++/16/bits/allocated_ptr.h \
+  /usr/include/c++/16/bits/allocator.h \
+  /usr/include/c++/16/bits/atomic_base.h \
+  /usr/include/c++/16/bits/atomic_lockfree_defines.h \
+  /usr/include/c++/16/bits/atomic_wait.h \
+  /usr/include/c++/16/bits/basic_ios.h \
+  /usr/include/c++/16/bits/basic_ios.tcc \
+  /usr/include/c++/16/bits/basic_string.h \
+  /usr/include/c++/16/bits/basic_string.tcc \
+  /usr/include/c++/16/bits/binders.h \
+  /usr/include/c++/16/bits/char_traits.h \
+  /usr/include/c++/16/bits/charconv.h \
+  /usr/include/c++/16/bits/concept_check.h \
+  /usr/include/c++/16/bits/cpp_type_traits.h \
+  /usr/include/c++/16/bits/cxxabi_forced.h \
+  /usr/include/c++/16/bits/cxxabi_init_exception.h \
+  /usr/include/c++/16/bits/enable_special_members.h \
+  /usr/include/c++/16/bits/erase_if.h \
+  /usr/include/c++/16/bits/exception.h \
+  /usr/include/c++/16/bits/exception_defines.h \
+  /usr/include/c++/16/bits/exception_ptr.h \
+  /usr/include/c++/16/bits/functexcept.h \
+  /usr/include/c++/16/bits/functional_hash.h \
+  /usr/include/c++/16/bits/hash_bytes.h \
+  /usr/include/c++/16/bits/hashtable.h \
+  /usr/include/c++/16/bits/hashtable_policy.h \
+  /usr/include/c++/16/bits/invoke.h \
+  /usr/include/c++/16/bits/ios_base.h \
+  /usr/include/c++/16/bits/iterator_concepts.h \
+  /usr/include/c++/16/bits/locale_classes.h \
+  /usr/include/c++/16/bits/locale_classes.tcc \
+  /usr/include/c++/16/bits/locale_facets.h \
+  /usr/include/c++/16/bits/locale_facets.tcc \
+  /usr/include/c++/16/bits/localefwd.h \
+  /usr/include/c++/16/bits/max_size_type.h \
+  /usr/include/c++/16/bits/memory_resource.h \
+  /usr/include/c++/16/bits/memoryfwd.h \
+  /usr/include/c++/16/bits/move.h \
+  /usr/include/c++/16/bits/nested_exception.h \
+  /usr/include/c++/16/bits/new_allocator.h \
+  /usr/include/c++/16/bits/new_except.h \
+  /usr/include/c++/16/bits/new_throw.h \
+  /usr/include/c++/16/bits/node_handle.h \
+  /usr/include/c++/16/bits/ostream.h \
+  /usr/include/c++/16/bits/ostream_insert.h \
+  /usr/include/c++/16/bits/postypes.h \
+  /usr/include/c++/16/bits/predefined_ops.h \
+  /usr/include/c++/16/bits/ptr_traits.h \
+  /usr/include/c++/16/bits/range_access.h \
+  /usr/include/c++/16/bits/ranges_algobase.h \
+  /usr/include/c++/16/bits/ranges_base.h \
+  /usr/include/c++/16/bits/ranges_cmp.h \
+  /usr/include/c++/16/bits/ranges_uninitialized.h \
+  /usr/include/c++/16/bits/ranges_util.h \
+  /usr/include/c++/16/bits/refwrap.h \
+  /usr/include/c++/16/bits/requires_hosted.h \
+  /usr/include/c++/16/bits/shared_ptr.h \
+  /usr/include/c++/16/bits/shared_ptr_atomic.h \
+  /usr/include/c++/16/bits/shared_ptr_base.h \
+  /usr/include/c++/16/bits/std_abs.h \
+  /usr/include/c++/16/bits/std_function.h \
+  /usr/include/c++/16/bits/stdexcept_except.h \
+  /usr/include/c++/16/bits/stdexcept_throw.h \
+  /usr/include/c++/16/bits/stdexcept_throwfwd.h \
+  /usr/include/c++/16/bits/stl_algobase.h \
+  /usr/include/c++/16/bits/stl_bvector.h \
+  /usr/include/c++/16/bits/stl_construct.h \
+  /usr/include/c++/16/bits/stl_function.h \
+  /usr/include/c++/16/bits/stl_iterator.h \
+  /usr/include/c++/16/bits/stl_iterator_base_funcs.h \
+  /usr/include/c++/16/bits/stl_iterator_base_types.h \
+  /usr/include/c++/16/bits/stl_pair.h \
+  /usr/include/c++/16/bits/stl_raw_storage_iter.h \
+  /usr/include/c++/16/bits/stl_tempbuf.h \
+  /usr/include/c++/16/bits/stl_uninitialized.h \
+  /usr/include/c++/16/bits/stl_vector.h \
+  /usr/include/c++/16/bits/streambuf.tcc \
+  /usr/include/c++/16/bits/streambuf_iterator.h \
+  /usr/include/c++/16/bits/string_view.tcc \
+  /usr/include/c++/16/bits/stringfwd.h \
+  /usr/include/c++/16/bits/unique_ptr.h \
+  /usr/include/c++/16/bits/unordered_map.h \
+  /usr/include/c++/16/bits/uses_allocator.h \
+  /usr/include/c++/16/bits/uses_allocator_args.h \
+  /usr/include/c++/16/bits/utility.h \
+  /usr/include/c++/16/bits/vector.tcc \
+  /usr/include/c++/16/bits/version.h \
+  /usr/include/c++/16/cctype \
+  /usr/include/c++/16/cerrno \
+  /usr/include/c++/16/clocale \
+  /usr/include/c++/16/compare \
+  /usr/include/c++/16/concepts \
+  /usr/include/c++/16/cstddef \
+  /usr/include/c++/16/cstdio \
+  /usr/include/c++/16/cstdlib \
+  /usr/include/c++/16/cwchar \
+  /usr/include/c++/16/cwctype \
+  /usr/include/c++/16/debug/assertions.h \
+  /usr/include/c++/16/debug/debug.h \
+  /usr/include/c++/16/exception \
+  /usr/include/c++/16/ext/aligned_buffer.h \
+  /usr/include/c++/16/ext/alloc_traits.h \
+  /usr/include/c++/16/ext/atomicity.h \
+  /usr/include/c++/16/ext/concurrence.h \
+  /usr/include/c++/16/ext/numeric_traits.h \
+  /usr/include/c++/16/ext/string_conversions.h \
+  /usr/include/c++/16/ext/type_traits.h \
+  /usr/include/c++/16/functional \
+  /usr/include/c++/16/initializer_list \
+  /usr/include/c++/16/ios \
+  /usr/include/c++/16/iosfwd \
+  /usr/include/c++/16/limits \
+  /usr/include/c++/16/memory \
+  /usr/include/c++/16/new \
+  /usr/include/c++/16/numbers \
+  /usr/include/c++/16/pstl/execution_defs.h \
+  /usr/include/c++/16/pstl/glue_memory_defs.h \
+  /usr/include/c++/16/pstl/pstl_config.h \
+  /usr/include/c++/16/stdexcept \
+  /usr/include/c++/16/streambuf \
+  /usr/include/c++/16/string \
+  /usr/include/c++/16/string_view \
+  /usr/include/c++/16/system_error \
+  /usr/include/c++/16/tuple \
+  /usr/include/c++/16/type_traits \
+  /usr/include/c++/16/typeinfo \
+  /usr/include/c++/16/unordered_map \
+  /usr/include/c++/16/vector \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/atomic_word.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/c++allocator.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/c++config.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/c++locale.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/cpu_defines.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/ctype_base.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/ctype_inline.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/error_constants.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/gthr-default.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/gthr.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/os_defines.h \
+  /usr/include/ctype.h \
+  /usr/include/endian.h \
+  /usr/include/errno.h \
+  /usr/include/features-time64.h \
+  /usr/include/features.h \
+  /usr/include/gnu/stubs-64.h \
+  /usr/include/gnu/stubs.h \
+  /usr/include/linux/errno.h \
+  /usr/include/linux/posix_types.h \
+  /usr/include/linux/sched/types.h \
+  /usr/include/linux/stddef.h \
+  /usr/include/linux/types.h \
+  /usr/include/locale.h \
+  /usr/include/pthread.h \
+  /usr/include/sched.h \
+  /usr/include/stdc-predef.h \
+  /usr/include/stdio.h \
+  /usr/include/stdlib.h \
+  /usr/include/sys/cdefs.h \
+  /usr/include/sys/select.h \
+  /usr/include/sys/single_threaded.h \
+  /usr/include/sys/types.h \
+  /usr/include/time.h \
+  /usr/include/wchar.h \
+  /usr/include/wctype.h \
+  /usr/lib/gcc/x86_64-pc-linux-gnu/16/include/stdarg.h \
+  /usr/lib/gcc/x86_64-pc-linux-gnu/16/include/stddef.h
+
 daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/mesh_renderer.cpp.o: /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/mesh_renderer.cpp \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/mesh_renderer.h \
   /usr/include/alloca.h \
@@ -5179,6 +5429,8 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/mesh_renderer.cp
 
 daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/render_graph.cpp.o: /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/render_graph.cpp \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/render_graph.h \
+  /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.h \
+  /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/vulkan/vulkan_context.h \
   /usr/include/alloca.h \
   /usr/include/asm-generic/bitsperlong.h \
   /usr/include/asm-generic/errno-base.h \
@@ -5648,6 +5900,21 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/render_graph.cpp
   /usr/include/sys/single_threaded.h \
   /usr/include/sys/types.h \
   /usr/include/time.h \
+  /usr/include/vk_video/vulkan_video_codec_av1std.h \
+  /usr/include/vk_video/vulkan_video_codec_av1std_decode.h \
+  /usr/include/vk_video/vulkan_video_codec_av1std_encode.h \
+  /usr/include/vk_video/vulkan_video_codec_h264std.h \
+  /usr/include/vk_video/vulkan_video_codec_h264std_decode.h \
+  /usr/include/vk_video/vulkan_video_codec_h264std_encode.h \
+  /usr/include/vk_video/vulkan_video_codec_h265std.h \
+  /usr/include/vk_video/vulkan_video_codec_h265std_decode.h \
+  /usr/include/vk_video/vulkan_video_codec_h265std_encode.h \
+  /usr/include/vk_video/vulkan_video_codec_vp9std.h \
+  /usr/include/vk_video/vulkan_video_codec_vp9std_decode.h \
+  /usr/include/vk_video/vulkan_video_codecs_common.h \
+  /usr/include/vulkan/vk_platform.h \
+  /usr/include/vulkan/vulkan.h \
+  /usr/include/vulkan/vulkan_core.h \
   /usr/include/wchar.h \
   /usr/include/wctype.h \
   /usr/lib/gcc/x86_64-pc-linux-gnu/16/include/limits.h \
@@ -5656,6 +5923,287 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/render_graph.cpp
   /usr/lib/gcc/x86_64-pc-linux-gnu/16/include/stddef.h \
   /usr/lib/gcc/x86_64-pc-linux-gnu/16/include/stdint.h \
   /usr/lib/gcc/x86_64-pc-linux-gnu/16/include/syslimits.h
+
+daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/vulkan_compute.cpp.o: /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.cpp \
+  /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.h \
+  /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/vulkan/vulkan_context.h \
+  /usr/include/alloca.h \
+  /usr/include/asm-generic/bitsperlong.h \
+  /usr/include/asm-generic/errno-base.h \
+  /usr/include/asm-generic/errno.h \
+  /usr/include/asm-generic/int-ll64.h \
+  /usr/include/asm-generic/posix_types.h \
+  /usr/include/asm-generic/types.h \
+  /usr/include/asm/bitsperlong.h \
+  /usr/include/asm/errno.h \
+  /usr/include/asm/posix_types.h \
+  /usr/include/asm/posix_types_64.h \
+  /usr/include/asm/types.h \
+  /usr/include/bits/atomic_wide_counter.h \
+  /usr/include/bits/byteswap.h \
+  /usr/include/bits/cpu-set.h \
+  /usr/include/bits/endian.h \
+  /usr/include/bits/endianness.h \
+  /usr/include/bits/errno.h \
+  /usr/include/bits/floatn-common.h \
+  /usr/include/bits/floatn.h \
+  /usr/include/bits/libc-header-start.h \
+  /usr/include/bits/locale.h \
+  /usr/include/bits/long-double.h \
+  /usr/include/bits/pthread_stack_min-dynamic.h \
+  /usr/include/bits/pthreadtypes-arch.h \
+  /usr/include/bits/pthreadtypes.h \
+  /usr/include/bits/sched.h \
+  /usr/include/bits/select.h \
+  /usr/include/bits/setjmp.h \
+  /usr/include/bits/stdint-intn.h \
+  /usr/include/bits/stdint-least.h \
+  /usr/include/bits/stdint-uintn.h \
+  /usr/include/bits/stdio_lim.h \
+  /usr/include/bits/stdlib-float.h \
+  /usr/include/bits/struct_mutex.h \
+  /usr/include/bits/struct_rwlock.h \
+  /usr/include/bits/thread-shared-types.h \
+  /usr/include/bits/time.h \
+  /usr/include/bits/time64.h \
+  /usr/include/bits/timesize.h \
+  /usr/include/bits/timex.h \
+  /usr/include/bits/types.h \
+  /usr/include/bits/types/FILE.h \
+  /usr/include/bits/types/__FILE.h \
+  /usr/include/bits/types/__fpos64_t.h \
+  /usr/include/bits/types/__fpos_t.h \
+  /usr/include/bits/types/__locale_t.h \
+  /usr/include/bits/types/__mbstate_t.h \
+  /usr/include/bits/types/__sigset_t.h \
+  /usr/include/bits/types/clock_t.h \
+  /usr/include/bits/types/clockid_t.h \
+  /usr/include/bits/types/cookie_io_functions_t.h \
+  /usr/include/bits/types/error_t.h \
+  /usr/include/bits/types/locale_t.h \
+  /usr/include/bits/types/mbstate_t.h \
+  /usr/include/bits/types/sigset_t.h \
+  /usr/include/bits/types/struct_FILE.h \
+  /usr/include/bits/types/struct___jmp_buf_tag.h \
+  /usr/include/bits/types/struct_itimerspec.h \
+  /usr/include/bits/types/struct_sched_param.h \
+  /usr/include/bits/types/struct_timespec.h \
+  /usr/include/bits/types/struct_timeval.h \
+  /usr/include/bits/types/struct_tm.h \
+  /usr/include/bits/types/time_t.h \
+  /usr/include/bits/types/timer_t.h \
+  /usr/include/bits/types/wint_t.h \
+  /usr/include/bits/typesizes.h \
+  /usr/include/bits/uintn-identity.h \
+  /usr/include/bits/waitflags.h \
+  /usr/include/bits/waitstatus.h \
+  /usr/include/bits/wchar.h \
+  /usr/include/bits/wctype-wchar.h \
+  /usr/include/bits/wordsize.h \
+  /usr/include/c++/16/algorithm \
+  /usr/include/c++/16/array \
+  /usr/include/c++/16/backward/auto_ptr.h \
+  /usr/include/c++/16/backward/binders.h \
+  /usr/include/c++/16/bit \
+  /usr/include/c++/16/bits/algorithmfwd.h \
+  /usr/include/c++/16/bits/align.h \
+  /usr/include/c++/16/bits/alloc_traits.h \
+  /usr/include/c++/16/bits/allocated_ptr.h \
+  /usr/include/c++/16/bits/allocator.h \
+  /usr/include/c++/16/bits/atomic_base.h \
+  /usr/include/c++/16/bits/atomic_lockfree_defines.h \
+  /usr/include/c++/16/bits/atomic_wait.h \
+  /usr/include/c++/16/bits/basic_ios.h \
+  /usr/include/c++/16/bits/basic_ios.tcc \
+  /usr/include/c++/16/bits/basic_string.h \
+  /usr/include/c++/16/bits/basic_string.tcc \
+  /usr/include/c++/16/bits/char_traits.h \
+  /usr/include/c++/16/bits/charconv.h \
+  /usr/include/c++/16/bits/concept_check.h \
+  /usr/include/c++/16/bits/cpp_type_traits.h \
+  /usr/include/c++/16/bits/cxxabi_forced.h \
+  /usr/include/c++/16/bits/cxxabi_init_exception.h \
+  /usr/include/c++/16/bits/enable_special_members.h \
+  /usr/include/c++/16/bits/erase_if.h \
+  /usr/include/c++/16/bits/exception.h \
+  /usr/include/c++/16/bits/exception_defines.h \
+  /usr/include/c++/16/bits/exception_ptr.h \
+  /usr/include/c++/16/bits/functexcept.h \
+  /usr/include/c++/16/bits/functional_hash.h \
+  /usr/include/c++/16/bits/hash_bytes.h \
+  /usr/include/c++/16/bits/hashtable.h \
+  /usr/include/c++/16/bits/hashtable_policy.h \
+  /usr/include/c++/16/bits/invoke.h \
+  /usr/include/c++/16/bits/ios_base.h \
+  /usr/include/c++/16/bits/istream.tcc \
+  /usr/include/c++/16/bits/iterator_concepts.h \
+  /usr/include/c++/16/bits/locale_classes.h \
+  /usr/include/c++/16/bits/locale_classes.tcc \
+  /usr/include/c++/16/bits/locale_facets.h \
+  /usr/include/c++/16/bits/locale_facets.tcc \
+  /usr/include/c++/16/bits/localefwd.h \
+  /usr/include/c++/16/bits/max_size_type.h \
+  /usr/include/c++/16/bits/memory_resource.h \
+  /usr/include/c++/16/bits/memoryfwd.h \
+  /usr/include/c++/16/bits/move.h \
+  /usr/include/c++/16/bits/nested_exception.h \
+  /usr/include/c++/16/bits/new_allocator.h \
+  /usr/include/c++/16/bits/new_except.h \
+  /usr/include/c++/16/bits/new_throw.h \
+  /usr/include/c++/16/bits/node_handle.h \
+  /usr/include/c++/16/bits/ostream.h \
+  /usr/include/c++/16/bits/ostream.tcc \
+  /usr/include/c++/16/bits/ostream_insert.h \
+  /usr/include/c++/16/bits/ostream_print.h \
+  /usr/include/c++/16/bits/postypes.h \
+  /usr/include/c++/16/bits/predefined_ops.h \
+  /usr/include/c++/16/bits/ptr_traits.h \
+  /usr/include/c++/16/bits/range_access.h \
+  /usr/include/c++/16/bits/ranges_algo.h \
+  /usr/include/c++/16/bits/ranges_algobase.h \
+  /usr/include/c++/16/bits/ranges_base.h \
+  /usr/include/c++/16/bits/ranges_cmp.h \
+  /usr/include/c++/16/bits/ranges_uninitialized.h \
+  /usr/include/c++/16/bits/ranges_util.h \
+  /usr/include/c++/16/bits/refwrap.h \
+  /usr/include/c++/16/bits/requires_hosted.h \
+  /usr/include/c++/16/bits/shared_ptr.h \
+  /usr/include/c++/16/bits/shared_ptr_atomic.h \
+  /usr/include/c++/16/bits/shared_ptr_base.h \
+  /usr/include/c++/16/bits/std_abs.h \
+  /usr/include/c++/16/bits/stdexcept_except.h \
+  /usr/include/c++/16/bits/stdexcept_throw.h \
+  /usr/include/c++/16/bits/stdexcept_throwfwd.h \
+  /usr/include/c++/16/bits/stl_algo.h \
+  /usr/include/c++/16/bits/stl_algobase.h \
+  /usr/include/c++/16/bits/stl_bvector.h \
+  /usr/include/c++/16/bits/stl_construct.h \
+  /usr/include/c++/16/bits/stl_function.h \
+  /usr/include/c++/16/bits/stl_heap.h \
+  /usr/include/c++/16/bits/stl_iterator.h \
+  /usr/include/c++/16/bits/stl_iterator_base_funcs.h \
+  /usr/include/c++/16/bits/stl_iterator_base_types.h \
+  /usr/include/c++/16/bits/stl_pair.h \
+  /usr/include/c++/16/bits/stl_raw_storage_iter.h \
+  /usr/include/c++/16/bits/stl_tempbuf.h \
+  /usr/include/c++/16/bits/stl_uninitialized.h \
+  /usr/include/c++/16/bits/stl_vector.h \
+  /usr/include/c++/16/bits/streambuf.tcc \
+  /usr/include/c++/16/bits/streambuf_iterator.h \
+  /usr/include/c++/16/bits/string_view.tcc \
+  /usr/include/c++/16/bits/stringfwd.h \
+  /usr/include/c++/16/bits/uniform_int_dist.h \
+  /usr/include/c++/16/bits/unique_ptr.h \
+  /usr/include/c++/16/bits/unordered_map.h \
+  /usr/include/c++/16/bits/uses_allocator.h \
+  /usr/include/c++/16/bits/uses_allocator_args.h \
+  /usr/include/c++/16/bits/utility.h \
+  /usr/include/c++/16/bits/vector.tcc \
+  /usr/include/c++/16/bits/version.h \
+  /usr/include/c++/16/cctype \
+  /usr/include/c++/16/cerrno \
+  /usr/include/c++/16/clocale \
+  /usr/include/c++/16/compare \
+  /usr/include/c++/16/concepts \
+  /usr/include/c++/16/cstddef \
+  /usr/include/c++/16/cstdint \
+  /usr/include/c++/16/cstdio \
+  /usr/include/c++/16/cstdlib \
+  /usr/include/c++/16/cstring \
+  /usr/include/c++/16/cwchar \
+  /usr/include/c++/16/cwctype \
+  /usr/include/c++/16/debug/assertions.h \
+  /usr/include/c++/16/debug/debug.h \
+  /usr/include/c++/16/exception \
+  /usr/include/c++/16/ext/aligned_buffer.h \
+  /usr/include/c++/16/ext/alloc_traits.h \
+  /usr/include/c++/16/ext/atomicity.h \
+  /usr/include/c++/16/ext/concurrence.h \
+  /usr/include/c++/16/ext/numeric_traits.h \
+  /usr/include/c++/16/ext/string_conversions.h \
+  /usr/include/c++/16/ext/type_traits.h \
+  /usr/include/c++/16/initializer_list \
+  /usr/include/c++/16/ios \
+  /usr/include/c++/16/iosfwd \
+  /usr/include/c++/16/iostream \
+  /usr/include/c++/16/istream \
+  /usr/include/c++/16/limits \
+  /usr/include/c++/16/memory \
+  /usr/include/c++/16/new \
+  /usr/include/c++/16/numbers \
+  /usr/include/c++/16/ostream \
+  /usr/include/c++/16/pstl/execution_defs.h \
+  /usr/include/c++/16/pstl/glue_algorithm_defs.h \
+  /usr/include/c++/16/pstl/glue_memory_defs.h \
+  /usr/include/c++/16/pstl/pstl_config.h \
+  /usr/include/c++/16/span \
+  /usr/include/c++/16/stdexcept \
+  /usr/include/c++/16/streambuf \
+  /usr/include/c++/16/string \
+  /usr/include/c++/16/string_view \
+  /usr/include/c++/16/system_error \
+  /usr/include/c++/16/tuple \
+  /usr/include/c++/16/type_traits \
+  /usr/include/c++/16/typeinfo \
+  /usr/include/c++/16/unordered_map \
+  /usr/include/c++/16/vector \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/atomic_word.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/c++allocator.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/c++config.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/c++locale.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/cpu_defines.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/ctype_base.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/ctype_inline.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/error_constants.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/gthr-default.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/gthr.h \
+  /usr/include/c++/16/x86_64-pc-linux-gnu/bits/os_defines.h \
+  /usr/include/ctype.h \
+  /usr/include/endian.h \
+  /usr/include/errno.h \
+  /usr/include/features-time64.h \
+  /usr/include/features.h \
+  /usr/include/gnu/stubs-64.h \
+  /usr/include/gnu/stubs.h \
+  /usr/include/linux/errno.h \
+  /usr/include/linux/posix_types.h \
+  /usr/include/linux/sched/types.h \
+  /usr/include/linux/stddef.h \
+  /usr/include/linux/types.h \
+  /usr/include/locale.h \
+  /usr/include/pthread.h \
+  /usr/include/sched.h \
+  /usr/include/stdc-predef.h \
+  /usr/include/stdint.h \
+  /usr/include/stdio.h \
+  /usr/include/stdlib.h \
+  /usr/include/string.h \
+  /usr/include/strings.h \
+  /usr/include/sys/cdefs.h \
+  /usr/include/sys/select.h \
+  /usr/include/sys/single_threaded.h \
+  /usr/include/sys/types.h \
+  /usr/include/time.h \
+  /usr/include/vk_video/vulkan_video_codec_av1std.h \
+  /usr/include/vk_video/vulkan_video_codec_av1std_decode.h \
+  /usr/include/vk_video/vulkan_video_codec_av1std_encode.h \
+  /usr/include/vk_video/vulkan_video_codec_h264std.h \
+  /usr/include/vk_video/vulkan_video_codec_h264std_decode.h \
+  /usr/include/vk_video/vulkan_video_codec_h264std_encode.h \
+  /usr/include/vk_video/vulkan_video_codec_h265std.h \
+  /usr/include/vk_video/vulkan_video_codec_h265std_decode.h \
+  /usr/include/vk_video/vulkan_video_codec_h265std_encode.h \
+  /usr/include/vk_video/vulkan_video_codec_vp9std.h \
+  /usr/include/vk_video/vulkan_video_codec_vp9std_decode.h \
+  /usr/include/vk_video/vulkan_video_codecs_common.h \
+  /usr/include/vulkan/vk_platform.h \
+  /usr/include/vulkan/vulkan.h \
+  /usr/include/vulkan/vulkan_core.h \
+  /usr/include/wchar.h \
+  /usr/include/wctype.h \
+  /usr/lib/gcc/x86_64-pc-linux-gnu/16/include/stdarg.h \
+  /usr/lib/gcc/x86_64-pc-linux-gnu/16/include/stddef.h \
+  /usr/lib/gcc/x86_64-pc-linux-gnu/16/include/stdint.h
 
 daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/scene/particle_engine.cpp.o: /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/particle_engine.cpp \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/assets/pkg_reader.h \
@@ -6239,6 +6787,7 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/scene/scene_compositor.
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/assets/video_decoder.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/mesh_renderer.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/render_graph.h \
+  /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/vulkan/vulkan_context.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/particle_engine.h \
   /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/scene_compositor.h \
@@ -7889,505 +8438,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/vulkan/vulkan_context.c
   /usr/lib/gcc/x86_64-pc-linux-gnu/16/include/stdint.h \
   /usr/lib/gcc/x86_64-pc-linux-gnu/16/include/syslimits.h
 
-daemon/plasma-wallpaper-engine-daemon: /usr/lib/Scrt1.o \
-  /usr/lib/crti.o \
-  /usr/lib/crtn.o \
-  /usr/lib/libavcodec.so \
-  /usr/lib/libavformat.so \
-  /usr/lib/libavutil.so \
-  /usr/lib/libc.so \
-  /usr/lib/libgcc_s.so.1 \
-  /usr/lib/liblz4.so \
-  /usr/lib/libm.so \
-  /usr/lib/libswscale.so \
-  /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtbeginS.o \
-  /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtendS.o \
-  /usr/lib/gcc/x86_64-pc-linux-gnu/16/libatomic.so \
-  /usr/lib/gcc/x86_64-pc-linux-gnu/16/libatomic_asneeded.so \
-  /usr/lib/gcc/x86_64-pc-linux-gnu/16/libgcc.a \
-  /usr/lib/gcc/x86_64-pc-linux-gnu/16/libgcc_s.so \
-  /usr/lib/gcc/x86_64-pc-linux-gnu/16/libstdc++.so \
-  /usr/lib/ld-linux-x86-64.so.2 \
-  /usr/lib/libEGL.so.1 \
-  /usr/lib/libGLX.so \
-  /usr/lib/libGLdispatch.so.0 \
-  /usr/lib/libOpenCL.so.1 \
-  /usr/lib/libOpenGL.so \
-  /usr/lib/libQt6Core.so.6.11.2 \
-  /usr/lib/libQt6DBus.so.6.11.2 \
-  /usr/lib/libQt6Gui.so.6.11.2 \
-  /usr/lib/libQt6Network.so.6.11.2 \
-  /usr/lib/libSvtAv1Enc.so.4 \
-  /usr/lib/libX11-xcb.so.1 \
-  /usr/lib/libX11.so.6 \
-  /usr/lib/libXau.so.6 \
-  /usr/lib/libXdmcp.so.6 \
-  /usr/lib/libXext.so.6 \
-  /usr/lib/libXfixes.so.3 \
-  /usr/lib/libXrender.so.1 \
-  /usr/lib/libaom.so.3 \
-  /usr/lib/libb2.so.1 \
-  /usr/lib/libblkid.so.1 \
-  /usr/lib/libbluray.so.4 \
-  /usr/lib/libbrotlicommon.so.1 \
-  /usr/lib/libbrotlidec.so.1 \
-  /usr/lib/libbrotlienc.so.1 \
-  /usr/lib/libbz2.so.1.0 \
-  /usr/lib/libc.so.6 \
-  /usr/lib/libc_nonshared.a \
-  /usr/lib/libcairo.so.2 \
-  /usr/lib/libcom_err.so.2 \
-  /usr/lib/libcrypto.so.3 \
-  /usr/lib/libcurl.so.4 \
-  /usr/lib/libdatrie.so.1 \
-  /usr/lib/libdav1d.so.7 \
-  /usr/lib/libdbus-1.so.3 \
-  /usr/lib/libdouble-conversion.so.3 \
-  /usr/lib/libdrm.so.2 \
-  /usr/lib/libduktape.so.207 \
-  /usr/lib/libdvdnav.so.4 \
-  /usr/lib/libdvdread.so.8 \
-  /usr/lib/libexpat.so.1 \
-  /usr/lib/libffi.so.8 \
-  /usr/lib/libfontconfig.so.1 \
-  /usr/lib/libfreetype.so.6 \
-  /usr/lib/libfribidi.so.0 \
-  /usr/lib/libgdk_pixbuf-2.0.so.0 \
-  /usr/lib/libgio-2.0.so.0 \
-  /usr/lib/libglib-2.0.so.0 \
-  /usr/lib/libglycin-2.so.0 \
-  /usr/lib/libgmodule-2.0.so.0 \
-  /usr/lib/libgmp.so.10 \
-  /usr/lib/libgnutls.so.30 \
-  /usr/lib/libgobject-2.0.so.0 \
-  /usr/lib/libgomp.so.1 \
-  /usr/lib/libgraphite2.so.3 \
-  /usr/lib/libgsm.so.1 \
-  /usr/lib/libgssapi_krb5.so.2 \
-  /usr/lib/libharfbuzz.so.0 \
-  /usr/lib/libhogweed.so.7 \
-  /usr/lib/libhwy.so.1 \
-  /usr/lib/libicudata.so.78 \
-  /usr/lib/libicui18n.so.78 \
-  /usr/lib/libicuuc.so.78 \
-  /usr/lib/libidn2.so.0 \
-  /usr/lib/libjxl.so.0.12 \
-  /usr/lib/libjxl_cms.so.0.12 \
-  /usr/lib/libjxl_threads.so.0.12 \
-  /usr/lib/libk5crypto.so.3 \
-  /usr/lib/libkeyutils.so.1 \
-  /usr/lib/libkrb5.so.3 \
-  /usr/lib/libkrb5support.so.0 \
-  /usr/lib/liblcms2.so.2 \
-  /usr/lib/libleancrypto.so.1 \
-  /usr/lib/liblzma.so.5 \
-  /usr/lib/libm.so.6 \
-  /usr/lib/libmd4c.so.0 \
-  /usr/lib/libmodplug.so.1 \
-  /usr/lib/libmount.so.1 \
-  /usr/lib/libmp3lame.so.0 \
-  /usr/lib/libmpg123.so.0 \
-  /usr/lib/libmvec.so.1 \
-  /usr/lib/libnettle.so.9 \
-  /usr/lib/libnghttp2.so.14 \
-  /usr/lib/libnghttp3.so.9 \
-  /usr/lib/libngtcp2.so.16 \
-  /usr/lib/libngtcp2_crypto_ossl.so.0 \
-  /usr/lib/libogg.so.0 \
-  /usr/lib/libopencore-amrnb.so.0 \
-  /usr/lib/libopencore-amrwb.so.0 \
-  /usr/lib/libopenjp2.so.7 \
-  /usr/lib/libopenmpt.so.0 \
-  /usr/lib/libopus.so.0 \
-  /usr/lib/libp11-kit.so.0 \
-  /usr/lib/libpango-1.0.so.0 \
-  /usr/lib/libpangocairo-1.0.so.0 \
-  /usr/lib/libpangoft2-1.0.so.0 \
-  /usr/lib/libpcre2-16.so.0 \
-  /usr/lib/libpcre2-8.so.0 \
-  /usr/lib/libpgm-5.3.so.0 \
-  /usr/lib/libpixman-1.so.0 \
-  /usr/lib/libpng16.so.16 \
-  /usr/lib/libproxy.so.1 \
-  /usr/lib/libproxy/libpxbackend-1.0.so \
-  /usr/lib/libpsl.so.5 \
-  /usr/lib/librav1e.so.0.8 \
-  /usr/lib/libresolv.so.2 \
-  /usr/lib/librsvg-2.so.2 \
-  /usr/lib/libseccomp.so.2 \
-  /usr/lib/libsharpyuv.so.0 \
-  /usr/lib/libsnappy.so.1 \
-  /usr/lib/libsodium.so.26 \
-  /usr/lib/libsoxr.so.0 \
-  /usr/lib/libspeex.so.1 \
-  /usr/lib/libsrt.so.1.5 \
-  /usr/lib/libssh.so.4 \
-  /usr/lib/libssh2.so.1 \
-  /usr/lib/libssl.so.3 \
-  /usr/lib/libswresample.so.7 \
-  /usr/lib/libsystemd.so.0 \
-  /usr/lib/libtasn1.so.6 \
-  /usr/lib/libthai.so.0 \
-  /usr/lib/libtheoradec.so.2 \
-  /usr/lib/libtheoraenc.so.2 \
-  /usr/lib/libunistring.so.5 \
-  /usr/lib/liburing.so.2 \
-  /usr/lib/libva-drm.so.2 \
-  /usr/lib/libva-x11.so.2 \
-  /usr/lib/libva.so.2 \
-  /usr/lib/libvdpau.so.1 \
-  /usr/lib/libvorbis.so.0 \
-  /usr/lib/libvorbisenc.so.2 \
-  /usr/lib/libvorbisfile.so.3 \
-  /usr/lib/libvpl.so.2 \
-  /usr/lib/libvpx.so.12 \
-  /usr/lib/libvulkan.so \
-  /usr/lib/libwebp.so.7 \
-  /usr/lib/libwebpmux.so.3 \
-  /usr/lib/libx264.so.165 \
-  /usr/lib/libx265.so.217 \
-  /usr/lib/libxcb-dri3.so.0 \
-  /usr/lib/libxcb-render.so.0 \
-  /usr/lib/libxcb-shm.so.0 \
-  /usr/lib/libxcb.so.1 \
-  /usr/lib/libxkbcommon.so.0 \
-  /usr/lib/libxml2.so.16 \
-  /usr/lib/libxvidcore.so.4 \
-  /usr/lib/libz.so.1 \
-  /usr/lib/libzmq.so.5 \
-  /usr/lib/libzstd.so.1 \
-  /usr/lib32/libGLdispatch.so.0 \
-  /usr/lib32/libOpenCL.so.1 \
-  /usr/lib32/libX11-xcb.so.1 \
-  /usr/lib32/libXau.so.6 \
-  /usr/lib32/libXdmcp.so.6 \
-  /usr/lib32/libXext.so.6 \
-  /usr/lib32/libXfixes.so.3 \
-  /usr/lib32/libXrender.so.1 \
-  /usr/lib32/libblkid.so.1 \
-  /usr/lib32/libbrotlicommon.so.1 \
-  /usr/lib32/libbrotlienc.so.1 \
-  /usr/lib32/libbz2.so.1.0 \
-  /usr/lib32/libcairo.so.2 \
-  /usr/lib32/libcom_err.so.2 \
-  /usr/lib32/libcurl.so.4 \
-  /usr/lib32/libdatrie.so.1 \
-  /usr/lib32/libdrm.so.2 \
-  /usr/lib32/libexpat.so.1 \
-  /usr/lib32/libffi.so.8 \
-  /usr/lib32/libfribidi.so.0 \
-  /usr/lib32/libgdk_pixbuf-2.0.so.0 \
-  /usr/lib32/libgio-2.0.so.0 \
-  /usr/lib32/libgmodule-2.0.so.0 \
-  /usr/lib32/libgmp.so.10 \
-  /usr/lib32/libgnutls.so.30 \
-  /usr/lib32/libgobject-2.0.so.0 \
-  /usr/lib32/libgomp.so.1 \
-  /usr/lib32/libhogweed.so.7 \
-  /usr/lib32/libicudata.so.78 \
-  /usr/lib32/libidn2.so.0 \
-  /usr/lib32/libk5crypto.so.3 \
-  /usr/lib32/libkeyutils.so.1 \
-  /usr/lib32/libkrb5.so.3 \
-  /usr/lib32/libkrb5support.so.0 \
-  /usr/lib32/liblcms2.so.2 \
-  /usr/lib32/liblzma.so.5 \
-  /usr/lib32/libmount.so.1 \
-  /usr/lib32/libnettle.so.9 \
-  /usr/lib32/libnghttp2.so.14 \
-  /usr/lib32/libnghttp3.so.9 \
-  /usr/lib32/libngtcp2.so.16 \
-  /usr/lib32/libngtcp2_crypto_ossl.so.0 \
-  /usr/lib32/libp11-kit.so.0 \
-  /usr/lib32/libpango-1.0.so.0 \
-  /usr/lib32/libpangocairo-1.0.so.0 \
-  /usr/lib32/libpangoft2-1.0.so.0 \
-  /usr/lib32/libpcre2-8.so.0 \
-  /usr/lib32/libpixman-1.so.0 \
-  /usr/lib32/libpsl.so.5 \
-  /usr/lib32/libresolv.so.2 \
-  /usr/lib32/librsvg-2.so.2 \
-  /usr/lib32/libssh2.so.1 \
-  /usr/lib32/libssl.so.3 \
-  /usr/lib32/libtasn1.so.6 \
-  /usr/lib32/libthai.so.0 \
-  /usr/lib32/libunistring.so.5 \
-  /usr/lib32/libva-drm.so.2 \
-  /usr/lib32/libva-x11.so.2 \
-  /usr/lib32/libva.so.2 \
-  /usr/lib32/libxcb-dri3.so.0 \
-  /usr/lib32/libxcb-render.so.0 \
-  /usr/lib32/libxcb-shm.so.0 \
-  /usr/lib32/libxcb.so.1 \
-  /usr/lib32/libxml2.so.16 \
-  daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/plasma-wallpaper-engine-daemon_autogen/mocs_compilation.cpp.o \
-  daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/dxt_decoder.cpp.o \
-  daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/library_scanner.cpp.o \
-  daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/pkg_reader.cpp.o \
-  daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/tex_parser.cpp.o \
-  daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/video_decoder.cpp.o \
-  daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.o \
-  daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/ipc/wallpaper_service.cpp.o \
-  daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.o \
-  daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/mesh_renderer.cpp.o \
-  daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/render_graph.cpp.o \
-  daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/scene/particle_engine.cpp.o \
-  daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/scene/scene_compositor.cpp.o \
-  daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/scene/scene_parser.cpp.o \
-  daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/vulkan/vulkan_context.cpp.o
-
-
-daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/vulkan/vulkan_context.cpp.o:
-
-daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/scene/scene_parser.cpp.o:
-
-daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/scene/scene_compositor.cpp.o:
-
-daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/scene/particle_engine.cpp.o:
-
-daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/render_graph.cpp.o:
-
-/usr/lib32/libxcb.so.1:
-
-/usr/lib32/libxcb-shm.so.0:
-
-/usr/lib32/libxcb-render.so.0:
-
-/usr/lib32/libxcb-dri3.so.0:
-
-/usr/lib32/libva-x11.so.2:
-
-/usr/lib32/libunistring.so.5:
-
-/usr/lib32/libssl.so.3:
-
-/usr/lib32/libpixman-1.so.0:
-
-/usr/lib32/libpcre2-8.so.0:
-
-/usr/lib32/libpangoft2-1.0.so.0:
-
-/usr/lib32/libpango-1.0.so.0:
-
-/usr/lib32/libngtcp2_crypto_ossl.so.0:
-
-/usr/lib32/libmount.so.1:
-
-/usr/lib32/liblzma.so.5:
-
-/usr/lib32/liblcms2.so.2:
-
-/usr/lib32/libkrb5.so.3:
-
-/usr/lib32/libkeyutils.so.1:
-
-/usr/lib32/libicudata.so.78:
-
-/usr/lib32/libhogweed.so.7:
-
-/usr/lib32/libpangocairo-1.0.so.0:
-
-/usr/lib32/libgomp.so.1:
-
-/usr/lib32/libgobject-2.0.so.0:
-
-/usr/lib32/libgmp.so.10:
-
-/usr/lib32/libgio-2.0.so.0:
-
-/usr/lib32/libgdk_pixbuf-2.0.so.0:
-
-/usr/lib32/libcom_err.so.2:
-
-/usr/lib32/libbrotlicommon.so.1:
-
-/usr/lib32/libXfixes.so.3:
-
-/usr/lib32/libX11-xcb.so.1:
-
-/usr/lib32/libOpenCL.so.1:
-
-/usr/lib32/libidn2.so.0:
-
-/usr/lib32/libGLdispatch.so.0:
-
-/usr/lib/libzmq.so.5:
-
-/usr/lib/libz.so.1:
-
-/usr/lib/libxml2.so.16:
-
-/usr/lib/libxcb.so.1:
-
-/usr/lib/libxcb-dri3.so.0:
-
-/usr/lib/libwebp.so.7:
-
-/usr/lib/libvdpau.so.1:
-
-/usr/lib/libva.so.2:
-
-/usr/lib/libunistring.so.5:
-
-/usr/lib/libthai.so.0:
-
-/usr/lib/libssl.so.3:
-
-/usr/lib/libssh2.so.1:
-
-/usr/lib/libssh.so.4:
-
-/usr/lib/libspeex.so.1:
-
-/usr/lib/libsharpyuv.so.0:
-
-/usr/lib/librsvg-2.so.2:
-
-/usr/lib/librav1e.so.0.8:
-
-/usr/lib/libproxy/libpxbackend-1.0.so:
-
-/usr/lib/libpixman-1.so.0:
-
-/usr/lib/libpgm-5.3.so.0:
-
-/usr/lib/libpangoft2-1.0.so.0:
-
-/usr/lib/libpangocairo-1.0.so.0:
-
-/usr/lib/libp11-kit.so.0:
-
-/usr/lib/libopenmpt.so.0:
-
-/usr/lib/libopencore-amrwb.so.0:
-
-/usr/lib/libnghttp3.so.9:
-
-/usr/lib/libnghttp2.so.14:
-
-/usr/lib/libnettle.so.9:
-
-/usr/lib/libmodplug.so.1:
-
-/usr/lib/libmd4c.so.0:
-
-/usr/lib/libm.so.6:
-
-/usr/lib/libleancrypto.so.1:
-
-/usr/lib32/libXau.so.6:
-
-/usr/lib/liblcms2.so.2:
-
-/usr/lib/libkrb5.so.3:
-
-/usr/lib/libjxl_threads.so.0.12:
-
-/usr/lib/libjxl_cms.so.0.12:
-
-/usr/lib32/libbrotlienc.so.1:
-
-/usr/lib/libicui18n.so.78:
-
-/usr/lib/libicudata.so.78:
-
-/usr/lib/libhwy.so.1:
-
-/usr/lib/libharfbuzz.so.0:
-
-/usr/lib/libgraphite2.so.3:
-
-/usr/lib/libgomp.so.1:
-
-/usr/lib/libgmp.so.10:
-
-/usr/lib/libglib-2.0.so.0:
-
-/usr/lib/libfribidi.so.0:
-
-/usr/lib/libfreetype.so.6:
-
-/usr/lib/libfontconfig.so.1:
-
-/usr/lib/libffi.so.8:
-
-/usr/lib/libexpat.so.1:
-
-/usr/lib/libdvdread.so.8:
-
-/usr/lib/libglycin-2.so.0:
-
-/usr/lib/libdvdnav.so.4:
-
-/usr/lib/libdouble-conversion.so.3:
-
-/usr/lib/libdav1d.so.7:
-
-/usr/lib/libcurl.so.4:
-
-/usr/lib/libcrypto.so.3:
-
-/usr/lib/libbrotlienc.so.1:
-
-/usr/lib/libbluray.so.4:
-
-/usr/lib/libblkid.so.1:
-
-/usr/lib/libb2.so.1:
-
-/usr/lib/libaom.so.3:
-
-/usr/lib/libXfixes.so.3:
-
-/usr/lib/libX11.so.6:
-
-/usr/lib/libX11-xcb.so.1:
-
-/usr/lib/libSvtAv1Enc.so.4:
-
-/usr/lib32/libcairo.so.2:
-
-/usr/lib/libQt6Network.so.6.11.2:
-
-/usr/lib/libQt6DBus.so.6.11.2:
-
-/usr/lib/libQt6Core.so.6.11.2:
-
-/usr/lib/libtasn1.so.6:
-
-/usr/lib/ld-linux-x86-64.so.2:
-
-daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/pkg_reader.cpp.o:
-
-/usr/lib/gcc/x86_64-pc-linux-gnu/16/libgcc_s.so:
-
-/usr/lib/gcc/x86_64-pc-linux-gnu/16/libgcc.a:
-
-/usr/lib/libbrotlidec.so.1:
-
-/usr/lib/gcc/x86_64-pc-linux-gnu/16/libatomic_asneeded.so:
-
-/usr/lib/gcc/x86_64-pc-linux-gnu/16/libatomic.so:
-
-/usr/lib/gcc/x86_64-pc-linux-gnu/16/crtendS.o:
-
-/usr/lib/libgssapi_krb5.so.2:
-
-/usr/lib/libswscale.so:
-
-/usr/lib/libm.so:
-
-/usr/lib/libcom_err.so.2:
-
-/usr/lib/libgcc_s.so.1:
-
-/usr/lib/libbz2.so.1.0:
-
-/usr/lib/libavutil.so:
-
-/usr/lib/libavformat.so:
-
-/usr/lib/Scrt1.o:
 
 /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/vulkan/vulkan_context.cpp:
 
@@ -8401,13 +8451,11 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/pkg_reader.cpp.o
 
 /usr/include/qt6/QtGui/QRadialGradient:
 
-/usr/lib/liblzma.so.5:
+/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.cpp:
 
 /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/render_graph.cpp:
 
 /usr/include/qt6/QtGui/QPainterPath:
-
-/usr/lib32/libva-drm.so.2:
 
 /usr/include/qt6/QtDBus/qdbusconnection.h:
 
@@ -8415,9 +8463,9 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/pkg_reader.cpp.o
 
 /usr/include/qt6/QtCore/qcoreapplication.h:
 
-/usr/lib/libXrender.so.1:
-
 /usr/include/qt6/QtCore/QElapsedTimer:
+
+/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/plugin/wallpaper_plugin.h:
 
 /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/main.cpp:
 
@@ -8428,8 +8476,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/pkg_reader.cpp.o
 /usr/include/qt6/QtCore/qstandardpaths.h:
 
 /usr/include/qt6/QtCore/QStandardPaths:
-
-/usr/lib/libtheoradec.so.2:
 
 /usr/include/c++/16/csignal:
 
@@ -8447,19 +8493,11 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/pkg_reader.cpp.o
 
 /usr/include/bits/signum-generic.h:
 
-/usr/lib32/libexpat.so.1:
-
-/usr/lib/crti.o:
-
 /usr/include/bits/signum-arch.h:
 
 /usr/include/bits/siginfo-consts.h:
 
 /usr/include/bits/siginfo-consts-arch.h:
-
-/usr/lib/libsrt.so.1.5:
-
-/usr/lib/libopus.so.0:
 
 /usr/include/bits/siginfo-arch.h:
 
@@ -8467,21 +8505,13 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/pkg_reader.cpp.o
 
 /usr/include/bits/sigaction.h:
 
-/usr/lib/libbrotlicommon.so.1:
-
 /usr/include/bits/posix_opt.h:
 
-/usr/lib32/libresolv.so.2:
-
 /usr/include/bits/getopt_core.h:
-
-/usr/lib32/libkrb5support.so.0:
 
 /usr/include/bits/confname.h:
 
 /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/audio/audio_player.cpp:
-
-/usr/lib32/libssh2.so.1:
 
 /usr/include/libavutil/pixdesc.h:
 
@@ -8497,21 +8527,13 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/pkg_reader.cpp.o
 
 /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/assets/pkg_reader.cpp:
 
-daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.o:
-
 /usr/include/qt6/QtCore/qfileinfo.h:
 
 /usr/include/qt6/QtCore/qfile.h:
 
-/usr/lib/libgsm.so.1:
-
-/usr/lib/libdbus-1.so.3:
-
 /usr/include/qt6/QtCore/qdirlisting.h:
 
 /usr/include/qt6/QtCore/QRegularExpression:
-
-/usr/lib/libdatrie.so.1:
 
 /usr/include/qt6/QtCore/QJsonArray:
 
@@ -8525,13 +8547,9 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.o:
 
 /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/assets/dxt_decoder.h:
 
-/usr/lib/libxcb-render.so.0:
-
 /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/assets/dxt_decoder.cpp:
 
 /usr/lib/gcc/x86_64-pc-linux-gnu/16/include/limits.h:
-
-/usr/lib/libk5crypto.so.3:
 
 /usr/include/wctype.h:
 
@@ -8555,11 +8573,7 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.o:
 
 /usr/include/sys/select.h:
 
-/usr/lib/libzstd.so.1:
-
 /usr/include/sys/cdefs.h:
-
-/usr/lib/libxvidcore.so.4:
 
 /usr/include/strings.h:
 
@@ -8569,21 +8583,15 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.o:
 
 /usr/include/stdc-predef.h:
 
-/usr/lib32/libthai.so.0:
-
 /usr/include/qt6/QtGui/qvector4d.h:
 
 /usr/include/qt6/QtGui/qtgui-config.h:
-
-/usr/lib32/libcurl.so.4:
 
 /usr/include/qt6/QtGui/qrgba64.h:
 
 /usr/include/qt6/QtGui/qpixelformat.h:
 
 /usr/include/qt6/QtGui/qpen.h:
-
-/usr/lib/libOpenCL.so.1:
 
 /usr/include/qt6/QtGui/qpaintdevice.h:
 
@@ -8603,11 +8611,7 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.o:
 
 /usr/include/qt6/QtGui/QVector4D:
 
-/usr/lib/libpango-1.0.so.0:
-
 /usr/include/qt6/QtGui/QVector3D:
-
-/usr/lib/libGLX.so:
 
 /usr/include/qt6/QtGui/QPolygonF:
 
@@ -8616,8 +8620,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.o:
 /usr/include/qt6/QtDBus/QDBusError:
 
 /usr/include/qt6/QtGui/QMatrix4x4:
-
-/usr/lib/libgnutls.so.30:
 
 /usr/include/qt6/QtGui/QImage:
 
@@ -8647,15 +8649,9 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.o:
 
 /usr/include/qt6/QtCore/qtversion.h:
 
-/usr/include/linux/sched/types.h:
-
 /usr/include/c++/16/cstdio:
 
-/usr/lib32/libXext.so.6:
-
 /usr/include/c++/16/cstdint:
-
-/usr/lib/libvulkan.so:
 
 /usr/include/libavcodec/codec.h:
 
@@ -8663,13 +8659,9 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.o:
 
 /usr/include/c++/16/bits/ranges_util.h:
 
-/usr/lib/libvorbisenc.so.2:
-
 /usr/include/c++/16/bits/locale_classes.h:
 
 /usr/include/c++/16/compare:
-
-/usr/lib/libtheoraenc.so.2:
 
 /usr/include/c++/16/bits/version.h:
 
@@ -8703,13 +8695,9 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.o:
 
 /usr/include/c++/16/bits/stl_function.h:
 
-/usr/lib/libngtcp2_crypto_ossl.so.0:
-
 /usr/include/c++/16/bits/uses_allocator.h:
 
 /usr/include/asm-generic/posix_types.h:
-
-/usr/lib/libc.so:
 
 /usr/include/asm-generic/types.h:
 
@@ -8751,10 +8739,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.o:
 
 /usr/include/c++/16/bits/stl_numeric.h:
 
-daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/video_decoder.cpp.o:
-
-/usr/lib32/libxml2.so.16:
-
 /usr/include/c++/16/tr1/poly_laguerre.tcc:
 
 /usr/include/qt6/QtCore/qscopeguard.h:
@@ -8767,11 +8751,7 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/video_decoder.cp
 
 /usr/include/c++/16/bits/postypes.h:
 
-/usr/lib32/librsvg-2.so.2:
-
 /usr/include/c++/16/bits/parse_numbers.h:
-
-/usr/lib/libpng16.so.16:
 
 /usr/include/c++/16/bits/ostream_print.h:
 
@@ -8786,8 +8766,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/video_decoder.cp
 /usr/include/c++/16/bits/new_allocator.h:
 
 /usr/include/c++/16/map:
-
-/usr/lib/libxcb-shm.so.0:
 
 /usr/include/c++/16/cstddef:
 
@@ -8815,17 +8793,11 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/video_decoder.cp
 
 /usr/include/c++/16/bits/locale_facets.tcc:
 
-daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/tex_parser.cpp.o:
-
 /usr/include/c++/16/bits/locale_facets.h:
 
 /usr/include/bits/struct_mutex.h:
 
 /usr/include/c++/16/bits/streambuf.tcc:
-
-/usr/include/c++/16/bits/string_view.tcc:
-
-/usr/include/c++/16/ext/atomicity.h:
 
 /usr/include/qt6/QtGui/qpainterpath.h:
 
@@ -8834,10 +8806,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/tex_parser.cpp.o
 /usr/include/qt6/QtCore/qprocessordetection.h:
 
 /usr/include/c++/16/bits/move.h:
-
-/usr/lib32/libva.so.2:
-
-/usr/lib/libkeyutils.so.1:
 
 /usr/include/bits/types/sigevent_t.h:
 
@@ -8851,15 +8819,7 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/tex_parser.cpp.o
 
 /usr/include/c++/16/bits/stringfwd.h:
 
-/usr/include/c++/16/cwchar:
-
-/usr/include/qt6/QtCore/qcompare_impl.h:
-
 /usr/include/bits/mathcalls-narrow.h:
-
-/usr/include/c++/16/bits/stl_bvector.h:
-
-/usr/include/c++/16/bits/functional_hash.h:
 
 /usr/include/c++/16/bits/functexcept.h:
 
@@ -8868,8 +8828,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/tex_parser.cpp.o
 /usr/include/c++/16/bits/formatfwd.h:
 
 /usr/include/c++/16/bits/exception_defines.h:
-
-/usr/lib/libvorbis.so.0:
 
 /usr/include/c++/16/bits/utility.h:
 
@@ -8882,8 +8840,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/tex_parser.cpp.o
 /usr/include/c++/16/tr1/gamma.tcc:
 
 /usr/include/c++/16/bits/cxxabi_init_exception.h:
-
-daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/dxt_decoder.cpp.o:
 
 /usr/include/c++/16/bits/cpp_type_traits.h:
 
@@ -8899,23 +8855,19 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/dxt_decoder.cpp.
 
 /usr/include/qt6/QtCore/qhashfunctions.h:
 
+/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/plugin/wallpaper_plugin.cpp:
+
 /usr/include/c++/16/bits/codecvt.h:
 
-/usr/include/bits/setjmp.h:
+/usr/include/c++/16/bits/chrono.h:
 
-/usr/lib/libseccomp.so.2:
-
-/usr/include/bits/types/struct___jmp_buf_tag.h:
-
-/usr/include/bits/waitstatus.h:
+/usr/include/inttypes.h:
 
 /usr/include/bits/select.h:
 
 /usr/include/bits/pthreadtypes.h:
 
 /usr/include/bits/pthreadtypes-arch.h:
-
-/usr/lib32/libfribidi.so.0:
 
 /usr/include/c++/16/bits/atomic_wait.h:
 
@@ -8925,21 +8877,11 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/dxt_decoder.cpp.
 
 /usr/include/qt6/QtCore/QProcess:
 
-/usr/lib/libkrb5support.so.0:
-
-/usr/lib/libEGL.so.1:
-
 /usr/include/c++/16/cctype:
 
 /usr/include/bits/posix1_lim.h:
 
-/usr/lib/libhogweed.so.7:
-
 /usr/include/c++/16/bits/ptr_traits.h:
-
-/usr/lib32/libngtcp2.so.16:
-
-/usr/lib/libvpl.so.2:
 
 /usr/include/qt6/QtCore/q17memory.h:
 
@@ -8948,8 +8890,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/dxt_decoder.cpp.
 /usr/include/c++/16/bits/invoke.h:
 
 /usr/include/bits/floatn-common.h:
-
-/usr/lib/libvorbisfile.so.3:
 
 /usr/include/c++/16/tr1/exp_integral.tcc:
 
@@ -8979,17 +8919,9 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/dxt_decoder.cpp.
 
 /usr/include/qt6/QtCore/qdatastream.h:
 
-/usr/include/bits/long-double.h:
-
-/usr/lib/libproxy.so.1:
-
 /usr/include/c++/16/bits/algorithmfwd.h:
 
 /usr/include/c++/16/tr1/bessel_function.tcc:
-
-/usr/include/c++/16/x86_64-pc-linux-gnu/bits/c++config.h:
-
-/usr/include/libavutil/macros.h:
 
 /usr/include/qt6/QtCore/QTimer:
 
@@ -9006,8 +8938,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/dxt_decoder.cpp.
 /usr/include/bits/types/__sigset_t.h:
 
 /usr/include/bits/typesizes.h:
-
-/usr/lib/libopenjp2.so.7:
 
 /usr/include/bits/uintn-identity.h:
 
@@ -9051,8 +8981,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/dxt_decoder.cpp.
 
 /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/mesh_renderer.h:
 
-/usr/lib/libva-drm.so.2:
-
 /usr/include/bits/cpu-set.h:
 
 /usr/include/libavutil/avconfig.h:
@@ -9061,19 +8989,21 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/dxt_decoder.cpp.
 
 /usr/include/c++/16/bits/atomic_lockfree_defines.h:
 
-/usr/lib32/libnghttp3.so.9:
-
 /usr/include/qt6/QtCore/qarraydatapointer.h:
 
-/usr/include/c++/16/concepts:
-
-/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/scene_parser.h:
-
-/usr/include/bits/types.h:
-
-/usr/include/qt6/QtCore/qiodevice.h:
-
 /usr/include/qt6/QtCore/qbytearraylist.h:
+
+/usr/include/bits/long-double.h:
+
+/usr/include/c++/16/bits/stl_bvector.h:
+
+/usr/include/c++/16/bits/functional_hash.h:
+
+/usr/include/c++/16/bits/string_view.tcc:
+
+/usr/include/c++/16/ext/atomicity.h:
+
+/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/vulkan_compute.h:
 
 /usr/include/c++/16/bits/stl_multiset.h:
 
@@ -9085,13 +9015,9 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/dxt_decoder.cpp.
 
 /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/render/render_graph.h:
 
-/usr/lib32/libffi.so.8:
-
 /usr/include/bits/types/wint_t.h:
 
 /usr/include/c++/16/new:
-
-/usr/lib/libsodium.so.26:
 
 /usr/include/c++/16/backward/binders.h:
 
@@ -9100,8 +9026,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/dxt_decoder.cpp.
 /usr/include/qt6/QtGui/qpainter.h:
 
 /usr/include/c++/16/bits/alloc_traits.h:
-
-/usr/lib/libngtcp2.so.16:
 
 /usr/include/qt6/QtGui/qrgb.h:
 
@@ -9114,8 +9038,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/dxt_decoder.cpp.
 /usr/include/c++/16/bits/ranges_base.h:
 
 /usr/include/libswscale/version.h:
-
-/usr/lib/libx264.so.165:
 
 /usr/include/c++/16/bits/ostream_insert.h:
 
@@ -9171,10 +9093,6 @@ daemon/plasma-wallpaper-engine-daemon_autogen/7WA7TAYJOR/moc_library_scanner.cpp
 
 /usr/include/c++/16/bits/stl_list.h:
 
-/usr/lib/libmount.so.1:
-
-/usr/lib/libGLdispatch.so.0:
-
 daemon/plasma-wallpaper-engine-daemon_autogen/mocs_compilation.cpp:
 
 /usr/include/sched.h:
@@ -9184,8 +9102,6 @@ daemon/plasma-wallpaper-engine-daemon_autogen/mocs_compilation.cpp:
 /usr/include/c++/16/bits/quoted_string.h:
 
 /usr/include/libswscale/swscale.h:
-
-/usr/lib/libresolv.so.2:
 
 /usr/include/bits/sigstksz.h:
 
@@ -9197,7 +9113,13 @@ daemon/plasma-wallpaper-engine-daemon_autogen/mocs_compilation.cpp:
 
 /usr/include/bits/types/struct_FILE.h:
 
-/usr/lib/libXext.so.6:
+/usr/include/c++/16/concepts:
+
+/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/scene_parser.h:
+
+/usr/include/bits/types.h:
+
+/usr/include/qt6/QtCore/qiodevice.h:
 
 /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/assets/video_decoder.h:
 
@@ -9209,17 +9131,11 @@ daemon/plasma-wallpaper-engine-daemon_autogen/mocs_compilation.cpp:
 
 /usr/include/asm/errno.h:
 
-/usr/lib/libcairo.so.2:
-
 daemon/plasma-wallpaper-engine-daemon_autogen/SEBC7YCAJH/moc_wallpaper_service.cpp:
-
-daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/plasma-wallpaper-engine-daemon_autogen/mocs_compilation.cpp.o:
 
 /usr/include/c++/16/bits/binders.h:
 
 /usr/include/qt6/QtCore/qarraydata.h:
-
-/usr/lib/gcc/x86_64-pc-linux-gnu/16/libstdc++.so:
 
 /usr/include/bits/posix2_lim.h:
 
@@ -9247,6 +9163,16 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/plasma-wallpaper-engine-dae
 
 /usr/include/qt6/QtCore/qdatetime.h:
 
+/usr/include/bits/setjmp.h:
+
+/usr/include/libavutil/macros.h:
+
+/usr/include/c++/16/x86_64-pc-linux-gnu/bits/c++config.h:
+
+/usr/include/bits/types/struct___jmp_buf_tag.h:
+
+/usr/include/bits/waitstatus.h:
+
 /usr/include/bits/types/error_t.h:
 
 /usr/include/qt6/QtGui/qimage.h:
@@ -9254,8 +9180,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/plasma-wallpaper-engine-dae
 /usr/include/c++/16/tr1/poly_hermite.tcc:
 
 /usr/include/qt6/QtCore/qstringalgorithms.h:
-
-/usr/lib32/libnghttp2.so.14:
 
 /usr/include/c++/16/bits/stream_iterator.h:
 
@@ -9272,8 +9196,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/plasma-wallpaper-engine-dae
 /usr/include/c++/16/bits/stl_tree.h:
 
 /usr/include/c++/16/bits/istream.tcc:
-
-/usr/lib32/libbz2.so.1.0:
 
 /usr/include/qt6/QtCore/qjsonparseerror.h:
 
@@ -9297,8 +9219,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/plasma-wallpaper-engine-dae
 
 /usr/include/c++/16/bits/locale_facets_nonio.tcc:
 
-/usr/lib/libgobject-2.0.so.0:
-
 /usr/include/c++/16/bits/refwrap.h:
 
 /usr/include/c++/16/x86_64-pc-linux-gnu/bits/gthr-default.h:
@@ -9320,8 +9240,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/plasma-wallpaper-engine-dae
 /usr/include/bits/pthread_stack_min-dynamic.h:
 
 /usr/include/qt6/QtCore/QStringList:
-
-/usr/lib/libsystemd.so.0:
 
 /usr/include/qt6/QtCore/qfunctionpointer.h:
 
@@ -9347,6 +9265,12 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/plasma-wallpaper-engine-dae
 
 /usr/include/c++/16/list:
 
+/usr/include/qt6/QtCore/qtpreprocessorsupport.h:
+
+/usr/include/c++/16/bits/nested_exception.h:
+
+/usr/include/libavutil/channel_layout.h:
+
 /usr/include/bits/types/clock_t.h:
 
 /usr/include/c++/16/bits/stl_tempbuf.h:
@@ -9365,19 +9289,11 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/plasma-wallpaper-engine-dae
 
 /usr/include/c++/16/bits/memory_resource.h:
 
-/usr/lib32/libk5crypto.so.3:
-
 /usr/include/libavcodec/codec_desc.h:
 
 /usr/include/libavcodec/version_major.h:
 
-daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/library_scanner.cpp.o:
-
 /usr/include/bits/types/sigset_t.h:
-
-/usr/lib32/libdatrie.so.1:
-
-/usr/lib/libjxl.so.0.12:
 
 /usr/include/c++/16/bits/std_abs.h:
 
@@ -9393,15 +9309,11 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/library_scanner.
 
 /usr/include/qt6/QtCore/q20type_traits.h:
 
-/usr/lib/libsoxr.so.0:
-
 /usr/include/c++/16/bits/cxxabi_forced.h:
 
 /usr/include/c++/16/cwctype:
 
 /usr/include/bits/types/struct_sched_param.h:
-
-/usr/lib/libopencore-amrnb.so.0:
 
 /usr/include/bits/waitflags.h:
 
@@ -9411,8 +9323,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/assets/library_scanner.
 
 /usr/include/qt6/QtCore/qcompilerdetection.h:
 
-daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/ipc/wallpaper_service.cpp.o:
-
 /usr/include/bits/types/struct_timespec.h:
 
 /usr/include/qt6/QtGui/qgenericmatrix.h:
@@ -9421,13 +9331,9 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/ipc/wallpaper_service.c
 
 /usr/include/bits/types/struct_tm.h:
 
-/usr/lib/libicuuc.so.78:
-
 /usr/include/endian.h:
 
 /usr/include/c++/16/iterator:
-
-/usr/lib/libxkbcommon.so.0:
 
 /usr/include/c++/16/codecvt:
 
@@ -9439,13 +9345,9 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/ipc/wallpaper_service.c
 
 /usr/include/bits/wctype-wchar.h:
 
-/usr/lib/libpcre2-8.so.0:
-
 /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/assets/pkg_reader.h:
 
 /usr/include/c++/16/tr1/modified_bessel_func.tcc:
-
-/usr/lib/libXdmcp.so.6:
 
 /usr/include/qt6/QtCore/qsystemdetection.h:
 
@@ -9465,13 +9367,9 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/ipc/wallpaper_service.c
 
 /usr/include/qt6/QtCore/qtmetamacros.h:
 
-/usr/lib32/libXrender.so.1:
-
 /usr/include/c++/16/bits/unicode.h:
 
 /usr/include/bits/time64.h:
-
-/usr/lib32/libblkid.so.1:
 
 /usr/include/vk_video/vulkan_video_codec_av1std_encode.h:
 
@@ -9480,8 +9378,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/ipc/wallpaper_service.c
 /usr/include/c++/16/bits/allocator.h:
 
 /usr/include/qt6/QtCore/qspan.h:
-
-daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/mesh_renderer.cpp.o:
 
 /usr/include/c++/16/bits/atomic_base.h:
 
@@ -9503,8 +9399,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/mesh_renderer.cp
 
 /usr/include/c++/16/bits/basic_string.h:
 
-/usr/lib/libc.so.6:
-
 /usr/include/c++/16/bits/stl_raw_storage_iter.h:
 
 /usr/include/bits/fp-fast.h:
@@ -9515,11 +9409,11 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/mesh_renderer.cp
 
 /usr/include/c++/16/tr1/hypergeometric.tcc:
 
-/usr/include/c++/16/bits/chrono.h:
+/usr/include/qt6/QtCore/qcompare_impl.h:
 
-/usr/include/inttypes.h:
+/usr/include/c++/16/cwchar:
 
-/usr/lib/liburing.so.2:
+/usr/include/linux/sched/types.h:
 
 /usr/include/c++/16/pstl/execution_defs.h:
 
@@ -9534,8 +9428,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/mesh_renderer.cp
 /usr/include/c++/16/pstl/glue_algorithm_defs.h:
 
 /usr/include/qt6/QtCore/qmargins.h:
-
-/usr/lib/libmpg123.so.0:
 
 /usr/include/c++/16/ext/aligned_buffer.h:
 
@@ -9553,11 +9445,7 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/mesh_renderer.cp
 
 /usr/include/c++/16/tr1/riemann_zeta.tcc:
 
-/usr/lib/libpsl.so.5:
-
 /usr/include/c++/16/ios:
-
-/usr/lib/libavcodec.so:
 
 /usr/include/qt6/QtCore/q20memory.h:
 
@@ -9580,8 +9468,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/mesh_renderer.cp
 /usr/include/c++/16/x86_64-pc-linux-gnu/bits/c++allocator.h:
 
 /usr/include/qt6/QtCore/qtimer.h:
-
-/usr/lib/libidn2.so.0:
 
 /usr/include/c++/16/memory:
 
@@ -9643,15 +9529,11 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/render/mesh_renderer.cp
 
 /usr/include/qt6/QtCore/qdebug.h:
 
-daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.o:
-
 /usr/include/c++/16/tr1/special_function_util.h:
 
 /usr/include/qt6/QtCore/qcheckedint_impl.h:
 
 /usr/include/c++/16/tuple:
-
-/usr/lib32/libtasn1.so.6:
 
 /usr/include/c++/16/bits/shared_ptr.h:
 
@@ -9668,8 +9550,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.
 /usr/include/bits/sigevent-consts.h:
 
 /usr/include/c++/16/unordered_set:
-
-/usr/lib32/libnettle.so.9:
 
 /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/scene/particle_engine.cpp:
 
@@ -9689,11 +9569,7 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.
 
 /usr/include/c++/16/x86_64-pc-linux-gnu/bits/cpu_defines.h:
 
-/usr/lib/libx265.so.217:
-
 /usr/include/c++/16/x86_64-pc-linux-gnu/bits/ctype_inline.h:
-
-/usr/lib/libogg.so.0:
 
 /usr/include/c++/16/x86_64-pc-linux-gnu/bits/error_constants.h:
 
@@ -9703,13 +9579,9 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.
 
 /usr/include/c++/16/x86_64-pc-linux-gnu/bits/messages_members.h:
 
-/usr/lib/libsnappy.so.1:
-
 /usr/include/c++/16/x86_64-pc-linux-gnu/bits/time_members.h:
 
 /usr/include/errno.h:
-
-/usr/lib/libgio-2.0.so.0:
 
 /usr/include/gnu/stubs-64.h:
 
@@ -9747,29 +9619,19 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.
 
 /usr/include/libavutil/common.h:
 
-/usr/lib/libduktape.so.207:
-
 /usr/include/libavutil/dict.h:
 
-/usr/lib/gcc/x86_64-pc-linux-gnu/16/crtbeginS.o:
-
 /usr/include/qt6/QtCore/qmetacontainer.h:
-
-/usr/lib/libvpx.so.12:
 
 /usr/include/bits/types/__sigval_t.h:
 
 /usr/include/libavutil/error.h:
-
-/usr/lib/libmp3lame.so.0:
 
 /usr/include/qt6/QtCore/qmetatype.h:
 
 /usr/include/bits/types/stack_t.h:
 
 /usr/include/libavutil/hwcontext.h:
-
-/usr/lib/libc_nonshared.a:
 
 /usr/include/qt6/QtCore/qelapsedtimer.h:
 
@@ -9780,8 +9642,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.
 /usr/include/c++/16/bits/ostream.tcc:
 
 /usr/include/libavutil/intfloat.h:
-
-/usr/lib32/libgnutls.so.30:
 
 /usr/include/c++/16/bits/shared_ptr_base.h:
 
@@ -9803,13 +9663,9 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.
 
 /usr/include/qt6/QtCore/qtconfiginclude.h:
 
-/usr/lib/crtn.o:
-
 /usr/include/c++/16/x86_64-pc-linux-gnu/bits/basic_file.h:
 
 /usr/include/linux/limits.h:
-
-/usr/lib/libmvec.so.1:
 
 /usr/include/bits/fp-logb.h:
 
@@ -9825,21 +9681,11 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.
 
 /usr/include/qt6/QtCore/QMap:
 
-/usr/lib32/libdrm.so.2:
-
 /usr/include/qt6/QtCore/qanystringview.h:
-
-/usr/lib/libdrm.so.2:
-
-/usr/lib/liblz4.so:
 
 /usr/include/qt6/QtCore/QVariant:
 
 /usr/include/qt6/QtCore/q20algorithm.h:
-
-/usr/lib32/libpsl.so.5:
-
-/usr/lib32/libp11-kit.so.0:
 
 /usr/include/qt6/QtGui/qbrush.h:
 
@@ -9855,8 +9701,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.
 
 /usr/include/qt6/QtCore/q23type_traits.h:
 
-/usr/lib/libswresample.so.7:
-
 /usr/include/qt6/QtCore/qabstracteventdispatcher.h:
 
 /usr/include/qt6/QtGui/qwindowdefs.h:
@@ -9864,8 +9708,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.
 /usr/include/qt6/QtCore/qalgorithms.h:
 
 /usr/include/qt6/QtCore/qalloc.h:
-
-/usr/lib/libQt6Gui.so.6.11.2:
 
 /usr/include/qt6/QtCore/qarraydataops.h:
 
@@ -9900,8 +9742,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.
 /usr/include/qt6/QtGui/qvector3d.h:
 
 /usr/include/qt6/QtCore/qcontainerinfo.h:
-
-/usr/lib/libwebpmux.so.3:
 
 /usr/include/qt6/QtCore/qcontiguouscache.h:
 
@@ -9949,8 +9789,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.
 
 /usr/include/qt6/QtCore/qjsonvalue.h:
 
-/usr/lib32/libXdmcp.so.6:
-
 /usr/include/qt6/QtCore/qline.h:
 
 /usr/include/bits/stdint-uintn.h:
@@ -9971,8 +9809,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.
 
 /usr/include/qt6/QtCore/qobject_impl.h:
 
-/usr/lib32/libgmodule-2.0.so.0:
-
 /usr/include/qt6/QtCore/qglobalstatic.h:
 
 /usr/include/limits.h:
@@ -9981,11 +9817,7 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.
 
 /usr/include/qt6/QtCore/qobjectdefs_impl.h:
 
-/usr/lib/libgmodule-2.0.so.0:
-
 /usr/include/qt6/QtCore/qoverload.h:
-
-/usr/lib/libOpenGL.so:
 
 /usr/include/qt6/QtCore/qpair.h:
 
@@ -10025,8 +9857,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.
 
 /usr/include/qt6/QtCore/qstringfwd.h:
 
-/usr/lib/libva-x11.so.2:
-
 /usr/include/assert.h:
 
 /usr/include/qt6/QtCore/qstringmatcher.h:
@@ -10043,8 +9873,6 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.
 
 /usr/include/qt6/QtCore/qtcoreglobal.h:
 
-/usr/lib/libpcre2-16.so.0:
-
 /usr/include/locale.h:
 
 /usr/include/qt6/QtCore/qtdeprecationmarkers.h:
@@ -10053,18 +9881,8 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/audio/audio_player.cpp.
 
 /usr/include/qt6/QtCore/qtextstream.h:
 
-/usr/lib/libgdk_pixbuf-2.0.so.0:
-
 /usr/include/lz4.h:
 
 /usr/include/c++/16/numeric:
 
 /usr/include/qt6/QtCore/qtformat_impl.h:
-
-/usr/lib/libXau.so.6:
-
-/usr/include/c++/16/bits/nested_exception.h:
-
-/usr/include/libavutil/channel_layout.h:
-
-/usr/include/qt6/QtCore/qtpreprocessorsupport.h:

@@ -350,9 +350,9 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.o: \
  /usr/include/qt6/QtCore/q20utility.h \
  /usr/include/qt6/QtDBus/qtdbusexports.h \
  /usr/include/qt6/QtDBus/QDBusError /usr/include/qt6/QtDBus/qdbuserror.h \
- /usr/include/c++/16/iostream /usr/include/c++/16/csignal \
- /usr/include/signal.h /usr/include/bits/signum-generic.h \
- /usr/include/bits/signum-arch.h /usr/include/bits/types/sig_atomic_t.h \
+ /usr/include/c++/16/csignal /usr/include/signal.h \
+ /usr/include/bits/signum-generic.h /usr/include/bits/signum-arch.h \
+ /usr/include/bits/types/sig_atomic_t.h \
  /usr/include/bits/types/siginfo_t.h /usr/include/bits/types/__sigval_t.h \
  /usr/include/bits/siginfo-arch.h /usr/include/bits/siginfo-consts.h \
  /usr/include/bits/siginfo-consts-arch.h \
@@ -366,7 +366,7 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.o: \
  /usr/include/bits/getopt_core.h /usr/include/bits/unistd_ext.h \
  /usr/include/linux/close_range.h /usr/include/bits/ss_flags.h \
  /usr/include/bits/types/struct_sigstack.h /usr/include/bits/sigthread.h \
- /usr/include/bits/signal_ext.h \
+ /usr/include/bits/signal_ext.h /usr/include/c++/16/iostream \
  /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/vulkan/vulkan_context.h \
  /usr/include/vulkan/vulkan.h /usr/include/vulkan/vk_platform.h \
  /usr/include/vulkan/vulkan_core.h \
@@ -486,4 +486,5 @@ daemon/CMakeFiles/plasma-wallpaper-engine-daemon.dir/src/main.cpp.o: \
  /usr/include/qt6/QtGui/qgenericmatrix.h /usr/include/qt6/QtGui/QPolygonF \
  /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/ipc/../audio/audio_player.h \
  /usr/include/qt6/QtCore/QProcess /usr/include/qt6/QtCore/qprocess.h \
- /usr/include/qt6/QtCore/qiodevice.h
+ /usr/include/qt6/QtCore/qiodevice.h \
+ /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/daemon/src/plugin/wallpaper_plugin.h
