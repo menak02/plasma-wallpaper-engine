@@ -26,6 +26,8 @@ add_executable(plasma-wallpaper-engine-daemon
     src/vulkan/vulkan_context.cpp
     src/ipc/wallpaper_service.h
     src/ipc/wallpaper_service.cpp
+    src/plugin/wallpaper_plugin.h
+    src/plugin/wallpaper_plugin.cpp
 )
 
 target_include_directories(plasma-wallpaper-engine-daemon
@@ -73,6 +75,8 @@ add_executable(plasma-wallpaper-engine-verifier
     src/vulkan/vulkan_context.cpp
     src/ipc/wallpaper_service.h
     src/ipc/wallpaper_service.cpp
+    src/plugin/wallpaper_plugin.h
+    src/plugin/wallpaper_plugin.cpp
 )
 
 target_include_directories(plasma-wallpaper-engine-verifier

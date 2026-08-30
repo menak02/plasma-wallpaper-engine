@@ -9,6 +9,7 @@
 
 #include "vulkan/vulkan_context.h"
 #include "ipc/wallpaper_service.h"
+#include "plugin/wallpaper_plugin.h"
 
 volatile sig_atomic_t g_quitRequested = 0;
 
@@ -29,6 +30,12 @@ int main(int argc, char *argv[]) {
         std::cerr << "Failed to initialize Vulkan Context." << std::endl;
         return 1;
     }
+
+    // Initialize plugin system
+    WallpaperEngine::Plugin::PluginRegistry::instance().loadBuiltinPlugins();
+    qInfo() << "Plugin system initialized with"
+            << WallpaperEngine::Plugin::PluginRegistry::instance().pluginCount()
+            << "plugins registered";
 
     // Allocate default framebuffer for export (1920x1080)
     WallpaperEngine::Render::DmaBufBuffer buffer;
