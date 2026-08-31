@@ -17,6 +17,7 @@ add_executable(plasma-wallpaper-engine-daemon
     src/assets/library_scanner.h
     src/assets/library_scanner.cpp
     src/scene/scene_parser.cpp
+    src/scene/js_engine.cpp
     src/scene/particle_engine.cpp
     src/scene/scene_compositor.cpp
     src/render/render_graph.cpp
@@ -46,6 +47,7 @@ target_link_libraries(plasma-wallpaper-engine-daemon
     PRIVATE
         Qt6::Core
         Qt6::Gui
+        Qt6::Qml
         Qt6::DBus
         Qt6::Network
         Vulkan::Vulkan
@@ -68,6 +70,7 @@ add_executable(plasma-wallpaper-engine-verifier
     src/assets/library_scanner.h
     src/assets/library_scanner.cpp
     src/scene/scene_parser.cpp
+    src/scene/js_engine.cpp
     src/scene/particle_engine.cpp
     src/scene/scene_compositor.cpp
     src/render/render_graph.cpp
@@ -97,6 +100,7 @@ target_link_libraries(plasma-wallpaper-engine-verifier
     PRIVATE
         Qt6::Core
         Qt6::Gui
+        Qt6::Qml
         Qt6::DBus
         Qt6::Network
         Vulkan::Vulkan

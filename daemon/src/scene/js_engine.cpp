@@ -1,0 +1,215 @@
+#include "js_engine.h"
+#include <QJSEngine>
+#include <QJSValue>
+#include <QDebug>
+
+namespace WallpaperEngine::Scene {
+
+JSEngine::JSEngine() {}
+
+JSEngine::~JSEngine() {}
+
+void JSEngine::init(const std::unordered_map<std::string, QVariant>& properties,
+                    float currentTime) {
+    m_properties = properties;
+    m_lastTime = currentTime;
+
+    // Initialize time state from current system time
+    QDateTime now = QDateTime::currentDateTime();
+    m_currentHour = now.time().hour();
+    m_currentMinute = now.time().minute();
+    m_currentSecond = now.time().second();
+    m_currentDay = now.date().day();
+    m_currentMonth = now.date().month();
+    m_currentYear = now.date().year();
+    m_currentDayOfWeek = now.date().dayOfWeek(); // 1=Monday, 7=Sunday
+}
+
+void JSEngine::update(float currentTime, float deltaTime) {
+    // Update time state if significant time has passed
+    if (currentTime - m_lastTime >= 1.0f) {
+        m_lastTime = currentTime;
+        QDateTime now = QDateTime::currentDateTime();
+        m_currentHour = now.time().hour();
+        m_currentMinute = now.time().minute();
+        m_currentSecond = now.time().second();
+        m_currentDay = now.date().day();
+        m_currentMonth = now.date().month();
+        m_currentYear = now.date().year();
+        m_currentDayOfWeek = now.date().dayOfWeek();
+    }
+    Q_UNUSED(deltaTime);
+}
+
+bool JSEngine::evaluateVisibility(const QVariant& visibleVal) {
+    if (!visibleVal.canConvert<QJsonObject>()) {
+        // Simple boolean value
+        return visibleVal.toBool();
+    }
+
+    QJsonObject obj = visibleVal.value<QJsonObject>();
+
+    // Pattern: {"user": "propname", "value": true/false}
+    if (obj.contains("user") && obj["user"].isString()) {
+        QString propName = obj["user"].toString();
+        QVariant defaultValue = obj.contains("value") ? obj["value"].toVariant() : QVariant(true);
+        return evaluateSimpleUser(propName, defaultValue);
+    }
+
+    // Pattern: {"user": {"condition": "N", "name": "propname"}, "value": true/false}
+    if (obj.contains("user") && obj["user"].isObject()) {
+        QVariant userObj = obj["user"].toVariant();
+        QVariant defaultValue = obj.contains("value") ? obj["value"].toVariant() : QVariant(true);
+        return evaluateConditionUser(userObj, defaultValue);
+    }
+
+    // Pattern: {"script": "..."}
+    if (obj.contains("script")) {
+        return evaluateScript(obj["script"].toString(), QVariant(true));
+    }
+
+    // Unknown pattern, default to true
+    return true;
+}
+
+QVariant JSEngine::evaluateProperty(const QVariant& propVal) {
+    if (!propVal.canConvert<QJsonObject>()) {
+        return propVal;
+    }
+
+    QJsonObject obj = propVal.value<QJsonObject>();
+
+    // Pattern: {"user": "propname", "value": default}
+    if (obj.contains("user") && obj["user"].isString()) {
+        QString propName = obj["user"].toString();
+        QVariant defaultValue = obj.contains("value") ? obj["value"].toVariant() : QVariant();
+        auto it = m_properties.find(propName.toStdString());
+        if (it != m_properties.end()) {
+            return it->second;
+        }
+        return defaultValue;
+    }
+
+    // Pattern: {"user": {"condition": "N", "name": "propname"}, "value": default}
+    if (obj.contains("user") && obj["user"].isObject()) {
+        QVariant userObj = obj["user"].toVariant();
+        QVariant defaultValue = obj.contains("value") ? obj["value"].toVariant() : QVariant();
+        // For simplicity, return default for now
+        // Full implementation would need combo logic
+        Q_UNUSED(userObj);
+        return defaultValue;
+    }
+
+    return propVal;
+}
+
+bool JSEngine::evaluateSimpleUser(const QString& propName, const QVariant& defaultValue) {
+    auto it = m_properties.find(propName.toStdString());
+    if (it != m_properties.end()) {
+        return it->second.toBool();
+    }
+    return defaultValue.toBool();
+}
+
+bool JSEngine::evaluateConditionUser(const QVariant& userObj, const QVariant& defaultValue) {
+    if (!userObj.canConvert<QJsonObject>()) {
+        return defaultValue.toBool();
+    }
+
+    QJsonObject uObj = userObj.value<QJsonObject>();
+    QString propName = uObj.value("name").toString();
+    int condition = uObj.value("condition").toInt(-1);
+
+    auto it = m_properties.find(propName.toStdString());
+    if (it == m_properties.end()) {
+        return defaultValue.toBool();
+    }
+
+    QVariant propVal = it->second;
+
+    // Handle combo/condition logic
+    // condition "0" = value == 0, "1" = value == 1, etc.
+    if (propVal.canConvert<int>() || propVal.typeId() == QMetaType::Int) {
+        int intValue = propVal.toInt();
+        return (intValue == condition);
+    }
+
+    // For boolean properties, condition "1" means true
+    if (propVal.canConvert<bool>()) {
+        bool boolVal = propVal.toBool();
+        return (condition == 1 && boolVal) || (condition == 0 && !boolVal);
+    }
+
+    return defaultValue.toBool();
+}
+
+bool JSEngine::evaluateScript(const QString& scriptCode, const QVariant& defaultValue) {
+    // Parse simple JS visibility scripts
+    // Common patterns:
+    //   let visibility = true;  → return true
+    //   let visibility = false; → return false
+    //   return someCondition;   → evaluate condition
+
+    if (scriptCode.isEmpty()) {
+        return defaultValue.toBool();
+    }
+
+    QString code = scriptCode;
+
+    // Try to extract "let visibility = true/false" pattern
+    QRegularExpression visibilityRegex(QStringLiteral("let\\s+visibility\\s*=\\s*(true|false)"));
+    QRegularExpressionMatch match = visibilityRegex.match(code);
+    if (match.hasMatch()) {
+        QString boolStr = match.captured(1);
+        return boolStr == "true";
+    }
+
+    // Try to extract time-based conditions
+    // Pattern: if (hour >= X && hour < Y) return 'period';
+    QRegularExpression timeRegex(QStringLiteral("if\\s*\\([^)]*hour[^)]*\\)\\s*return\\s*'([^']+)'"));
+    match = timeRegex.match(code);
+    if (match.hasMatch()) {
+        // Time-based script found, evaluate based on current hour
+        QString period = match.captured(1);
+        Q_UNUSED(period);
+        // For now, return true to show the layer
+        // Full implementation would need more complex time evaluation
+        return true;
+    }
+
+    // Default: try to evaluate with QJSEngine
+    QJSEngine engine;
+    QJSValue result = engine.evaluate(code + "\nreturn visibility;");
+    if (result.isBool()) {
+        return result.toBool();
+    }
+
+    return defaultValue.toBool();
+}
+
+QString JSEngine::getDayNameShort() const {
+    static const QStringList days = QStringList()
+        << QStringLiteral("Sunday") << QStringLiteral("Monday")
+        << QStringLiteral("Tuesday") << QStringLiteral("Wednesday")
+        << QStringLiteral("Thursday") << QStringLiteral("Friday")
+        << QStringLiteral("Saturday");
+    // Convert from Qt's dayOfWeek (1=Monday) to our array index (0=Sunday)
+    int idx = m_currentDayOfWeek % 7;
+    return days.at(idx);
+}
+
+QString JSEngine::getMonthNameShort() const {
+    static const QStringList months = QStringList()
+        << QStringLiteral("January") << QStringLiteral("February") << QStringLiteral("March")
+        << QStringLiteral("April") << QStringLiteral("May") << QStringLiteral("June")
+        << QStringLiteral("July") << QStringLiteral("August") << QStringLiteral("September")
+        << QStringLiteral("October") << QStringLiteral("November") << QStringLiteral("December");
+    return months.at(m_currentMonth - 1);
+}
+
+QString JSEngine::getTimeFormatted() const {
+    return QString("%1:%2").arg(m_currentHour, 2, 10, QChar('0'))
+                           .arg(m_currentMinute, 2, 10, QChar('0'));
+}
+
+} // namespace WallpaperEngine::Scene

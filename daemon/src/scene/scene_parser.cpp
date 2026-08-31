@@ -1,4 +1,5 @@
 #include "scene_parser.h"
+#include "js_engine.h"
 #include "../assets/dxt_decoder.h"
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -198,6 +199,23 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
         outScene.clearColor = QColor::fromRgbF(qBound(0.0f, cc.x(), 1.0f), qBound(0.0f, cc.y(), 1.0f), qBound(0.0f, cc.z(), 1.0f));
     }
 
+    // Load project.json properties for JS engine
+    std::unordered_map<std::string, QVariant> propertiesMap;
+    std::string projectJsonStr = pkgReader.readTextFile("project.json");
+    if (!projectJsonStr.empty()) {
+        QJsonDocument projDoc = QJsonDocument::fromJson(QByteArray::fromStdString(projectJsonStr));
+        if (projDoc.isObject()) {
+            QJsonObject projRoot = projDoc.object();
+            QJsonObject properties = projRoot.value(QStringLiteral("properties")).toObject();
+            for (auto it = properties.begin(); it != properties.end(); ++it) {
+                propertiesMap[it.key().toStdString()] = it->toVariant();
+            }
+        }
+    }
+    JSEngine jsEngine;
+    jsEngine.init(propertiesMap);
+    jsEngine.update(0.0f, 0.0f);
+
     // Sound OST detection
     auto allFiles = pkgReader.listFiles();
     for (const auto& file : allFiles) {
@@ -267,7 +285,8 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
             layer.zOrder = zOrder++;
         }
         layer.name = obj.value(QStringLiteral("name")).toString().toStdString();
-        layer.visible = resolveUserBool(obj.value(QStringLiteral("visible")), true);
+        // Use JSEngine for visibility evaluation (handles script/user properties)
+        layer.visible = jsEngine.evaluateVisibility(obj.value(QStringLiteral("visible")));
         layer.opacity = resolveUserFloat(obj.value(QStringLiteral("opacity")), 1.0f);
 
         layer.origin = parseVector3D(obj.value(QStringLiteral("origin")), QVector3D(outScene.sceneWidth / 2.0f, outScene.sceneHeight / 2.0f, 0.0f));
