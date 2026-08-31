@@ -125,6 +125,19 @@ std::string PkgReader::readSizedString() {
     return str;
 }
 
+std::string PkgReader::readNullTerminatedString() {
+    std::string str;
+    char c;
+    while (m_stream.get(c) && c != '\0') {
+        str += c;
+    }
+    // Reject overly long strings (path traversal protection)
+    if (str.size() > 4096) {
+        return {};
+    }
+    return normalizePath(str);
+}
+
 uint32_t PkgReader::readUInt32() {
     uint32_t val = 0;
     m_stream.read(reinterpret_cast<char*>(&val), sizeof(val));

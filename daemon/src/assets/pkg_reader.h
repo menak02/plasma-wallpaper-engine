@@ -42,6 +42,7 @@ private:
     std::unordered_map<std::string, PkgFileEntry> m_entries;
 
     std::string readSizedString();
+    std::string readNullTerminatedString();
     uint32_t readUInt32();
 };
 
