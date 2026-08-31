@@ -24,6 +24,8 @@ add_executable(plasma-wallpaper-engine-daemon
     src/render/mesh_renderer.cpp
     src/audio/audio_player.h
     src/audio/audio_player.cpp
+    src/audio/audio_visualizer.h
+    src/audio/audio_visualizer.cpp
     src/vulkan/vulkan_context.cpp
     src/ipc/wallpaper_service.h
     src/ipc/wallpaper_service.cpp
@@ -77,6 +79,8 @@ add_executable(plasma-wallpaper-engine-verifier
     src/render/mesh_renderer.cpp
     src/audio/audio_player.h
     src/audio/audio_player.cpp
+    src/audio/audio_visualizer.h
+    src/audio/audio_visualizer.cpp
     src/vulkan/vulkan_context.cpp
     src/ipc/wallpaper_service.h
     src/ipc/wallpaper_service.cpp
