@@ -216,10 +216,6 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
                     continue;
                 }
                 // Validate uncompressed size to prevent excessive memory allocation
-                if (uncompSize > 100 * 1024 * 1024) { // 100 MB
-                    continue;
-                }
-                // Validate uncompressed size to prevent excessive memory allocation
                 if (uncompSize < 0 || uncompSize > 100 * 1024 * 1024) { // 100 MB
                     continue;
                 }

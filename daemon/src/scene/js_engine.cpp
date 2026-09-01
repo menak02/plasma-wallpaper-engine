@@ -11,7 +11,26 @@ JSEngine::~JSEngine() {}
 
 void JSEngine::init(const std::unordered_map<std::string, QVariant>& properties,
                     float currentTime) {
-    m_properties = properties;
+    // Unwrap project.json property objects to their "value" field
+    // project.json stores { "type":"bool", "value":true, ... } but we need just value
+    m_properties.clear();
+    m_properties.reserve(properties.size());
+    for (auto& [k, v] : properties) {
+        if (v.typeId() == QMetaType::QVariantMap) {
+            QVariantMap m = v.toMap();
+            if (m.contains(QStringLiteral("value"))) {
+                m_properties[k] = m.value(QStringLiteral("value"));
+                continue;
+            }
+        } else if (v.canConvert<QJsonObject>()) {
+            QJsonObject o = v.value<QJsonObject>();
+            if (o.contains(QStringLiteral("value"))) {
+                m_properties[k] = o.value(QStringLiteral("value")).toVariant();
+                continue;
+            }
+        }
+        m_properties[k] = v;
+    }
     m_lastTime = currentTime;
 
     // Initialize time state from current system time
@@ -42,30 +61,82 @@ void JSEngine::update(float currentTime, float deltaTime) {
 }
 
 bool JSEngine::evaluateVisibility(const QVariant& visibleVal) {
-    if (!visibleVal.canConvert<QJsonObject>()) {
-        // Simple boolean value
-        return visibleVal.toBool();
+    // Handle QJsonValue-wrapped objects stored as QVariant
+    if (visibleVal.typeId() == QMetaType::QVariantMap) {
+        QVariantMap m = visibleVal.toMap();
+        QJsonObject obj = QJsonObject::fromVariantMap(m);
+        // reuse QJsonValue path
+        return evaluateVisibility(QJsonValue(obj));
+    }
+    if (visibleVal.canConvert<QJsonObject>()) {
+        QJsonObject obj = visibleVal.value<QJsonObject>();
+        return evaluateVisibility(QJsonValue(obj));
+    }
+    // Handle object stored as generic QVariant (e.g., from QJsonValue::toVariant)
+    if (visibleVal.typeId() == QMetaType::QJsonValue) {
+        return evaluateVisibility(visibleVal.value<QJsonValue>());
+    }
+    // Simple boolean / numeric
+    if (visibleVal.isNull() || !visibleVal.isValid()) return true;
+    // For QVariant bool/int/string
+    if (visibleVal.typeId() == QMetaType::Bool) return visibleVal.toBool();
+    if (visibleVal.typeId() == QMetaType::QString) {
+        QString s = visibleVal.toString().toLower();
+        if (s == QStringLiteral("true")) return true;
+        if (s == QStringLiteral("false")) return false;
+    }
+    return visibleVal.toBool();
+}
+
+bool JSEngine::evaluateVisibility(const QJsonValue& visibleVal) {
+    if (visibleVal.isBool()) return visibleVal.toBool();
+    if (visibleVal.isString()) {
+        QString s = visibleVal.toString().toLower();
+        if (s == QStringLiteral("true")) return true;
+        if (s == QStringLiteral("false")) return false;
+        return true;
+    }
+    if (!visibleVal.isObject()) {
+        // Number, null, undefined → visible
+        if (visibleVal.isNull() || visibleVal.isUndefined()) return true;
+        return visibleVal.toBool(true);
     }
 
-    QJsonObject obj = visibleVal.value<QJsonObject>();
+    QJsonObject obj = visibleVal.toObject();
 
     // Pattern: {"user": "propname", "value": true/false}
-    if (obj.contains("user") && obj["user"].isString()) {
-        QString propName = obj["user"].toString();
-        QVariant defaultValue = obj.contains("value") ? obj["value"].toVariant() : QVariant(true);
+    if (obj.contains(QStringLiteral("user")) && obj[QStringLiteral("user")].isString()) {
+        QString propName = obj[QStringLiteral("user")].toString();
+        QVariant defaultValue = obj.contains(QStringLiteral("value")) ? obj[QStringLiteral("value")].toVariant() : QVariant(true);
         return evaluateSimpleUser(propName, defaultValue);
     }
 
     // Pattern: {"user": {"condition": "N", "name": "propname"}, "value": true/false}
-    if (obj.contains("user") && obj["user"].isObject()) {
-        QVariant userObj = obj["user"].toVariant();
-        QVariant defaultValue = obj.contains("value") ? obj["value"].toVariant() : QVariant(true);
-        return evaluateConditionUser(userObj, defaultValue);
+    if (obj.contains(QStringLiteral("user")) && obj[QStringLiteral("user")].isObject()) {
+        QJsonObject userObj = obj[QStringLiteral("user")].toObject();
+        // condition may be string "0" or int 0 — normalize
+        QVariant condVar;
+        if (userObj[QStringLiteral("condition")].isString())
+            condVar = userObj[QStringLiteral("condition")].toString().toInt();
+        else
+            condVar = userObj[QStringLiteral("condition")].toInt(-1);
+        QString propName = userObj[QStringLiteral("name")].toString();
+        QVariant defaultValue = obj.contains(QStringLiteral("value")) ? obj[QStringLiteral("value")].toVariant() : QVariant(true);
+        // Build a QJsonObject for evaluateConditionUser compat
+        QJsonObject tmp;
+        tmp[QStringLiteral("name")] = propName;
+        tmp[QStringLiteral("condition")] = QJsonValue::fromVariant(condVar);
+        return evaluateConditionUser(QVariant::fromValue(tmp), defaultValue);
     }
 
-    // Pattern: {"script": "..."}
-    if (obj.contains("script")) {
-        return evaluateScript(obj["script"].toString(), QVariant(true));
+    // Pattern: {"script": "..."} or {"value":...} with script inside
+    if (obj.contains(QStringLiteral("script"))) {
+        return evaluateScript(obj[QStringLiteral("script")].toString(), QVariant(true));
+    }
+
+    // Fallback: object with bare "value" bool (e.g. {"value": false})
+    if (obj.contains(QStringLiteral("value")) && obj.size() == 1) {
+        return obj[QStringLiteral("value")].toBool(true);
     }
 
     // Unknown pattern, default to true

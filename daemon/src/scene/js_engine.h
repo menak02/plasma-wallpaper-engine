@@ -5,6 +5,7 @@
 #include <QVariant>
 #include <QDateTime>
 #include <QJsonObject>
+#include <QJsonValue>
 #include <QRegularExpression>
 
 namespace WallpaperEngine::Scene {
@@ -35,12 +36,14 @@ public:
      * Evaluate a visibility expression and return whether the layer should be visible.
      *
      * Supports patterns:
+     *   true/false                           → direct bool
      *   {"user": "propname", "value": true}  → returns properties["propname"]
      *   {"user": {"condition": "N", "name": "propname"}, "value": true}
      *                                      → returns combo index == N
      *   {"script": "..."}                    → evaluates JS and returns result
      */
     bool evaluateVisibility(const QVariant& visibleVal);
+    bool evaluateVisibility(const QJsonValue& visibleVal);
 
     /**
      * Evaluate a numeric property (opacity, position, etc.)

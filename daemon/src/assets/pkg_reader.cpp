@@ -108,8 +108,9 @@ std::string PkgReader::readTextFile(const std::string& filename) {
     if (bytes.empty()) {
         return {};
     }
-    // Limit text file size to 256KB to prevent excessive memory usage
-    if (bytes.size() > 256 * 1024) {
+    // Limit text file size to 8MB — scene.json with scripts can be 1.5MB+ (e.g. 3122339805 = 1.5MB)
+    // 256KB killed 6/72 wallpapers; 8MB WU
+    if (bytes.size() > 8 * 1024 * 1024) {
         return {};
     }
     return std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
