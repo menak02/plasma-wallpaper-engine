@@ -123,6 +123,16 @@ bool WallpaperService::loadWallpaper(const QString& path) {
     m_activeWallpaperId = path;
     QString title;
 
+    // Web wallpaper detection: project.json file==index.html or path ends with .html
+    auto isWebProject = [&](const std::string& projJsonStr) -> bool {
+        if (projJsonStr.empty()) return false;
+        QJsonDocument d = QJsonDocument::fromJson(QByteArray::fromStdString(projJsonStr));
+        if (!d.isObject()) return false;
+        QString file = d.object().value(QStringLiteral("file")).toString();
+        QString type = d.object().value(QStringLiteral("type")).toString().toLower();
+        return file.endsWith(QStringLiteral(".html")) || type == QStringLiteral("web") || type == QStringLiteral("webwallpaper");
+    };
+
     if (info.suffix().toLower() == QStringLiteral("pkg") || info.isDir()) {
         QString pkgFile = info.isDir() ? (path + QStringLiteral("/scene.pkg")) : path;
         
@@ -137,8 +147,21 @@ bool WallpaperService::loadWallpaper(const QString& path) {
                 }
             }
 
-            // Load full multi-layer scene graph and particle emitters
-            if (m_compositor.loadScene(m_pkgReader)) {
+            // Web wallpaper path: extract index.html and render via WebWallpaper
+            if (isWebProject(projJson)) {
+                qInfo() << "WallpaperService: Web wallpaper detected, using WebWallpaper";
+                std::string html = m_pkgReader.readTextFile("index.html");
+                if (html.empty()) {
+                    for (auto& f : m_pkgReader.listFiles()) {
+                        if (f.ends_with(".html")) { html = m_pkgReader.readTextFile(f); if (!html.empty()) break; }
+                    }
+                }
+                if (!html.empty()) {
+                    if (m_compositor.loadWeb(html)) {
+                        title = title.isEmpty() ? QString::fromStdString(m_compositor.getScene().title) : title;
+                    }
+                }
+            } else if (m_compositor.loadScene(m_pkgReader)) {
                 if (title.isEmpty()) {
                     title = QString::fromStdString(m_compositor.getScene().title);
                 }

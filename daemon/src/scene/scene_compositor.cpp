@@ -1,4 +1,5 @@
 #include "scene_compositor.h"
+#include "web_wallpaper.h"
 #include "../render/shaders_spv.h"
 #include <QPainter>
 #include <QRadialGradient>
@@ -67,6 +68,7 @@ SceneCompositor::SceneCompositor(Render::VulkanContext* vulkanCtx)
         std::cout << "SceneCompositor: VulkanCompute " << (m_hasCompute ? "ACTIVE" : "fallback to QPainter") << std::endl;
     }
 }
+SceneCompositor::~SceneCompositor() = default;
 
 bool SceneCompositor::initComputePipelines() {
     using namespace Render::Shaders;
@@ -105,23 +107,81 @@ void SceneCompositor::setMouseParallax(float normX, float normY) {
 
 bool SceneCompositor::loadScene(Assets::PkgReader& pkgReader) {
     m_hasScene = false;
+    m_isWeb = false;
     SceneDescription desc;
     if (!SceneParser::parseScene(pkgReader, desc)) {
         return false;
     }
-
     m_scene = std::move(desc);
     m_particleEngine.setEmitters(m_scene.emitters);
     m_renderGraph.clear();
     m_hasScene = true;
-
     std::cout << "SceneCompositor: Loaded scene '" << m_scene.title 
               << "' with " << m_scene.layers.size() << " layers" << std::endl;
     return true;
 }
 
+bool SceneCompositor::loadWeb(const std::string& html) {
+    m_hasScene = true;
+    m_isWeb = true;
+    m_scene = SceneDescription{};
+    m_scene.title = "Web Wallpaper";
+    m_scene.sceneWidth = m_width;
+    m_scene.sceneHeight = m_height;
+    // Create WebWallpaper offscreen
+    if (!m_web) {
+        m_web = std::make_unique<WebWallpaper>();
+        m_web->setSize(m_width, m_height);
+    }
+    if (m_web->load(html)) {
+        QImage webImg = m_web->grabImage();
+        if (!webImg.isNull()) {
+            SceneLayer layer;
+            layer.name = "Web";
+            layer.image = webImg;
+            layer.visible = true;
+            layer.opacity = 1.0f;
+            layer.origin = QVector3D(m_scene.sceneWidth/2, m_scene.sceneHeight/2, 0);
+            layer.size = QVector2D(m_scene.sceneWidth, m_scene.sceneHeight);
+            m_scene.layers.push_back(std::move(layer));
+            m_scene.totalVisualObjectsDeclared = 1;
+        }
+    }
+    std::cout << "SceneCompositor: Loaded Web wallpaper " << html.size() << " bytes" << std::endl;
+    return true;
+}
+
+bool SceneCompositor::isWeb() const { return m_isWeb; }
+
 void SceneCompositor::updateAndRender(float dt, float time) {
     if (!m_hasScene || !m_vulkanCtx) return;
+
+    // Web: refresh from QWebEngineView each frame (throttled)
+    if (m_isWeb && m_web) {
+        QImage webImg = m_web->grabImage();
+        if (!webImg.isNull() && !m_scene.layers.empty()) {
+            m_scene.layers[0].image = std::move(webImg);
+        }
+    }
+
+    // Tick video decoders (~24fps, decode one frame per render tick throttled)
+    static float videoAcc = 0.0f;
+    videoAcc += dt;
+    if (videoAcc > 1.0f/30.0f) {
+        videoAcc = 0.0f;
+        for (auto& layer : m_scene.layers) {
+            if (layer.videoDecoder && layer.videoDecoder->isOpen()) {
+                QImage next = layer.videoDecoder->decodeNextFrame();
+                if (!next.isNull()) {
+                    layer.image = std::move(next);
+                } else {
+                    layer.videoDecoder->seekToStart();
+                    QImage retry = layer.videoDecoder->decodeNextFrame();
+                    if (!retry.isNull()) layer.image = std::move(retry);
+                }
+            }
+        }
+    }
 
     // 1. Clear background canvas
     m_canvas.fill(m_scene.clearColor);
@@ -231,7 +291,8 @@ void SceneCompositor::updateAndRender(float dt, float time) {
                 }
                 case EffectType::Wind:
                 case EffectType::WaterWaves:
-                case EffectType::WaterRipple: {
+                case EffectType::WaterRipple:
+                case EffectType::FoliageSway: {
                     hasMeshDeform = true;
                     deformSpeed = eff.speed;
                     deformStrength = eff.strength;
@@ -244,6 +305,13 @@ void SceneCompositor::updateAndRender(float dt, float time) {
                     animOffsetY += std::cos(shakePhase * 1.7f) * eff.strength * 5.0f;
                     break;
                 }
+                case EffectType::Blur:
+                    // Blur handled post-composite via RenderGraph/Vulkan; no per-layer deform
+                    break;
+                case EffectType::FilmGrain:
+                case EffectType::ColorAdjust:
+                case EffectType::Tint:
+                case EffectType::Unknown:
                 default:
                     break;
             }

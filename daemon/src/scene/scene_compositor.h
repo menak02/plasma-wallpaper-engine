@@ -14,15 +14,17 @@ namespace WallpaperEngine::Scene {
 class SceneCompositor {
 public:
     explicit SceneCompositor(Render::VulkanContext* vulkanCtx);
-    ~SceneCompositor() = default;
+    ~SceneCompositor();
 
     bool loadScene(Assets::PkgReader& pkgReader);
+    bool loadWeb(const std::string& html);
     void updateAndRender(float dt, float time);
     void setMouseParallax(float normX, float normY);
     void setTargetResolution(uint32_t width, uint32_t height);
 
     const SceneDescription& getScene() const { return m_scene; }
     bool hasScene() const { return m_hasScene; }
+    bool isWeb() const;
 
 private:
     Render::VulkanContext* m_vulkanCtx = nullptr;
@@ -32,6 +34,8 @@ private:
     SceneDescription m_scene;
     ParticleEngine m_particleEngine;
     bool m_hasScene = false;
+    bool m_isWeb = false;
+    std::unique_ptr<class WebWallpaper> m_web;
 
     uint32_t m_width = 1920;
     uint32_t m_height = 1080;

@@ -534,8 +534,16 @@ bool SceneParser::resolveEffect(Assets::PkgReader& pkgReader, const QJsonObject&
         outEffect.type = EffectType::Tint;
     } else if (fileLower.find("shake") != std::string::npos) {
         outEffect.type = EffectType::Shake;
+    } else if (fileLower.find("foliage") != std::string::npos || fileLower.find("sway") != std::string::npos) {
+        outEffect.type = EffectType::FoliageSway;
+    } else if (fileLower.find("filmgrain") != std::string::npos || fileLower.find("grain") != std::string::npos || fileLower.find("noise") != std::string::npos) {
+        outEffect.type = EffectType::FilmGrain;
+    } else if (fileLower.find("blur") != std::string::npos) {
+        outEffect.type = EffectType::Blur;
+    } else if (fileLower.find("color") != std::string::npos || fileLower.find("adjust") != std::string::npos || fileLower.find("grading") != std::string::npos) {
+        outEffect.type = EffectType::ColorAdjust;
     } else {
-        outEffect.type = EffectType::WaterWaves;
+        outEffect.type = EffectType::Unknown;
     }
 
     QJsonArray passes = effObj.value(QStringLiteral("passes")).toArray();
@@ -816,25 +824,23 @@ bool SceneParser::resolveTexture(Assets::PkgReader& pkgReader, const std::string
                 const uint8_t* d = mip.data.data();
                 if (d[4] == 'f' && d[5] == 't' && d[6] == 'y' && d[7] == 'p') {
                     std::cerr << "SceneParser: MP4 video texture detected: " << texName << std::endl;
-                    // Use ffmpeg CLI to extract first frame — avoids C API memory issues
+                    // TODO: VideoDecoder heap corruption with multi-video wallpapers (3122339805)
+                    // Keep ffmpeg CLI fallback for now; daemon will use VideoDecoder via separate path
                     QTemporaryFile tmpMp4(QDir::tempPath() + "/wp_XXXXXX.mp4");
                     tmpMp4.setAutoRemove(false);
                     if (tmpMp4.open()) {
                         tmpMp4.write(reinterpret_cast<const char*>(mip.data.data()), mip.data.size());
                         tmpMp4.close();
-
                         QTemporaryFile tmpPng(QDir::tempPath() + "/wp_XXXXXX.png");
                         tmpPng.setAutoRemove(false);
                         if (tmpPng.open()) {
                             tmpPng.close();
-
                             QProcess ffmpeg;
                             ffmpeg.setProcessChannelMode(QProcess::SeparateChannels);
                             ffmpeg.start("ffmpeg", {"-y", "-i", tmpMp4.fileName(),
                                                     "-vframes", "1", "-q:v", "2",
                                                     tmpPng.fileName()});
                             ffmpeg.waitForFinished(10000);
-
                             QImage frame(tmpPng.fileName());
                             if (!frame.isNull()) {
                                 outImage = frame.convertToFormat(QImage::Format_ARGB32);

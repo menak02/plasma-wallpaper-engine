@@ -38,7 +38,12 @@ enum class EffectType {
     Shine,
     Tint,
     Shake,
-    OpacityMask
+    OpacityMask,
+    FoliageSway,
+    FilmGrain,
+    Blur,
+    ColorAdjust,
+    Unknown
 };
 
 struct LayerEffect {

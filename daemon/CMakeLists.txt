@@ -23,6 +23,16 @@ pkg_check_modules(AVCODEC REQUIRED libavcodec)
 pkg_check_modules(AVUTIL REQUIRED libavutil)
 pkg_check_modules(SWSCALE REQUIRED libswscale)
 
+# Optional WebEngine
+find_package(Qt6 QUIET COMPONENTS WebEngineWidgets WebEngineCore)
+if(Qt6WebEngineWidgets_FOUND)
+    message(STATUS "Qt6 WebEngine: ENABLED")
+    set(HAVE_WEBENGINE TRUE)
+else()
+    message(STATUS "Qt6 WebEngine: DISABLED (not found)")
+    set(HAVE_WEBENGINE FALSE)
+endif()
+
 # ---------- Daemon ----------
 add_executable(plasma-wallpaper-engine-daemon
     src/main.cpp
@@ -34,6 +44,8 @@ add_executable(plasma-wallpaper-engine-daemon
     src/assets/library_scanner.cpp
     src/scene/scene_parser.cpp
     src/scene/js_engine.cpp
+    src/scene/web_wallpaper.cpp
+    src/scene/web_wallpaper.h
     src/scene/particle_engine.cpp
     src/scene/scene_compositor.cpp
     src/render/render_graph.cpp
@@ -75,6 +87,10 @@ target_link_libraries(plasma-wallpaper-engine-daemon
         ${AVUTIL_LIBRARIES}
         ${SWSCALE_LIBRARIES}
 )
+if(HAVE_WEBENGINE)
+    target_link_libraries(plasma-wallpaper-engine-daemon PRIVATE Qt6::WebEngineWidgets Qt6::WebEngineCore)
+    target_compile_definitions(plasma-wallpaper-engine-daemon PRIVATE HAVE_WEBENGINE=1)
+endif()
 
 target_compile_options(plasma-wallpaper-engine-daemon PRIVATE -fexceptions)
 
@@ -89,6 +105,8 @@ add_executable(plasma-wallpaper-engine-verifier
     src/assets/library_scanner.cpp
     src/scene/scene_parser.cpp
     src/scene/js_engine.cpp
+    src/scene/web_wallpaper.cpp
+    src/scene/web_wallpaper.h
     src/scene/particle_engine.cpp
     src/scene/scene_compositor.cpp
     src/render/render_graph.cpp
@@ -130,6 +148,10 @@ target_link_libraries(plasma-wallpaper-engine-verifier
         ${AVUTIL_LIBRARIES}
         ${SWSCALE_LIBRARIES}
 )
+if(HAVE_WEBENGINE)
+    target_link_libraries(plasma-wallpaper-engine-verifier PRIVATE Qt6::WebEngineWidgets Qt6::WebEngineCore)
+    target_compile_definitions(plasma-wallpaper-engine-verifier PRIVATE HAVE_WEBENGINE=1)
+endif()
 
 target_compile_options(plasma-wallpaper-engine-verifier PRIVATE -fexceptions)
 
