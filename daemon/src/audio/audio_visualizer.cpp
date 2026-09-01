@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <complex>
 
 namespace WallpaperEngine::Audio {
 
@@ -31,65 +32,116 @@ void AudioVisualizer::init(const std::vector<uint8_t>& audioBytes, int sampleRat
 
 void AudioVisualizer::update() {
     if (m_rawAudio.empty() || m_volume <= 0.0f) {
-        // No audio or muted - reset
         std::fill(m_spectrum.begin(), m_spectrum.end(), 0.0f);
         std::fill(m_waveform.begin(), m_waveform.end(), 0.0f);
         return;
     }
-
-    // Simple waveform extraction (in real implementation, would use FFT)
-    // For now, just copy a window of raw audio
-    int windowStart = m_playbackPos % m_rawAudio.size();
-    int windowEnd = std::min(windowStart + m_waveSize, (int)m_rawAudio.size());
-
+    int windowStart = static_cast<int>(m_playbackPos % m_rawAudio.size());
+    int windowEnd = std::min(windowStart + m_waveSize, static_cast<int>(m_rawAudio.size()));
     for (int i = 0; i < m_waveSize; ++i) {
-        if (windowStart + i < windowEnd) {
-            // Convert int16 to float (-1.0 to 1.0)
-            m_waveform[i] = static_cast<float>(m_rawAudio[windowStart + i]) / 32768.0f;
-        } else {
-            m_waveform[i] = 0.0f;
-        }
+        if (windowStart + i < windowEnd) m_waveform[i] = static_cast<float>(m_rawAudio[windowStart + i]) / 32768.0f;
+        else m_waveform[i] = 0.0f;
     }
-
-    // Advance playback position
     m_playbackPos = (m_playbackPos + m_waveSize / m_channels) % m_rawAudio.size();
     m_currentTime += static_cast<float>(m_waveSize) / (m_sampleRate * m_channels);
-    if (m_currentTime >= m_duration) {
-        m_currentTime = 0.0f;
-        m_playbackPos = 0;
-    }
-
-    // Compute simple frequency bands from waveform energy
-    computeBands();
+    if (m_currentTime >= m_duration) { m_currentTime = 0.0f; m_playbackPos = 0; }
+    computeFFT();
 }
 
 void AudioVisualizer::computeBands() {
-    // Simple energy-based band extraction
-    // In a real implementation, this would use FFT
+    // If we have FFT spectrum, map linear bins to logarithmic bands
+    if (m_spectrum.size() == static_cast<size_t>(m_waveSize / 2)) {
+        // Check if spectrum was filled by FFT (non-zero beyond simple energy)
+        // Aggregate FFT bins into bands using logarithmic spacing
+        for (int band = 0; band < m_bandCount; ++band) {
+            // Logarithmic band boundaries: 0..1024
+            float lowFrac = static_cast<float>(band) / m_bandCount;
+            float highFrac = static_cast<float>(band + 1) / m_bandCount;
+            // Exponential mapping for more low-freq resolution
+            int binLow = static_cast<int>(std::pow(2.0f, lowFrac * 10.0f) - 1.0f);
+            int binHigh = static_cast<int>(std::pow(2.0f, highFrac * 10.0f) - 1.0f);
+            binLow = std::clamp(binLow, 0, m_waveSize / 2 - 1);
+            binHigh = std::clamp(binHigh, binLow + 1, m_waveSize / 2);
+            float sum = 0.0f;
+            for (int b = binLow; b < binHigh; ++b) sum += m_spectrum[b];
+            float avg = sum / (binHigh - binLow);
+            // Compress dynamic range
+            m_spectrum[band] = std::clamp(std::sqrt(avg) * m_volume * 2.0f, 0.0f, 1.0f);
+        }
+        return;
+    }
+    // Fallback: energy-based
     int bandSize = m_waveSize / m_bandCount;
-
     for (int band = 0; band < m_bandCount; ++band) {
         float energy = 0.0f;
         int count = 0;
-
         int start = band * bandSize;
         int end = std::min(start + bandSize, m_waveSize);
-
-        for (int i = start; i < end; ++i) {
-            energy += m_waveform[i] * m_waveform[i];
-            count++;
-        }
-
-        // Normalize to 0.0 - 1.0
+        for (int i = start; i < end; ++i) { energy += m_waveform[i] * m_waveform[i]; count++; }
         m_spectrum[band] = std::sqrt(energy / count) * m_volume;
     }
 }
 
+static void fftRadix2(std::vector<std::complex<float>>& data) {
+    size_t n = data.size();
+    // bit reversal
+    size_t j = 0;
+    for (size_t i = 1; i < n; ++i) {
+        size_t bit = n >> 1;
+        while (j & bit) { j ^= bit; bit >>= 1; }
+        j ^= bit;
+        if (i < j) std::swap(data[i], data[j]);
+    }
+    for (size_t len = 2; len <= n; len <<= 1) {
+        float ang = 2.0f * 3.1415926535f / static_cast<float>(len);
+        std::complex<float> wlen(std::cos(ang), -std::sin(ang));
+        for (size_t i = 0; i < n; i += len) {
+            std::complex<float> w(1.0f, 0.0f);
+            for (size_t k = 0; k < len / 2; ++k) {
+                std::complex<float> u = data[i + k];
+                std::complex<float> v = data[i + k + len/2] * w;
+                data[i + k] = u + v;
+                data[i + k + len/2] = u - v;
+                w *= wlen;
+            }
+        }
+    }
+}
+
 void AudioVisualizer::computeFFT() {
-    // Placeholder for actual FFT implementation
-    // Would use KissFFT or similar library
-    // For now, use energy-based approximation
-    computeBands();
+    if (m_waveform.empty()) return;
+    size_t n = m_waveform.size();
+    std::vector<std::complex<float>> buf(n);
+    // Hann window + copy
+    for (size_t i = 0; i < n; ++i) {
+        float w = 0.5f * (1.0f - std::cos(2.0f * 3.1415926535f * static_cast<float>(i) / static_cast<float>(n - 1)));
+        buf[i] = std::complex<float>(m_waveform[i] * w, 0.0f);
+    }
+    fftRadix2(buf);
+    // Magnitude spectrum (first half)
+    m_spectrum.resize(n / 2);
+    for (size_t i = 0; i < n / 2; ++i) {
+        float mag = std::abs(buf[i]) / static_cast<float>(n);
+        // Log scale
+        m_spectrum[i] = std::clamp(mag * 50.0f, 0.0f, 1.0f);
+    }
+    // Now aggregate into bands (reuse computeBands path after resize)
+    // Keep full spectrum for getBand per-bin? But getBand expects bandCount bands.
+    // Preserve full spectrum then compute band summary into first bandCount entries
+    std::vector<float> full = m_spectrum;
+    m_spectrum.assign(m_bandCount, 0.0f);
+    for (int band = 0; band < m_bandCount; ++band) {
+        float lowFrac = static_cast<float>(band) / m_bandCount;
+        float highFrac = static_cast<float>(band + 1) / m_bandCount;
+        int binLow = static_cast<int>(std::pow(2.0f, lowFrac * 10.0f) - 1.0f);
+        int binHigh = static_cast<int>(std::pow(2.0f, highFrac * 10.0f) - 1.0f);
+        binLow = std::clamp(binLow, 0, static_cast<int>(full.size() - 1));
+        binHigh = std::clamp(binHigh, binLow + 1, static_cast<int>(full.size()));
+        float sum = 0.0f;
+        for (int b = binLow; b < binHigh; ++b) sum += full[b];
+        float avg = sum / (binHigh - binLow);
+        m_spectrum[band] = std::clamp(std::sqrt(avg) * m_volume * 3.0f, 0.0f, 1.0f);
+    }
 }
 
 float AudioVisualizer::getBand(int band) const {

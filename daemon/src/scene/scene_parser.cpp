@@ -418,15 +418,17 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
     sortedLayers.reserve(outScene.layers.size());
     std::unordered_set<int> visited;
 
-    // Lambda for recursive topological sort
+    // Lambda for recursive topological sort — parents before children
     std::function<void(SceneLayer&)> addToSorted = [&](SceneLayer& layer) {
         if (visited.count(layer.id)) return;
         visited.insert(layer.id);
-        // Add children first (depth-first)
+        sortedLayers.push_back(&layer);
+        // Sort children by zOrder then recurse depth-first
+        std::stable_sort(layer.children.begin(), layer.children.end(),
+            [](SceneLayer* a, SceneLayer* b){ return a->zOrder < b->zOrder; });
         for (auto* child : layer.children) {
             addToSorted(*child);
         }
-        sortedLayers.push_back(&layer);
     };
 
     // Process root layers first (no parent), sorted by zOrder

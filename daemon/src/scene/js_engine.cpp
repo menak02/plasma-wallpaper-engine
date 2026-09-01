@@ -215,45 +215,94 @@ bool JSEngine::evaluateConditionUser(const QVariant& userObj, const QVariant& de
 }
 
 bool JSEngine::evaluateScript(const QString& scriptCode, const QVariant& defaultValue) {
-    // Parse simple JS visibility scripts
-    // Common patterns:
-    //   let visibility = true;  → return true
-    //   let visibility = false; → return false
-    //   return someCondition;   → evaluate condition
-
-    if (scriptCode.isEmpty()) {
-        return defaultValue.toBool();
-    }
+    if (scriptCode.isEmpty()) return defaultValue.toBool();
 
     QString code = scriptCode;
 
-    // Try to extract "let visibility = true/false" pattern
-    QRegularExpression visibilityRegex(QStringLiteral("let\\s+visibility\\s*=\\s*(true|false)"));
-    QRegularExpressionMatch match = visibilityRegex.match(code);
-    if (match.hasMatch()) {
-        QString boolStr = match.captured(1);
-        return boolStr == "true";
+    // Fast path: direct let visibility = true/false
+    QRegularExpression visRegex(QStringLiteral("let\\s+visibility\\s*=\\s*(true|false)"));
+    auto m = visRegex.match(code);
+    if (m.hasMatch()) return m.captured(1) == QStringLiteral("true");
+
+    // Prepare mock QJSEngine with wallpaper globals
+    QJSEngine js;
+
+    // Inject engine.timeOfDay (0.0-1.0) and engine.time
+    float timeOfDay = static_cast<float>(m_currentHour) / 24.0f + static_cast<float>(m_currentMinute) / 1440.0f;
+    QJSValue engineObj = js.newObject();
+    engineObj.setProperty(QStringLiteral("timeOfDay"), timeOfDay);
+    engineObj.setProperty(QStringLiteral("time"), timeOfDay * 24.0f);
+    engineObj.setProperty(QStringLiteral("currentTime"), timeOfDay);
+    js.globalObject().setProperty(QStringLiteral("engine"), engineObj);
+
+    // Inject shared (persistent cross-script object)
+    QJSValue sharedObj = js.newObject();
+    js.globalObject().setProperty(QStringLiteral("shared"), sharedObj);
+
+    // Inject scriptProperties from m_properties (unwrap for JS)
+    QJSValue propsObj = js.newObject();
+    for (auto& [k, v] : m_properties) {
+        QString key = QString::fromStdString(k);
+        if (v.typeId() == QMetaType::Bool) propsObj.setProperty(key, v.toBool());
+        else if (v.typeId() == QMetaType::Int) propsObj.setProperty(key, v.toInt());
+        else if (v.typeId() == QMetaType::Double) propsObj.setProperty(key, v.toDouble());
+        else if (v.typeId() == QMetaType::QString) propsObj.setProperty(key, v.toString());
+        else propsObj.setProperty(key, v.toString());
+        // Also set .value style: scriptProperties.foo.value access compatibility
+        QJSValue wrapper = js.newObject();
+        wrapper.setProperty(QStringLiteral("value"), propsObj.property(key));
+        // Keep bare value too
+    }
+    js.globalObject().setProperty(QStringLiteral("scriptProperties"), propsObj);
+
+    // Minimal thisObject/userProperties mocks
+    js.globalObject().setProperty(QStringLiteral("thisObject"), js.newObject());
+    js.globalObject().setProperty(QStringLiteral("userProperties"), propsObj);
+
+    // Clean code: strip 'use strict', export keywords, and workshopId line (has side effects)
+    QString cleaned = code;
+    cleaned.remove(QStringLiteral("'use strict';"));
+    cleaned.remove(QStringLiteral("\"use strict\";"));
+    // Remove export keywords but keep declarations
+    cleaned.replace(QRegularExpression(QStringLiteral("\\bexport\\s+")), QStringLiteral(""));
+    // Remove __workshopId line (syntax ok but irrelevant)
+    cleaned.remove(QRegularExpression(QStringLiteral("let\\s+__workshopId[^;]*;")));
+
+    // Try to handle createScriptProperties().addCheckbox().finish() pattern
+    // Replace the whole chain with a no-op that keeps propsObj intact
+    cleaned.replace(QRegularExpression(QStringLiteral("createScriptProperties\\(\\)[\\s\\S]*?\\.finish\\(\\)")), QStringLiteral("({})"));
+
+    // Evaluate cleaned script
+    QJSValue evalRes = js.evaluate(cleaned);
+    if (evalRes.isError()) {
+        // Error → fall back to default (not true) to avoid false visible
+        return defaultValue.toBool();
     }
 
-    // Try to extract time-based conditions
-    // Pattern: if (hour >= X && hour < Y) return 'period';
-    QRegularExpression timeRegex(QStringLiteral("if\\s*\\([^)]*hour[^)]*\\)\\s*return\\s*'([^']+)'"));
-    match = timeRegex.match(code);
-    if (match.hasMatch()) {
-        // Time-based script found, evaluate based on current hour
-        QString period = match.captured(1);
-        Q_UNUSED(period);
-        // For now, return true to show the layer
-        // Full implementation would need more complex time evaluation
-        return true;
+    // Try to read global `visibility` variable set by script
+    QJSValue visVal = js.globalObject().property(QStringLiteral("visibility"));
+    if (visVal.isBool()) return visVal.toBool();
+    if (visVal.isNumber()) return visVal.toNumber() != 0;
+
+    // Try to call init/update then re-read visibility if script defines them
+    QJSValue initFn = js.globalObject().property(QStringLiteral("init"));
+    if (initFn.isCallable()) {
+        QJSValue r = initFn.call();
+        Q_UNUSED(r);
+        visVal = js.globalObject().property(QStringLiteral("visibility"));
+        if (visVal.isBool()) return visVal.toBool();
+        // Also check shared.currentTODState for day/night wallpapers
+        QJSValue sharedTOD = js.globalObject().property(QStringLiteral("shared")).property(QStringLiteral("currentTODState"));
+        if (sharedTOD.isString()) {
+            QString s = sharedTOD.toString().toLower();
+            // If layer's script sets shared state, default visible logic is handled elsewhere; return true for now
+            Q_UNUSED(s);
+        }
     }
 
-    // Default: try to evaluate with QJSEngine
-    QJSEngine engine;
-    QJSValue result = engine.evaluate(code + "\nreturn visibility;");
-    if (result.isBool()) {
-        return result.toBool();
-    }
+    // Last resort: evaluate "visibility" expression explicitly
+    QJSValue result = js.evaluate(QStringLiteral("typeof visibility !== 'undefined' ? visibility : undefined"));
+    if (result.isBool()) return result.toBool();
 
     return defaultValue.toBool();
 }

@@ -432,30 +432,7 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
         if (outImage.height == 0) outImage.height = outImage.mipmaps[0].height;
         if (outImage.textureWidth == 0) outImage.textureWidth = outImage.mipmaps[0].width;
         if (outImage.textureHeight == 0) outImage.textureHeight = outImage.mipmaps[0].height;
-        const char* fmtName = "Unknown";
-        switch (outImage.format) {
-            case TextureFormat::ARGB8888: fmtName = "ARGB8888"; break;
-            case TextureFormat::RGB888: fmtName = "RGB888"; break;
-            case TextureFormat::RGB565: fmtName = "RGB565"; break;
-            case TextureFormat::DXT5: fmtName = "DXT5"; break;
-            case TextureFormat::DXT3: fmtName = "DXT3"; break;
-            case TextureFormat::DXT1: fmtName = "DXT1"; break;
-            case TextureFormat::RG88: fmtName = "RG88"; break;
-            case TextureFormat::R8: fmtName = "R8"; break;
-            case TextureFormat::RG1616F: fmtName = "RG1616F"; break;
-            case TextureFormat::R16F: fmtName = "R16F"; break;
-            case TextureFormat::BC7: fmtName = "BC7"; break;
-            case TextureFormat::RGBA1010102: fmtName = "RGBA1010102"; break;
-            case TextureFormat::RGBA16161616F: fmtName = "RGBA16161616F"; break;
-            case TextureFormat::RGB161616F: fmtName = "RGB161616F"; break;
-            default: fmtName = "???"; break;
-        }
-        std::cout << "TEX: fmt=" << fmtName << " (" << static_cast<uint32_t>(outImage.format) 
-                  << ") texW=" << outImage.textureWidth << " texH=" << outImage.textureHeight
-                  << " imgW=" << outImage.width << " imgH=" << outImage.height
-                  << " mipW=" << outImage.mipmaps[0].width << " mipH=" << outImage.mipmaps[0].height
-                  << " mipData=" << outImage.mipmaps[0].data.size() << "B"
-                  << " flags=0x" << std::hex << outImage.flags << std::dec << std::endl;
+        (void)outImage; // suppress unused in release — verbose log removed for batch spam
         return true;
     }
 
