@@ -87,18 +87,8 @@ int main(int argc, char* argv[]) {
             filterId = argv[argIndex+1];
             argIndex += 2;
         } else {
-            // Non-option argument
-            if (workshopBase == QDir::homePath().toStdString()
-                    + "/.local/share/Steam/steamapps/workshop/content/431960") {
-                // Still using the default workshopBase, so set it
-                workshopBase = arg;
-            } else if (outputDir == QDir::homePath().toStdString()
-                           + "/.wallpaper-engine-verifier-output") {
-                // Still using the default outputDir, so set it
-                outputDir = arg;
-            } else {
-                std::cerr << "Warning: extra argument ignored: " << arg << std::endl;
-            }
+            // Non-option argument: workshopPath
+            workshopBase = arg;
             argIndex++;
         }
     }
@@ -168,7 +158,7 @@ int main(int argc, char* argv[]) {
         float scaleY = 1080.0f / sceneH;
 
         // Debug output for specific problematic wallpapers or filtered ID
-        bool debugThisWallpaper = (!filterId.empty() || id == "3432157109" || id == "3353454232" || id == "3715762023" || id == "3640755971" || id == "3504887068" || id == "3465215190" || id == "3725071796" || id == "3771397959" || id == "3591326656");
+        bool debugThisWallpaper = (!filterId.empty() || id == "3432157109" || id == "3353454232" || id == "3715762023" || id == "3640755971" || id == "3504887068" || id == "3465215190" || id == "3725071796" || id == "3771397959" || id == "3591326656" || id == "2292162327" || id == "3122339805" || id == "3677082224" || id == "3604883533" || id == "3515745440" || id == "2076312085" || id == "1793513647");
 
         int renderedLayers = 0;
         for (const auto& layer : sceneDesc.layers) {
