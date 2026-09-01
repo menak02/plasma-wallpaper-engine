@@ -20,6 +20,7 @@ public:
     bool loadScene(Assets::PkgReader& pkgReader, const std::unordered_map<std::string, QVariant>& overrideProps);
     bool reloadWithProperties(const std::unordered_map<std::string, QVariant>& props);
     bool loadWeb(const std::string& html);
+    void setWebProperty(const QString& key, const QVariant& value);
     void updateAndRender(float dt, float time);
     void setMouseParallax(float normX, float normY);
     void setTargetResolution(uint32_t width, uint32_t height);

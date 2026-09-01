@@ -167,6 +167,9 @@ bool SceneCompositor::loadWeb(const std::string& html) {
 }
 
 bool SceneCompositor::isWeb() const { return m_isWeb; }
+void SceneCompositor::setWebProperty(const QString& key, const QVariant& value) {
+    if (m_web) m_web->setProperty(key, value);
+}
 
 void SceneCompositor::updateAndRender(float dt, float time) {
     if (!m_hasScene || !m_vulkanCtx) return;

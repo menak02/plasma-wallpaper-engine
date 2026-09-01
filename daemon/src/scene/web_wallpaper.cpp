@@ -49,12 +49,18 @@ bool WebWallpaper::load(const std::string& htmlContent, const std::string& baseU
         m_impl->view->resize(m_w, m_h);
         m_impl->view->page()->settings()->setAttribute(QWebEngineSettings::ShowScrollBars, false);
         m_impl->view->page()->settings()->setAttribute(QWebEngineSettings::PlaybackRequiresUserGesture, false);
+        QObject::connect(m_impl->view, &QWebEngineView::loadFinished, this, [this](bool ok){
+            m_loaded = ok;
+            Q_EMIT loaded(ok);
+            qInfo() << "WebWallpaper: loadFinished" << ok;
+        });
+    } else {
+        m_loaded = false;
     }
     QUrl base = baseUrl.empty() ? QUrl(QStringLiteral("qrc:///")) : QUrl(QString::fromStdString(baseUrl));
     m_impl->view->setHtml(QString::fromStdString(htmlContent), base);
-    m_loaded = true;
-    Q_EMIT loaded(true);
-    qInfo() << "WebWallpaper: loaded HTML" << htmlContent.size() << "bytes hasWebEngine=1";
+    // Don't set m_loaded true immediately; wait for loadFinished signal
+    qInfo() << "WebWallpaper: loading HTML" << htmlContent.size() << "bytes hasWebEngine=1";
     return true;
 #else
     Q_UNUSED(htmlContent); Q_UNUSED(baseUrl);
@@ -89,8 +95,15 @@ void WebWallpaper::setSize(uint32_t w, uint32_t h) {
 QImage WebWallpaper::grabImage() {
 #if HAS_WEBENGINE
     if (!m_impl->view) return {};
-    // Grab framebuffer; requires event loop iteration. For now return placeholder 1x1
-    // Real impl would use QWebEngineView::grab() after loadFinished signal
+    if (!m_loaded) {
+        // Still loading — return placeholder until loadFinished
+        QImage placeholder(m_w, m_h, QImage::Format_ARGB32);
+        placeholder.fill(QColor(20,20,30));
+        QPainter p(&placeholder);
+        p.setPen(Qt::white);
+        p.drawText(placeholder.rect(), Qt::AlignCenter, QStringLiteral("Web Loading..."));
+        return placeholder;
+    }
     QImage img = m_impl->view->grab().toImage();
     if (!img.isNull()) return img.convertToFormat(QImage::Format_ARGB32);
     QImage placeholder(m_w, m_h, QImage::Format_ARGB32);
@@ -103,6 +116,40 @@ QImage WebWallpaper::grabImage() {
     QImage placeholder(m_w, m_h, QImage::Format_ARGB32);
     placeholder.fill(QColor(20,20,30));
     return placeholder;
+#endif
+}
+
+void WebWallpaper::setProperty(const QString& key, const QVariant& value) {
+#if HAS_WEBENGINE
+    if (!m_impl->view || !m_impl->view->page()) return;
+    QString js = QStringLiteral("if(window.wallpaperPropertyListener){"
+                                "  var p={}; p['%1']= %2;"
+                                "  wallpaperPropertyListener.applyUserProperties(p);"
+                                "} else if(window.scriptProperties){"
+                                "  scriptProperties['%1']={value:%2};"
+                                "}")
+                   .arg(key, value.toString().isEmpty() ? QStringLiteral("null") : QStringLiteral("\"%1\"").arg(value.toString()));
+    // Try generic set
+    QString valStr;
+    if (value.typeId() == QMetaType::Bool) valStr = value.toBool() ? QStringLiteral("true") : QStringLiteral("false");
+    else if (value.typeId() == QMetaType::QString) valStr = QStringLiteral("\"%1\"").arg(value.toString());
+    else valStr = value.toString();
+    js = QStringLiteral("try{"
+                        "if(window.wallpaperPropertyListener) wallpaperPropertyListener.applyUserProperties({'%1':%2});"
+                        "else if(window.scriptProperties) scriptProperties['%1'].value=%2;"
+                        "}catch(e){}").arg(key, valStr);
+    m_impl->view->page()->runJavaScript(js);
+    qInfo() << "WebWallpaper: setProperty" << key << "=" << value;
+#else
+    Q_UNUSED(key); Q_UNUSED(value);
+#endif
+}
+
+void WebWallpaper::runJavaScript(const QString& script) {
+#if HAS_WEBENGINE
+    if (m_impl->view && m_impl->view->page()) m_impl->view->page()->runJavaScript(script);
+#else
+    Q_UNUSED(script);
 #endif
 }
 

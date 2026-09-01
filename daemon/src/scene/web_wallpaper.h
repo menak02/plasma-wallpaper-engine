@@ -16,6 +16,8 @@ public:
     bool loadFile(const std::string& filePath);
     void setSize(uint32_t w, uint32_t h);
     QImage grabImage();
+    void setProperty(const QString& key, const QVariant& value);
+    void runJavaScript(const QString& script);
 
     bool isLoaded() const { return m_loaded; }
     bool hasWebEngine() const;

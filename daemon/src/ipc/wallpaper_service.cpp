@@ -220,14 +220,17 @@ QVariantMap WallpaperService::getWallpaperProperties(const QString& id) {
 void WallpaperService::setProperty(const QString& key, const QDBusVariant& value) {
     m_activeProperties[key] = value.variant();
     qInfo() << "Property changed:" << key << "=" << value.variant();
-    // Live reload: re-parse scene with updated properties
     std::unordered_map<std::string, QVariant> stdMap;
     for (auto it = m_activeProperties.begin(); it != m_activeProperties.end(); ++it) {
         stdMap[it.key().toStdString()] = it.value();
     }
-    if (m_compositor.hasScene() && !m_compositor.isWeb()) {
-        if (m_compositor.reloadWithProperties(stdMap)) {
-            qInfo() << "Property live reload succeeded for" << key;
+    if (m_compositor.hasScene()) {
+        if (m_compositor.isWeb()) {
+            m_compositor.setWebProperty(key, value.variant());
+        } else {
+            if (m_compositor.reloadWithProperties(stdMap)) {
+                qInfo() << "Property live reload succeeded for" << key;
+            }
         }
     }
     Q_EMIT propertyChanged(key, value);
