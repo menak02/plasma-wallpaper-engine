@@ -403,6 +403,23 @@ bool VulkanCompute::applyBlur(const ComputeImage& input, ComputeImage& output, f
     auto* pl = getPipeline("blur");
     if (!pl) return false;
     if (pl->descriptorSets.empty() && !allocateDescriptorSets(*pl)) return false;
+    // Update descriptors: 0=input sampler, 1=output storage
+    VkDescriptorImageInfo inInfo{ input.sampler, input.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+    VkDescriptorImageInfo outInfo{ VK_NULL_HANDLE, output.view, VK_IMAGE_LAYOUT_GENERAL };
+    VkWriteDescriptorSet writes[2]{};
+    writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[0].dstSet = pl->descriptorSets[0];
+    writes[0].dstBinding = 0;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[0].descriptorCount = 1;
+    writes[0].pImageInfo = &inInfo;
+    writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[1].dstSet = pl->descriptorSets[0];
+    writes[1].dstBinding = 1;
+    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    writes[1].descriptorCount = 1;
+    writes[1].pImageInfo = &outInfo;
+    vkUpdateDescriptorSets(m_device, 2, writes, 0, nullptr);
     BlurParams pc{ radius, vertical?1:0, input.width, input.height };
     recordAndSubmitCommands([&](VkCommandBuffer cmd){
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pl->pipeline);
@@ -418,6 +435,14 @@ bool VulkanCompute::applyWaterWaves(const ComputeImage& input, const ComputeImag
     if (!pl) pl=getPipeline("waterwaves");
     if (!pl) return false;
     if (pl->descriptorSets.empty() && !allocateDescriptorSets(*pl)) return false;
+    VkDescriptorImageInfo inInfo{ input.sampler, input.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+    VkDescriptorImageInfo maskInfo{ mask.sampler, mask.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+    VkDescriptorImageInfo outInfo{ VK_NULL_HANDLE, output.view, VK_IMAGE_LAYOUT_GENERAL };
+    VkWriteDescriptorSet writes[3]{};
+    writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = pl->descriptorSets[0]; writes[0].dstBinding = 0; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[0].descriptorCount = 1; writes[0].pImageInfo = &inInfo;
+    writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = pl->descriptorSets[0]; writes[1].dstBinding = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].descriptorCount = 1; writes[1].pImageInfo = &maskInfo;
+    writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = pl->descriptorSets[0]; writes[2].dstBinding = 2; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; writes[2].descriptorCount = 1; writes[2].pImageInfo = &outInfo;
+    vkUpdateDescriptorSets(m_device, 3, writes, 0, nullptr);
     WaveParams pc{ speed, scale, strength, direction, time, input.width, input.height };
     recordAndSubmitCommands([&](VkCommandBuffer cmd){
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pl->pipeline);
@@ -431,6 +456,14 @@ bool VulkanCompute::applyPulse(const ComputeImage& input, const ComputeImage& ma
     auto* pl = getPipeline("pulse");
     if (!pl) return false;
     if (pl->descriptorSets.empty() && !allocateDescriptorSets(*pl)) return false;
+    VkDescriptorImageInfo inInfo{ input.sampler, input.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+    VkDescriptorImageInfo maskInfo{ mask.sampler, mask.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+    VkDescriptorImageInfo outInfo{ VK_NULL_HANDLE, output.view, VK_IMAGE_LAYOUT_GENERAL };
+    VkWriteDescriptorSet writes[3]{};
+    writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = pl->descriptorSets[0]; writes[0].dstBinding = 0; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[0].descriptorCount = 1; writes[0].pImageInfo = &inInfo;
+    writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = pl->descriptorSets[0]; writes[1].dstBinding = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].descriptorCount = 1; writes[1].pImageInfo = &maskInfo;
+    writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = pl->descriptorSets[0]; writes[2].dstBinding = 2; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; writes[2].descriptorCount = 1; writes[2].pImageInfo = &outInfo;
+    vkUpdateDescriptorSets(m_device, 3, writes, 0, nullptr);
     PulseParams pc{ speed, amount, power, time, input.width, input.height };
     recordAndSubmitCommands([&](VkCommandBuffer cmd){
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pl->pipeline);
@@ -444,6 +477,14 @@ bool VulkanCompute::applyComposition(const ComputeImage& current, const ComputeI
     auto* pl = getPipeline("composition");
     if (!pl) return false;
     if (pl->descriptorSets.empty() && !allocateDescriptorSets(*pl)) return false;
+    VkDescriptorImageInfo curInfo{ current.sampler, current.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+    VkDescriptorImageInfo bgInfo{ background.sampler, background.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+    VkDescriptorImageInfo outInfo{ VK_NULL_HANDLE, output.view, VK_IMAGE_LAYOUT_GENERAL };
+    VkWriteDescriptorSet writes[3]{};
+    writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = pl->descriptorSets[0]; writes[0].dstBinding = 0; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[0].descriptorCount = 1; writes[0].pImageInfo = &curInfo;
+    writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = pl->descriptorSets[0]; writes[1].dstBinding = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].descriptorCount = 1; writes[1].pImageInfo = &bgInfo;
+    writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = pl->descriptorSets[0]; writes[2].dstBinding = 2; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; writes[2].descriptorCount = 1; writes[2].pImageInfo = &outInfo;
+    vkUpdateDescriptorSets(m_device, 3, writes, 0, nullptr);
     CompositionParams pc{ blendMode, current.width, current.height };
     recordAndSubmitCommands([&](VkCommandBuffer cmd){
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pl->pipeline);
