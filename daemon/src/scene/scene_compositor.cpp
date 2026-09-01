@@ -8,6 +8,7 @@
 #include <iostream>
 #include <algorithm>
 #include <cmath>
+#include <unordered_map>
 
 namespace WallpaperEngine::Scene {
 
@@ -166,14 +167,17 @@ void SceneCompositor::updateAndRender(float dt, float time) {
         }
     }
 
-    // Tick video decoders (~24fps, lazy single-decoder to avoid heap corruption)
+    // Tick video decoders (~30fps, single temp decoder to avoid multi-decoder heap corruption)
     static float videoAcc = 0.0f;
+    static std::unordered_map<int, std::shared_ptr<Assets::VideoDecoder>> videoDecoders;
+    static std::unordered_map<int, int> videoFramePos;
     videoAcc += dt;
     if (videoAcc > 1.0f/30.0f) {
         videoAcc = 0.0f;
         for (auto& layer : m_scene.layers) {
-            // Lazy init decoder from stored MP4 bytes (verifier stores first frame only)
-            if (!layer.videoData.empty() && !layer.videoDecoder) {
+            if (layer.videoData.empty()) continue;
+            auto it = videoDecoders.find(layer.id);
+            if (it == videoDecoders.end()) {
                 QTemporaryFile tmp(QDir::tempPath() + "/wp_XXXXXX.mp4");
                 tmp.setAutoRemove(false);
                 if (tmp.open()) {
@@ -181,20 +185,21 @@ void SceneCompositor::updateAndRender(float dt, float time) {
                     tmp.close();
                     auto dec = std::make_shared<Assets::VideoDecoder>();
                     if (dec->openFromFile(tmp.fileName().toStdString(), 0, 0)) {
-                        // consume first frame already shown, so seek and decode next
-                        dec->decodeNextFrame();
-                        layer.videoDecoder = dec;
+                        dec->decodeNextFrame(); // skip first frame already shown
+                        videoDecoders[layer.id] = dec;
+                        videoFramePos[layer.id] = 1;
                     }
                     QFile::remove(tmp.fileName());
                 }
-            }
-            if (layer.videoDecoder && layer.videoDecoder->isOpen()) {
-                QImage next = layer.videoDecoder->decodeNextFrame();
+            } else {
+                auto dec = it->second;
+                if (!dec || !dec->isOpen()) continue;
+                QImage next = dec->decodeNextFrame();
                 if (!next.isNull()) {
                     layer.image = std::move(next);
                 } else {
-                    layer.videoDecoder->seekToStart();
-                    QImage retry = layer.videoDecoder->decodeNextFrame();
+                    dec->seekToStart();
+                    QImage retry = dec->decodeNextFrame();
                     if (!retry.isNull()) layer.image = std::move(retry);
                 }
             }

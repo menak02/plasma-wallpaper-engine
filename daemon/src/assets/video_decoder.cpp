@@ -32,20 +32,23 @@ VideoDecoder::~VideoDecoder() {
 }
 
 void VideoDecoder::close() {
+    if (m_codecCtx) { avcodec_flush_buffers(m_codecCtx); }
     if (m_frame) { av_frame_free(&m_frame); m_frame = nullptr; }
     if (m_rgbFrame) { av_frame_free(&m_rgbFrame); m_rgbFrame = nullptr; }
     if (m_rgbBuffer) { av_free(m_rgbBuffer); m_rgbBuffer = nullptr; }
     if (m_swsCtx) { sws_freeContext(m_swsCtx); m_swsCtx = nullptr; }
     if (m_codecCtx) { avcodec_free_context(&m_codecCtx); m_codecCtx = nullptr; }
-    // With CUSTOM_IO, avformat_close_input does NOT free AVIOContext
-    // Close formatCtx first (stops I/O), then free AVIO ourselves
-    if (m_formatCtx) { avformat_close_input(&m_formatCtx); m_formatCtx = nullptr; }
+    if (m_formatCtx) {
+        // Detach custom AVIO before close to avoid double-free on some FFmpeg builds
+        if (m_avioCtx) m_formatCtx->pb = nullptr;
+        avformat_close_input(&m_formatCtx);
+        m_formatCtx = nullptr;
+    }
     if (m_avioCtx) {
-        // avio_alloc_context used av_malloc for buffer; avio_context_free calls av_free
         avio_context_free(&m_avioCtx);
         m_avioCtx = nullptr;
     }
-    m_avioBuffer = nullptr; // was freed by avio_context_free
+    m_avioBuffer = nullptr;
     if (m_avioOpaque) { delete static_cast<AvioContextData*>(m_avioOpaque); m_avioOpaque = nullptr; }
     m_open = false;
 }
@@ -146,8 +149,8 @@ bool VideoDecoder::openInternal(int targetWidth, int targetHeight) {
     m_codecCtx = avcodec_alloc_context3(codec);
     avcodec_parameters_to_context(m_codecCtx, videoStream->codecpar);
 
-    // Enable multi-threading
-    m_codecCtx->thread_count = 0; // auto-detect
+    // Single thread for verifier/daemon stability; 0 auto uses thread-pool that races on multi-decoder
+    m_codecCtx->thread_count = 1;
 
     ret = avcodec_open2(m_codecCtx, codec, nullptr);
     if (ret < 0) {
