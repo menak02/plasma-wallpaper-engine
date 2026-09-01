@@ -3,12 +3,26 @@
 #include <cmath>
 #include <cstring>
 #include <complex>
+#if __has_include(<QAudioSource>)
+#include <QAudioSource>
+#include <QMediaDevices>
+#include <QAudioDevice>
+#include <QAudioFormat>
+#include <QIODevice>
+#endif
 
 namespace WallpaperEngine::Audio {
 
+struct AudioVisualizer::LiveImpl {
+#if __has_include(<QAudioSource>)
+    QAudioSource* source = nullptr;
+    QIODevice* device = nullptr;
+#endif
+};
+
 AudioVisualizer::AudioVisualizer() : m_bandCount(8), m_waveSize(2048) {}
 
-AudioVisualizer::~AudioVisualizer() {}
+AudioVisualizer::~AudioVisualizer() { stopLiveCapture(); }
 
 void AudioVisualizer::init(const std::vector<uint8_t>& audioBytes, int sampleRate, int channels) {
     m_sampleRate = sampleRate;
@@ -159,6 +173,50 @@ int AudioVisualizer::getWaveform(float* outBuffer, int maxSamples) const {
 
 void AudioVisualizer::setVolume(float volume) {
     m_volume = std::clamp(volume, 0.0f, 1.0f);
+}
+
+bool AudioVisualizer::startLiveCapture(int sampleRate, int channels) {
+#if __has_include(<QAudioSource>)
+    stopLiveCapture();
+    m_isLive = true;
+    m_sampleRate = sampleRate;
+    m_channels = channels;
+    m_live = new LiveImpl();
+    QAudioFormat fmt;
+    fmt.setSampleRate(sampleRate);
+    fmt.setChannelCount(channels);
+    fmt.setSampleFormat(QAudioFormat::Int16);
+    QAudioDevice dev = QMediaDevices::defaultAudioInput();
+    if (dev.isNull()) return false;
+    m_live->source = new QAudioSource(dev, fmt);
+    m_live->device = m_live->source->start();
+    if (!m_live->device) { stopLiveCapture(); return false; }
+    // Prime buffers
+    m_rawAudio.assign(m_waveSize, 0);
+    return true;
+#else
+    Q_UNUSED(sampleRate); Q_UNUSED(channels);
+    return false;
+#endif
+}
+
+void AudioVisualizer::stopLiveCapture() {
+#if __has_include(<QAudioSource>)
+    if (m_live) {
+        if (m_live->source) { m_live->source->stop(); delete m_live->source; }
+        delete m_live; m_live = nullptr;
+    }
+#endif
+    m_isLive = false;
+}
+
+bool AudioVisualizer::isLive() const { return m_isLive; }
+
+void AudioVisualizer::onLiveData(const std::vector<int16_t>& chunk) {
+    if (chunk.empty()) return;
+    // Append to ring buffer
+    m_rawAudio.insert(m_rawAudio.end(), chunk.begin(), chunk.end());
+    if (m_rawAudio.size() > 8192) m_rawAudio.erase(m_rawAudio.begin(), m_rawAudio.begin() + (m_rawAudio.size() - 8192));
 }
 
 } // namespace WallpaperEngine::Audio

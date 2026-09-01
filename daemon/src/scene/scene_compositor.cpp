@@ -3,6 +3,8 @@
 #include "../render/shaders_spv.h"
 #include <QPainter>
 #include <QRadialGradient>
+#include <QTemporaryFile>
+#include <QDir>
 #include <iostream>
 #include <algorithm>
 #include <cmath>
@@ -164,12 +166,28 @@ void SceneCompositor::updateAndRender(float dt, float time) {
         }
     }
 
-    // Tick video decoders (~24fps, decode one frame per render tick throttled)
+    // Tick video decoders (~24fps, lazy single-decoder to avoid heap corruption)
     static float videoAcc = 0.0f;
     videoAcc += dt;
     if (videoAcc > 1.0f/30.0f) {
         videoAcc = 0.0f;
         for (auto& layer : m_scene.layers) {
+            // Lazy init decoder from stored MP4 bytes (verifier stores first frame only)
+            if (!layer.videoData.empty() && !layer.videoDecoder) {
+                QTemporaryFile tmp(QDir::tempPath() + "/wp_XXXXXX.mp4");
+                tmp.setAutoRemove(false);
+                if (tmp.open()) {
+                    tmp.write(reinterpret_cast<const char*>(layer.videoData.data()), layer.videoData.size());
+                    tmp.close();
+                    auto dec = std::make_shared<Assets::VideoDecoder>();
+                    if (dec->openFromFile(tmp.fileName().toStdString(), 0, 0)) {
+                        // consume first frame already shown, so seek and decode next
+                        dec->decodeNextFrame();
+                        layer.videoDecoder = dec;
+                    }
+                    QFile::remove(tmp.fileName());
+                }
+            }
             if (layer.videoDecoder && layer.videoDecoder->isOpen()) {
                 QImage next = layer.videoDecoder->decodeNextFrame();
                 if (!next.isNull()) {

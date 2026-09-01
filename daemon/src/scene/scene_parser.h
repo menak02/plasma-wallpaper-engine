@@ -105,7 +105,8 @@ struct SceneLayer {
 
     std::vector<LayerEffect> effects;
     QImage image; // Decoded RGBA image for this layer
-    std::shared_ptr<Assets::VideoDecoder> videoDecoder; // Video decoder for MP4 textures
+    std::shared_ptr<Assets::VideoDecoder> videoDecoder; // Video decoder for MP4 textures (lazy)
+    std::vector<uint8_t> videoData; // Raw MP4 bytes for lazy decoder creation
 
     // Hierarchy support (resolved after parsing)
     SceneLayer* parent = nullptr;
@@ -150,6 +151,7 @@ private:
     static bool resolveTexture(Assets::PkgReader& pkgReader, const std::string& texName, QImage& outImage);
     // Overload that also returns a VideoDecoder for MP4 textures
     static bool resolveTexture(Assets::PkgReader& pkgReader, const std::string& texName, QImage& outImage, std::shared_ptr<Assets::VideoDecoder>& outVideoDecoder);
+    static bool resolveTexture(Assets::PkgReader& pkgReader, const std::string& texName, QImage& outImage, std::shared_ptr<Assets::VideoDecoder>& outVideoDecoder, std::vector<uint8_t>& outVideoBytes);
     static bool resolveParticle(Assets::PkgReader& pkgReader, const std::string& particlePath, ParticleEmitterConfig& outEmitter);
     static bool resolveEffect(Assets::PkgReader& pkgReader, const QJsonObject& effObj, LayerEffect& outEffect);
     static void generateLiveTextImage(SceneLayer& layer);

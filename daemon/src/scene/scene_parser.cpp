@@ -672,7 +672,9 @@ bool SceneParser::resolveMaterial(Assets::PkgReader& pkgReader, const std::strin
 
         layer.texturePath = fullTexPath;
         QString shaderName = pass0.value(QStringLiteral("shader")).toString().toLower();
-        if (resolveTexture(pkgReader, fullTexPath, layer.image, layer.videoDecoder)) {
+        std::vector<uint8_t> videoBytes;
+        if (resolveTexture(pkgReader, fullTexPath, layer.image, layer.videoDecoder, videoBytes)) {
+            if (!videoBytes.empty()) layer.videoData = std::move(videoBytes);
             // GenericImage/genericimage2 shaders should NOT modify the texture.
             // The old qRgba(r,g,b,r) code used the RED channel as alpha, which
             // destroyed images (made dark-red areas transparent, changed colors).
@@ -797,6 +799,10 @@ bool SceneParser::resolveTexture(Assets::PkgReader& pkgReader, const std::string
 }
 
 bool SceneParser::resolveTexture(Assets::PkgReader& pkgReader, const std::string& texName, QImage& outImage, std::shared_ptr<Assets::VideoDecoder>& outVideoDecoder) {
+    std::vector<uint8_t> dummy;
+    return resolveTexture(pkgReader, texName, outImage, outVideoDecoder, dummy);
+}
+bool SceneParser::resolveTexture(Assets::PkgReader& pkgReader, const std::string& texName, QImage& outImage, std::shared_ptr<Assets::VideoDecoder>& outVideoDecoder, std::vector<uint8_t>& outVideoBytes) {
     auto bytes = pkgReader.readFile(texName);
     if (bytes.empty()) {
         std::string nameOnly = texName;
@@ -824,8 +830,10 @@ bool SceneParser::resolveTexture(Assets::PkgReader& pkgReader, const std::string
                 const uint8_t* d = mip.data.data();
                 if (d[4] == 'f' && d[5] == 't' && d[6] == 'y' && d[7] == 'p') {
                     std::cerr << "SceneParser: MP4 video texture detected: " << texName << std::endl;
-                    // TODO: VideoDecoder heap corruption with multi-video wallpapers (3122339805)
-                    // Keep ffmpeg CLI fallback for now; daemon will use VideoDecoder via separate path
+                    outVideoBytes = mip.data; // keep for lazy VideoDecoder in SceneCompositor
+                    // Verifier & daemon first-frame via ffmpeg CLI (stable, no multi-decoder heap issue)
+                    // VideoDecoder C++ path kept for daemon tick lazy creation (see SceneCompositor)
+                    // Fallback: ffmpeg CLI single-frame extract (requires ffmpeg binary)
                     QTemporaryFile tmpMp4(QDir::tempPath() + "/wp_XXXXXX.mp4");
                     tmpMp4.setAutoRemove(false);
                     if (tmpMp4.open()) {

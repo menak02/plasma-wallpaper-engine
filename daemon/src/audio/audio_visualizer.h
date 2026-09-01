@@ -80,9 +80,15 @@ public:
      */
     void setVolume(float volume);
 
+    // Live capture (PulseAudio/PipeWire via Qt Multimedia)
+    bool startLiveCapture(int sampleRate = 44100, int channels = 1);
+    void stopLiveCapture();
+    bool isLive() const;
+
 private:
     void computeFFT();
     void computeBands();
+    void onLiveData(const std::vector<int16_t>& chunk);
 
     // Audio data
     std::vector<int16_t> m_rawAudio;
@@ -100,6 +106,11 @@ private:
     float m_currentTime = 0.0f;
     float m_duration = 0.0f;
     size_t m_playbackPos = 0;
+
+    // Live capture state
+    struct LiveImpl;
+    LiveImpl* m_live = nullptr;
+    bool m_isLive = false;
 };
 
 } // namespace WallpaperEngine::Audio

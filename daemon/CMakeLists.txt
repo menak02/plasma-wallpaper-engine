@@ -32,6 +32,14 @@ else()
     message(STATUS "Qt6 WebEngine: DISABLED (not found)")
     set(HAVE_WEBENGINE FALSE)
 endif()
+find_package(Qt6 QUIET COMPONENTS Multimedia)
+if(Qt6Multimedia_FOUND)
+    message(STATUS "Qt6 Multimedia: ENABLED")
+    set(HAVE_MULTIMEDIA TRUE)
+else()
+    message(STATUS "Qt6 Multimedia: DISABLED")
+    set(HAVE_MULTIMEDIA FALSE)
+endif()
 
 # ---------- Daemon ----------
 add_executable(plasma-wallpaper-engine-daemon
@@ -90,6 +98,10 @@ target_link_libraries(plasma-wallpaper-engine-daemon
 if(HAVE_WEBENGINE)
     target_link_libraries(plasma-wallpaper-engine-daemon PRIVATE Qt6::WebEngineWidgets Qt6::WebEngineCore)
     target_compile_definitions(plasma-wallpaper-engine-daemon PRIVATE HAVE_WEBENGINE=1)
+endif()
+if(HAVE_MULTIMEDIA)
+    target_link_libraries(plasma-wallpaper-engine-daemon PRIVATE Qt6::Multimedia)
+    target_compile_definitions(plasma-wallpaper-engine-daemon PRIVATE HAVE_MULTIMEDIA=1)
 endif()
 
 target_compile_options(plasma-wallpaper-engine-daemon PRIVATE -fexceptions)
@@ -151,6 +163,10 @@ target_link_libraries(plasma-wallpaper-engine-verifier
 if(HAVE_WEBENGINE)
     target_link_libraries(plasma-wallpaper-engine-verifier PRIVATE Qt6::WebEngineWidgets Qt6::WebEngineCore)
     target_compile_definitions(plasma-wallpaper-engine-verifier PRIVATE HAVE_WEBENGINE=1)
+endif()
+if(HAVE_MULTIMEDIA)
+    target_link_libraries(plasma-wallpaper-engine-verifier PRIVATE Qt6::Multimedia)
+    target_compile_definitions(plasma-wallpaper-engine-verifier PRIVATE HAVE_MULTIMEDIA=1)
 endif()
 
 target_compile_options(plasma-wallpaper-engine-verifier PRIVATE -fexceptions)
