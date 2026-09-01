@@ -174,6 +174,9 @@ static void applyOpacityMasks(SceneLayer& layer) {
 }
 
 bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& outScene) {
+    return parseScene(pkgReader, outScene, {});
+}
+bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& outScene, const std::unordered_map<std::string, QVariant>& overrideProperties) {
     std::string sceneJsonStr = pkgReader.readTextFile("scene.json");
     if (sceneJsonStr.empty()) {
         return false;
@@ -212,6 +215,9 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
             }
         }
     }
+    // Apply overrides from WallpaperService live properties
+    for (auto& [k,v] : overrideProperties) propertiesMap[k] = v;
+
     JSEngine jsEngine;
     jsEngine.init(propertiesMap);
     jsEngine.update(0.0f, 0.0f);

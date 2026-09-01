@@ -161,21 +161,25 @@ bool WallpaperService::loadWallpaper(const QString& path) {
                         title = title.isEmpty() ? QString::fromStdString(m_compositor.getScene().title) : title;
                     }
                 }
-            } else if (m_compositor.loadScene(m_pkgReader)) {
-                if (title.isEmpty()) {
-                    title = QString::fromStdString(m_compositor.getScene().title);
-                }
+            } else {
+                std::unordered_map<std::string, QVariant> ov;
+                for (auto it = m_activeProperties.begin(); it != m_activeProperties.end(); ++it) ov[it.key().toStdString()] = it.value();
+                if (m_compositor.loadScene(m_pkgReader, ov)) {
+                    if (title.isEmpty()) {
+                        title = QString::fromStdString(m_compositor.getScene().title);
+                    }
 
-                // Check for background audio OST
-                std::string soundPath = m_compositor.getScene().soundPath;
-                if (!soundPath.empty()) {
-                    auto soundBytes = m_pkgReader.readFile(soundPath);
-                    if (!soundBytes.empty()) {
-                        std::string ext = "mp3";
-                        if (soundPath.ends_with(".ogg")) ext = "ogg";
-                        else if (soundPath.ends_with(".wav")) ext = "wav";
-                        else if (soundPath.ends_with(".flac")) ext = "flac";
-                        m_audioPlayer.play(soundBytes, ext);
+                    // Check for background audio OST
+                    std::string soundPath = m_compositor.getScene().soundPath;
+                    if (!soundPath.empty()) {
+                        auto soundBytes = m_pkgReader.readFile(soundPath);
+                        if (!soundBytes.empty()) {
+                            std::string ext = "mp3";
+                            if (soundPath.ends_with(".ogg")) ext = "ogg";
+                            else if (soundPath.ends_with(".wav")) ext = "wav";
+                            else if (soundPath.ends_with(".flac")) ext = "flac";
+                            m_audioPlayer.play(soundBytes, ext);
+                        }
                     }
                 }
             }
@@ -216,6 +220,16 @@ QVariantMap WallpaperService::getWallpaperProperties(const QString& id) {
 void WallpaperService::setProperty(const QString& key, const QDBusVariant& value) {
     m_activeProperties[key] = value.variant();
     qInfo() << "Property changed:" << key << "=" << value.variant();
+    // Live reload: re-parse scene with updated properties
+    std::unordered_map<std::string, QVariant> stdMap;
+    for (auto it = m_activeProperties.begin(); it != m_activeProperties.end(); ++it) {
+        stdMap[it.key().toStdString()] = it.value();
+    }
+    if (m_compositor.hasScene() && !m_compositor.isWeb()) {
+        if (m_compositor.reloadWithProperties(stdMap)) {
+            qInfo() << "Property live reload succeeded for" << key;
+        }
+    }
     Q_EMIT propertyChanged(key, value);
 }
 

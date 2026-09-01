@@ -109,10 +109,15 @@ void SceneCompositor::setMouseParallax(float normX, float normY) {
 }
 
 bool SceneCompositor::loadScene(Assets::PkgReader& pkgReader) {
+    return loadScene(pkgReader, {});
+}
+bool SceneCompositor::loadScene(Assets::PkgReader& pkgReader, const std::unordered_map<std::string, QVariant>& overrideProps) {
     m_hasScene = false;
     m_isWeb = false;
+    m_lastPkg = &pkgReader;
+    m_lastOverrideProps = overrideProps;
     SceneDescription desc;
-    if (!SceneParser::parseScene(pkgReader, desc)) {
+    if (!SceneParser::parseScene(pkgReader, desc, overrideProps)) {
         return false;
     }
     m_scene = std::move(desc);
@@ -122,6 +127,13 @@ bool SceneCompositor::loadScene(Assets::PkgReader& pkgReader) {
     std::cout << "SceneCompositor: Loaded scene '" << m_scene.title 
               << "' with " << m_scene.layers.size() << " layers" << std::endl;
     return true;
+}
+bool SceneCompositor::reloadWithProperties(const std::unordered_map<std::string, QVariant>& props) {
+    if (!m_lastPkg) return false;
+    // Merge with last overrides
+    auto merged = m_lastOverrideProps;
+    for (auto& [k,v] : props) merged[k] = v;
+    return loadScene(*m_lastPkg, merged);
 }
 
 bool SceneCompositor::loadWeb(const std::string& html) {

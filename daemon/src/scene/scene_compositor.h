@@ -17,6 +17,8 @@ public:
     ~SceneCompositor();
 
     bool loadScene(Assets::PkgReader& pkgReader);
+    bool loadScene(Assets::PkgReader& pkgReader, const std::unordered_map<std::string, QVariant>& overrideProps);
+    bool reloadWithProperties(const std::unordered_map<std::string, QVariant>& props);
     bool loadWeb(const std::string& html);
     void updateAndRender(float dt, float time);
     void setMouseParallax(float normX, float normY);
@@ -36,6 +38,8 @@ private:
     bool m_hasScene = false;
     bool m_isWeb = false;
     std::unique_ptr<class WebWallpaper> m_web;
+    Assets::PkgReader* m_lastPkg = nullptr;
+    std::unordered_map<std::string, QVariant> m_lastOverrideProps;
 
     uint32_t m_width = 1920;
     uint32_t m_height = 1080;

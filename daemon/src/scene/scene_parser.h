@@ -144,6 +144,7 @@ struct SceneDescription {
 class SceneParser {
 public:
     static bool parseScene(Assets::PkgReader& pkgReader, SceneDescription& outScene);
+    static bool parseScene(Assets::PkgReader& pkgReader, SceneDescription& outScene, const std::unordered_map<std::string, QVariant>& overrideProperties);
 
 private:
     static bool resolveMaterial(Assets::PkgReader& pkgReader, const std::string& matPath, SceneLayer& layer);
