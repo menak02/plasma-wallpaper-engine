@@ -1,4 +1,5 @@
 #include "scene_compositor.h"
+#include "../render/shaders_spv.h"
 #include <QPainter>
 #include <QRadialGradient>
 #include <iostream>
@@ -60,6 +61,32 @@ SceneCompositor::SceneCompositor(Render::VulkanContext* vulkanCtx)
     m_canvas = QImage(m_width, m_height, QImage::Format_RGBA8888);
     m_canvas.fill(Qt::black);
     m_renderGraph.setResolution(m_width, m_height);
+    if (m_vulkanCtx && m_vulkanCtx->getDevice() != VK_NULL_HANDLE) {
+        m_hasCompute = m_compute.init(m_vulkanCtx);
+        if (m_hasCompute) m_hasCompute = initComputePipelines();
+        std::cout << "SceneCompositor: VulkanCompute " << (m_hasCompute ? "ACTIVE" : "fallback to QPainter") << std::endl;
+    }
+}
+
+bool SceneCompositor::initComputePipelines() {
+    using namespace Render::Shaders;
+    // Blur: binding 0 sampler2D, 1 storage image
+    std::vector<VkDescriptorSetLayoutBinding> blurBindings(2);
+    blurBindings[0].binding=0; blurBindings[0].descriptorType=VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; blurBindings[0].descriptorCount=1; blurBindings[0].stageFlags=VK_SHADER_STAGE_COMPUTE_BIT;
+    blurBindings[1].binding=1; blurBindings[1].descriptorType=VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; blurBindings[1].descriptorCount=1; blurBindings[1].stageFlags=VK_SHADER_STAGE_COMPUTE_BIT;
+    m_compute.createPipeline("blur", blur_spv, blurBindings);
+    // Water waves: 0 sampler, 1 sampler, 2 storage
+    std::vector<VkDescriptorSetLayoutBinding> waveBindings(3);
+    waveBindings[0].binding=0; waveBindings[0].descriptorType=VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; waveBindings[0].descriptorCount=1; waveBindings[0].stageFlags=VK_SHADER_STAGE_COMPUTE_BIT;
+    waveBindings[1].binding=1; waveBindings[1].descriptorType=VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; waveBindings[1].descriptorCount=1; waveBindings[1].stageFlags=VK_SHADER_STAGE_COMPUTE_BIT;
+    waveBindings[2].binding=2; waveBindings[2].descriptorType=VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; waveBindings[2].descriptorCount=1; waveBindings[2].stageFlags=VK_SHADER_STAGE_COMPUTE_BIT;
+    m_compute.createPipeline("water_waves", water_waves_spv, waveBindings);
+    m_compute.createPipeline("waterwaves", water_waves_spv, waveBindings);
+    // Pulse: same as waves
+    m_compute.createPipeline("pulse", pulse_spv, waveBindings);
+    // Composition: 0 sampler,1 sampler,2 storage
+    m_compute.createPipeline("composition", composition_spv, waveBindings);
+    return m_compute.getPipeline("blur") != nullptr;
 }
 
 void SceneCompositor::setTargetResolution(uint32_t width, uint32_t height) {

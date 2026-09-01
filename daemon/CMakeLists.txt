@@ -1,5 +1,21 @@
 set(CMAKE_AUTOMOC ON)
 
+# Shader compilation (requires glslangValidator)
+find_program(GLSLANG_VALIDATOR glslangValidator)
+if(GLSLANG_VALIDATOR)
+    file(GLOB SHADER_COMPS "${CMAKE_CURRENT_SOURCE_DIR}/src/render/shaders/*.comp")
+    foreach(SHADER ${SHADER_COMPS})
+        get_filename_component(SHADER_NAME ${SHADER} NAME_WE)
+        add_custom_command(
+            OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/shaders_spv_${SHADER_NAME}.h.check"
+            COMMAND ${GLSLANG_VALIDATOR} -V "${SHADER}" -o "/tmp/${SHADER_NAME}.spv"
+            COMMAND ${CMAKE_COMMAND} -E touch "${CMAKE_CURRENT_BINARY_DIR}/shaders_spv_${SHADER_NAME}.h.check"
+            DEPENDS "${SHADER}"
+            COMMENT "Validating ${SHADER_NAME}.comp"
+        )
+    endforeach()
+endif()
+
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LZ4 REQUIRED liblz4)
 pkg_check_modules(AVFORMAT REQUIRED libavformat)

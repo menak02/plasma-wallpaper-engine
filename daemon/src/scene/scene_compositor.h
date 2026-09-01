@@ -7,6 +7,7 @@
 #include "../vulkan/vulkan_context.h"
 #include "../render/render_graph.h"
 #include "../render/mesh_renderer.h"
+#include "../render/vulkan_compute.h"
 
 namespace WallpaperEngine::Scene {
 
@@ -25,6 +26,8 @@ public:
 
 private:
     Render::VulkanContext* m_vulkanCtx = nullptr;
+    Render::VulkanCompute m_compute;
+    bool m_hasCompute = false;
     Render::RenderGraph m_renderGraph;
     SceneDescription m_scene;
     ParticleEngine m_particleEngine;
@@ -36,6 +39,8 @@ private:
 
     float m_mouseX = 0.5f;
     float m_mouseY = 0.5f;
+
+    bool initComputePipelines();
 };
 
 } // namespace WallpaperEngine::Scene

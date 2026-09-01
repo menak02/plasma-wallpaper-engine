@@ -332,4 +332,126 @@ ComputePipeline* VulkanCompute::getPipeline(const std::string& name) {
     return nullptr;
 }
 
+void VulkanCompute::copyBufferToImage(VkBuffer buffer, ComputeImage& image, uint32_t width, uint32_t height) {
+    recordAndSubmitCommands([&](VkCommandBuffer cmd) {
+        VkBufferImageCopy region{};
+        region.bufferOffset = 0;
+        region.bufferRowLength = 0;
+        region.bufferImageHeight = 0;
+        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.imageSubresource.mipLevel = 0;
+        region.imageSubresource.baseArrayLayer = 0;
+        region.imageSubresource.layerCount = 1;
+        region.imageOffset = {0,0,0};
+        region.imageExtent = {width, height, 1};
+        vkCmdCopyBufferToImage(cmd, buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    });
+}
+
+void VulkanCompute::copyImageToBuffer(ComputeImage& image, VkBuffer buffer, uint32_t width, uint32_t height) {
+    recordAndSubmitCommands([&](VkCommandBuffer cmd) {
+        VkBufferImageCopy region{};
+        region.bufferOffset = 0;
+        region.bufferRowLength = 0;
+        region.bufferImageHeight = 0;
+        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.imageSubresource.mipLevel = 0;
+        region.imageSubresource.baseArrayLayer = 0;
+        region.imageSubresource.layerCount = 1;
+        region.imageOffset = {0,0,0};
+        region.imageExtent = {width, height, 1};
+        vkCmdCopyImageToBuffer(cmd, image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer, 1, &region);
+    });
+}
+
+void VulkanCompute::dispatchCompute(const std::string& pipelineName, uint32_t gx, uint32_t gy, uint32_t gz,
+                                    const std::vector<VkDescriptorSet>& sets) {
+    auto* pl = getPipeline(pipelineName);
+    if (!pl) return;
+    recordAndSubmitCommands([&](VkCommandBuffer cmd) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pl->pipeline);
+        if (!sets.empty())
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pl->layout, 0, static_cast<uint32_t>(sets.size()), sets.data(), 0, nullptr);
+        vkCmdDispatch(cmd, gx, gy, gz);
+    });
+}
+
+bool VulkanCompute::allocateDescriptorSets(ComputePipeline& pipeline) {
+    if (pipeline.descriptorSetLayout == VK_NULL_HANDLE) return false;
+    VkDescriptorPoolSize poolSizes[2]{};
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[0].descriptorCount = 4;
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    poolSizes[1].descriptorCount = 4;
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.maxSets = 2;
+    poolInfo.poolSizeCount = 2;
+    poolInfo.pPoolSizes = poolSizes;
+    if (vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &pipeline.descriptorPool) != VK_SUCCESS) return false;
+    VkDescriptorSetAllocateInfo alloc{};
+    alloc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    alloc.descriptorPool = pipeline.descriptorPool;
+    alloc.descriptorSetCount = 1;
+    alloc.pSetLayouts = &pipeline.descriptorSetLayout;
+    pipeline.descriptorSets.resize(1);
+    if (vkAllocateDescriptorSets(m_device, &alloc, pipeline.descriptorSets.data()) != VK_SUCCESS) return false;
+    return true;
+}
+
+bool VulkanCompute::applyBlur(const ComputeImage& input, ComputeImage& output, float radius, bool vertical) {
+    auto* pl = getPipeline("blur");
+    if (!pl) return false;
+    if (pl->descriptorSets.empty() && !allocateDescriptorSets(*pl)) return false;
+    BlurParams pc{ radius, vertical?1:0, input.width, input.height };
+    recordAndSubmitCommands([&](VkCommandBuffer cmd){
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pl->pipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pl->layout, 0, static_cast<uint32_t>(pl->descriptorSets.size()), pl->descriptorSets.data(), 0, nullptr);
+        vkCmdPushConstants(cmd, pl->layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+        uint32_t gx=(input.width+15)/16, gy=(input.height+15)/16;
+        vkCmdDispatch(cmd,gx,gy,1);
+    });
+    return true;
+}
+bool VulkanCompute::applyWaterWaves(const ComputeImage& input, const ComputeImage& mask, ComputeImage& output, float speed, float scale, float strength, float direction, float time) {
+    auto* pl = getPipeline("water_waves");
+    if (!pl) pl=getPipeline("waterwaves");
+    if (!pl) return false;
+    if (pl->descriptorSets.empty() && !allocateDescriptorSets(*pl)) return false;
+    WaveParams pc{ speed, scale, strength, direction, time, input.width, input.height };
+    recordAndSubmitCommands([&](VkCommandBuffer cmd){
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pl->pipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pl->layout, 0, static_cast<uint32_t>(pl->descriptorSets.size()), pl->descriptorSets.data(), 0, nullptr);
+        vkCmdPushConstants(cmd, pl->layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+        vkCmdDispatch(cmd,(input.width+15)/16,(input.height+15)/16,1);
+    });
+    return true;
+}
+bool VulkanCompute::applyPulse(const ComputeImage& input, const ComputeImage& mask, ComputeImage& output, float speed, float amount, float power, float time) {
+    auto* pl = getPipeline("pulse");
+    if (!pl) return false;
+    if (pl->descriptorSets.empty() && !allocateDescriptorSets(*pl)) return false;
+    PulseParams pc{ speed, amount, power, time, input.width, input.height };
+    recordAndSubmitCommands([&](VkCommandBuffer cmd){
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pl->pipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pl->layout, 0, static_cast<uint32_t>(pl->descriptorSets.size()), pl->descriptorSets.data(), 0, nullptr);
+        vkCmdPushConstants(cmd, pl->layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+        vkCmdDispatch(cmd,(input.width+15)/16,(input.height+15)/16,1);
+    });
+    return true;
+}
+bool VulkanCompute::applyComposition(const ComputeImage& current, const ComputeImage& background, ComputeImage& output, int blendMode) {
+    auto* pl = getPipeline("composition");
+    if (!pl) return false;
+    if (pl->descriptorSets.empty() && !allocateDescriptorSets(*pl)) return false;
+    CompositionParams pc{ blendMode, current.width, current.height };
+    recordAndSubmitCommands([&](VkCommandBuffer cmd){
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pl->pipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pl->layout, 0, static_cast<uint32_t>(pl->descriptorSets.size()), pl->descriptorSets.data(), 0, nullptr);
+        vkCmdPushConstants(cmd, pl->layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+        vkCmdDispatch(cmd,(current.width+15)/16,(current.height+15)/16,1);
+    });
+    return true;
+}
+
 } // namespace WallpaperEngine::Render
