@@ -50,3 +50,38 @@ add_subdirectory(viewer)
 if(HAVE_PLASMA)
     add_subdirectory(plugin)
 endif()
+
+# ---------- Regression tests ----------
+# PNG-diff comparison of the batch verifier output against a reference
+# baseline. Baseline lives in tests/regression/baseline/ (one PNG per
+# wallpaper ID, generated from a verified 55-pass/17-review/0-fail run).
+# Prereq: the verifier must have produced fresh PNGs in
+# ~/.wallpaper-engine-verifier-output/ before running ctest.
+option(ENABLE_REGRESSION_TESTS "Enable PNG-diff regression tests (ctest)" ON)
+
+if(ENABLE_REGRESSION_TESTS)
+    enable_testing()
+
+    set(REGRESSION_DIR "${CMAKE_SOURCE_DIR}/tests/regression")
+    set(VERIFIER_OUTPUT_DIR "$ENV{HOME}/.wallpaper-engine-verifier-output")
+
+    find_program(PYTHON3_EXECUTABLE NAMES python3 REQUIRED)
+
+    if(EXISTS "${REGRESSION_DIR}/baseline" AND
+       EXISTS "${VERIFIER_OUTPUT_DIR}")
+        add_test(
+            NAME png_regression_batch
+            COMMAND ${PYTHON3_EXECUTABLE}
+                    ${REGRESSION_DIR}/compare_images.py
+                    ${REGRESSION_DIR}/baseline
+                    ${VERIFIER_OUTPUT_DIR}
+        )
+        set_tests_properties(png_regression_batch PROPERTIES
+            TIMEOUT 900
+            ENVIRONMENT "PYTHONUNBUFFERED=1"
+        )
+        message(STATUS "Regression tests: ENABLED (baseline: ${REGRESSION_DIR}/baseline)")
+    else()
+        message(STATUS "Regression tests: SKIPPED (missing baseline dir or verifier output)")
+    endif()
+endif()
