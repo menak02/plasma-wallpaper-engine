@@ -361,7 +361,31 @@ void SceneCompositor::updateAndRender(float dt, float time) {
         if (animRotation != 0.0f) painter.rotate(animRotation);
         if (animScale != 1.0f) painter.scale(animScale, animScale);
 
-        if (hasMeshDeform) {
+        if (!layer.bones.empty()) {
+            // Puppet-warp path: bones parsed from model json, deformed via
+            // CPU skinning stub (identity transform in rest pose).
+            std::vector<Render::MeshVertex> verts;
+            std::vector<Render::MeshTriangle> indices;
+            Render::MeshDeformer::generateDefaultGrid(8, 8, spriteW, spriteH, verts, indices);
+
+            // Translate SceneLayer::Bone into render-side DeformBone.
+            // Animated state left at identity until bone animation is decoded
+            // from scene.json/puppet wiggle data.
+            std::vector<Render::DeformBone> deformBones;
+            deformBones.reserve(layer.bones.size());
+            for (const auto& bone : layer.bones) {
+                Render::DeformBone db;
+                db.name = bone.name;
+                db.parent = bone.parent;
+                db.pos = bone.pos;
+                db.angle = bone.angle;
+                db.weight = bone.weight;
+                deformBones.push_back(std::move(db));
+            }
+
+            Render::MeshDeformer::boneWeightedDeform(verts, deformBones, spriteW, spriteH);
+            Render::MeshDeformer::renderDeformedMesh(painter, layer.image, verts, indices, finalX, finalY, spriteW, spriteH);
+        } else if (hasMeshDeform) {
             // Apply Mesh Deformation Grid
             std::vector<Render::MeshVertex> verts;
             std::vector<Render::MeshTriangle> indices;

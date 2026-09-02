@@ -74,6 +74,8 @@ struct SceneLayer {
     std::string name;
     std::string type;
     std::string attachpoint; // For puppet warp / bone hierarchy
+    struct Bone { std::string name; std::string parent; QVector3D pos; QVector3D angle; float weight=1.0f; };
+    std::vector<Bone> bones;
     bool visible = true;
     float opacity = 1.0f;
     int zOrder = 0;

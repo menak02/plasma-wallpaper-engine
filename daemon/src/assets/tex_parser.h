@@ -5,6 +5,7 @@
 #include <memory>
 #include <cstdint>
 #include <span>
+#include <QCache>
 
 namespace WallpaperEngine::Assets {
 

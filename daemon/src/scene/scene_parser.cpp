@@ -15,8 +15,11 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <functional>
+#include <QCache>
 
 namespace WallpaperEngine::Scene {
+
+static QCache<QString, Assets::TexImage> g_texCache(64);
 
 static float resolveUserFloat(const QJsonValue& val, float defaultVal = 0.0f) {
     if (val.isDouble()) return static_cast<float>(val.toDouble());
@@ -632,6 +635,23 @@ bool SceneParser::resolveModel(Assets::PkgReader& pkgReader, const std::string& 
         layer.cropOffset = parseVector2D(obj.value(QStringLiteral("cropoffset")), QVector2D(0.0f, 0.0f));
         layer.hasCropOffset = true;
     }
+    // Puppet bones stub parse (Almamu puppet/bones/weights)
+    if (obj.contains(QStringLiteral("bones")) || obj.contains(QStringLiteral("puppet")) || obj.contains(QStringLiteral("skeleton"))) {
+        QJsonArray bonesArr = obj.value(QStringLiteral("bones")).toArray();
+        if (bonesArr.isEmpty()) bonesArr = obj.value(QStringLiteral("puppet")).toObject().value(QStringLiteral("bones")).toArray();
+        for (auto bVal : bonesArr) {
+            if (!bVal.isObject()) continue;
+            QJsonObject bObj = bVal.toObject();
+            SceneLayer::Bone b;
+            b.name = bObj.value(QStringLiteral("name")).toString().toStdString();
+            b.parent = bObj.value(QStringLiteral("parent")).toString().toStdString();
+            b.pos = parseVector3D(bObj.value(QStringLiteral("pos")), QVector3D());
+            b.angle = parseVector3D(bObj.value(QStringLiteral("angle")), QVector3D());
+            b.weight = static_cast<float>(bObj.value(QStringLiteral("weight")).toDouble(1.0));
+            layer.bones.push_back(std::move(b));
+        }
+        if (!layer.bones.empty()) std::cout << "SceneParser: puppet bones " << layer.bones.size() << " for " << layer.name << std::endl;
+    }
 
     QString matPath = obj.value(QStringLiteral("material")).toString();
     if (!matPath.isEmpty()) {
@@ -711,8 +731,18 @@ bool SceneParser::resolveTexture(Assets::PkgReader& pkgReader, const std::string
 
     if (bytes.empty()) return false;
 
+    QString cacheKey = QString::fromStdString(texName);
     Assets::TexImage texImg;
-    if (Assets::TexParser::parse(bytes, texImg)) {
+    bool fromCache = false;
+    if (auto* cached = g_texCache.object(cacheKey)) {
+        texImg = *cached;
+        fromCache = true;
+    } else {
+        if (!Assets::TexParser::parse(bytes, texImg)) return false;
+        auto* copy = new Assets::TexImage(texImg);
+        g_texCache.insert(cacheKey, copy, static_cast<int>(texImg.mipmaps.empty()?1:texImg.mipmaps[0].data.size()/1024));
+    }
+    if (true) {
         auto rgba = Assets::DxtDecoder::decodeToRgba(texImg, 0);
         if (!rgba.empty()) {
             // CRITICAL: Use mip.width for QImage stride — the DXT decoder outputs
