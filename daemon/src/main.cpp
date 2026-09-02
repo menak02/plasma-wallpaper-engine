@@ -4,6 +4,8 @@
 #include <QElapsedTimer>
 #include <QDBusConnection>
 #include <QDBusError>
+#include <QScreen>
+#include <QGuiApplication>
 #include <csignal>
 #include <iostream>
 
@@ -18,7 +20,10 @@ static void signalHandler(int signal) {
 }
 
 int main(int argc, char *argv[]) {
-    QCoreApplication app(argc, argv);
+    // QGuiApplication (not QCoreApplication) so QScreen enumeration works for
+    // per-output buffer registration. Platform is still headless/offscreen
+    // unless a compositor provides one.
+    QGuiApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("plasma-wallpaper-engine-daemon"));
     app.setOrganizationDomain(QStringLiteral("org.antigravity"));
 
@@ -42,6 +47,25 @@ int main(int argc, char *argv[]) {
     if (!vulkanCtx.setResolution(1920, 1080, buffer)) {
         std::cerr << "Failed to allocate initial DmaBuf exportable buffer." << std::endl;
         return 1;
+    }
+
+    // Multi-output: register a per-output DmaBuf for every connected screen.
+    // Uses the QScreen name (KWin/wlr-layer-shell output name when available).
+    // Screens may hotplug later; the D-Bus setResolutionForOutput covers that.
+    for (QScreen* screen : QGuiApplication::screens()) {
+        const QString outputName = screen->name().isEmpty()
+            ? QStringLiteral("screen%1").arg(QGuiApplication::screens().indexOf(screen))
+            : screen->name();
+        WallpaperEngine::Render::DmaBufBuffer outBuf;
+        const QSize geom = screen->size();
+        if (vulkanCtx.setResolutionForOutput(outputName.toStdString(),
+                                             static_cast<uint32_t>(geom.width()),
+                                             static_cast<uint32_t>(geom.height()),
+                                             outBuf)) {
+            qInfo() << "Registered output" << outputName << "at" << geom.width() << "x" << geom.height();
+        } else {
+            qWarning() << "Failed to register output" << outputName;
+        }
     }
 
     // Register DBus service on session bus

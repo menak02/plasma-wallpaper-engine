@@ -13,7 +13,7 @@ Batch 55✅/17⚠️/0❌. Video single-decoder, web loadFinished, live props, V
 ### C8 Viewer --list-properties + sliders (P2) — ✅ DONE
 - `viewer/src/main.cpp` now supports `--list-properties <id>` (D-Bus `getWallpaperProperties`, sorted key=value output) and `--set-property k=v [file]` (parses bool/int/double/string, optional wallpaper load first, then `setProperty`). GUI mode unchanged. Batch 55/17/0 unchanged.
 
-### C9 wlr-layer-shell multi-output (P3)
-- `daemon/src/vulkan/vulkan_context.cpp:258` single `m_sharedImage` `1920x1080`. Need per-output `DmaBuf` map `outputName->buffer`, `main.cpp:41` `setResolution` per `QScreen` or `--screen-root` D-Bus `setResolutionForOutput`. Stub: log `outputName` and reuse same buffer size per screen.
+### C9 wlr-layer-shell multi-output (P3) — ✅ DONE
+- `VulkanContext` now keeps a per-output map `outputName -> OutputTarget{image, memory, DmaBufBuffer}` (`setResolutionForOutput`, `getBufferForOutput`, `removeOutput`, `getOutputNames`); image creation factored into shared `createExportableImage`. `renderFrame` copies/clears the legacy primary image AND every registered output image in one command buffer. D-Bus slots added: `setResolutionForOutput(name,w,h)`, `getBufferFdForOutput(name)`, `getBufferInfoForOutput(name)`, `getOutputs()`. `main.cpp` switched to `QGuiApplication` and auto-registers a buffer per `QScreen` at its native size. Live smoke test on eDP-1 registered 1920x1080. Batch 55/17/0 unchanged.
 
 Each commit `cmake --build build -j` `verifier 72/72` `55/17/0` unchanged or better, `daemon` `VulkanCompute ACTIVE`.

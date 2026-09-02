@@ -33,6 +33,12 @@ public Q_SLOTS:
     bool setResolution(uint32_t width, uint32_t height);
     QVariantList getAvailableGpus();
 
+    // Multi-output: per-output resolution + buffer export (wlr-layer-shell style)
+    bool setResolutionForOutput(const QString& outputName, uint32_t width, uint32_t height);
+    QDBusUnixFileDescriptor getBufferFdForOutput(const QString& outputName);
+    QVariantMap getBufferInfoForOutput(const QString& outputName);
+    QVariantList getOutputs();
+
     // Interactive mouse parallax
     void setMousePosition(float normX, float normY);
 

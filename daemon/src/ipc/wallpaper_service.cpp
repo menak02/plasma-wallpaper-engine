@@ -57,6 +57,53 @@ bool WallpaperService::setResolution(uint32_t width, uint32_t height) {
     return false;
 }
 
+bool WallpaperService::setResolutionForOutput(const QString& outputName, uint32_t width, uint32_t height) {
+    if (!m_vulkanCtx) return false;
+    Render::DmaBufBuffer newBuf;
+    if (m_vulkanCtx->setResolutionForOutput(outputName.toStdString(), width, height, newBuf)) {
+        qInfo() << "Output" << outputName << "resolution set to" << width << "x" << height;
+        Q_EMIT bufferResized(width, height);
+        return true;
+    }
+    return false;
+}
+
+QDBusUnixFileDescriptor WallpaperService::getBufferFdForOutput(const QString& outputName) {
+    QDBusUnixFileDescriptor desc;
+    if (m_vulkanCtx) {
+        const auto* buf = m_vulkanCtx->getBufferForOutput(outputName.toStdString());
+        if (buf && buf->fd >= 0) {
+            desc.setFileDescriptor(buf->fd);
+        }
+    }
+    return desc;
+}
+
+QVariantMap WallpaperService::getBufferInfoForOutput(const QString& outputName) {
+    QVariantMap map;
+    if (m_vulkanCtx) {
+        const auto* buf = m_vulkanCtx->getBufferForOutput(outputName.toStdString());
+        if (buf) {
+            map[QStringLiteral("width")] = buf->width;
+            map[QStringLiteral("height")] = buf->height;
+            map[QStringLiteral("stride")] = buf->stride;
+            map[QStringLiteral("format")] = buf->format;
+            map[QStringLiteral("size")] = static_cast<qulonglong>(buf->size);
+        }
+    }
+    return map;
+}
+
+QVariantList WallpaperService::getOutputs() {
+    QVariantList list;
+    if (m_vulkanCtx) {
+        for (const auto& name : m_vulkanCtx->getOutputNames()) {
+            list.append(QString::fromStdString(name));
+        }
+    }
+    return list;
+}
+
 void WallpaperService::setMousePosition(float normX, float normY) {
     m_compositor.setMouseParallax(normX, normY);
 }

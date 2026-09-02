@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.h>
 #include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
 #include <span>
@@ -38,6 +39,14 @@ public:
     bool setResolution(uint32_t width, uint32_t height, DmaBufBuffer& outBuffer);
     void renderFrame(float time);
 
+    // Multi-output support: one exportable DmaBuf per logical output name.
+    // The "default" output aliases the legacy single-buffer path so existing
+    // consumers (viewer, compositor target resolution) keep working.
+    bool setResolutionForOutput(const std::string& outputName, uint32_t width, uint32_t height, DmaBufBuffer& outBuffer);
+    const DmaBufBuffer* getBufferForOutput(const std::string& outputName) const;
+    bool removeOutput(const std::string& outputName);
+    std::vector<std::string> getOutputNames() const;
+
     // Upload wallpaper image texture (supports any resolution/aspect ratio)
     bool uploadSceneImage(uint32_t width, uint32_t height, std::span<const uint8_t> rgbaPixels);
     void clearSceneImage();
@@ -58,10 +67,18 @@ private:
     VkCommandBuffer m_commandBuffer = VK_NULL_HANDLE;
     VkFence m_fence = VK_NULL_HANDLE;
 
-    // Active shared render target
+    // Active shared render target (legacy single-output path, aliases "default" output)
     VkImage m_sharedImage = VK_NULL_HANDLE;
     VkDeviceMemory m_sharedMemory = VK_NULL_HANDLE;
     DmaBufBuffer m_currentBuffer;
+
+    // Per-output render targets for multi-monitor (wlr-layer-shell style)
+    struct OutputTarget {
+        VkImage image = VK_NULL_HANDLE;
+        VkDeviceMemory memory = VK_NULL_HANDLE;
+        DmaBufBuffer buffer;
+    };
+    std::map<std::string, OutputTarget> m_outputTargets;
 
     // Uploaded wallpaper texture staging buffer
     VkBuffer m_stagingBuffer = VK_NULL_HANDLE;
@@ -78,6 +95,9 @@ private:
     public:
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
     void destroyExportableBuffer();
+    void destroyOutputTarget(OutputTarget& target);
+    bool createExportableImage(uint32_t width, uint32_t height, VkImage& outImage,
+                               VkDeviceMemory& outMemory, DmaBufBuffer& outBuffer);
 };
 
 } // namespace WallpaperEngine::Render

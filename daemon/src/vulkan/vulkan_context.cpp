@@ -43,9 +43,29 @@ void VulkanContext::destroyExportableBuffer() {
     }
 }
 
+void VulkanContext::destroyOutputTarget(OutputTarget& target) {
+    if (target.buffer.fd >= 0) {
+        close(target.buffer.fd);
+        target.buffer.fd = -1;
+    }
+    if (target.image != VK_NULL_HANDLE) {
+        vkDestroyImage(m_device, target.image, nullptr);
+        target.image = VK_NULL_HANDLE;
+    }
+    if (target.memory != VK_NULL_HANDLE) {
+        vkFreeMemory(m_device, target.memory, nullptr);
+        target.memory = VK_NULL_HANDLE;
+    }
+}
+
 void VulkanContext::cleanup() {
     clearSceneImage();
     destroyExportableBuffer();
+
+    for (auto& [name, target] : m_outputTargets) {
+        destroyOutputTarget(target);
+    }
+    m_outputTargets.clear();
 
     if (m_fence != VK_NULL_HANDLE) {
         vkDestroyFence(m_device, m_fence, nullptr);
@@ -255,15 +275,8 @@ uint32_t VulkanContext::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlag
     return 0;
 }
 
-bool VulkanContext::setResolution(uint32_t width, uint32_t height, DmaBufBuffer& outBuffer) {
-    if (width == 0 || height == 0) return false;
-    if (m_currentBuffer.width == width && m_currentBuffer.height == height && m_sharedImage != VK_NULL_HANDLE) {
-        outBuffer = m_currentBuffer;
-        return true;
-    }
-
-    destroyExportableBuffer();
-
+bool VulkanContext::createExportableImage(uint32_t width, uint32_t height, VkImage& outImage,
+                                          VkDeviceMemory& outMemory, DmaBufBuffer& outBuffer) {
     VkExternalMemoryImageCreateInfo externalImageCreateInfo{};
     externalImageCreateInfo.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
     externalImageCreateInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
@@ -284,13 +297,13 @@ bool VulkanContext::setResolution(uint32_t width, uint32_t height, DmaBufBuffer&
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateImage(m_device, &imageInfo, nullptr, &m_sharedImage) != VK_SUCCESS) {
+    if (vkCreateImage(m_device, &imageInfo, nullptr, &outImage) != VK_SUCCESS) {
         std::cerr << "Failed to create exportable Vulkan image for resolution " << width << "x" << height << std::endl;
         return false;
     }
 
     VkMemoryRequirements memRequirements;
-    vkGetImageMemoryRequirements(m_device, m_sharedImage, &memRequirements);
+    vkGetImageMemoryRequirements(m_device, outImage, &memRequirements);
 
     VkExportMemoryAllocateInfo exportAllocInfo{};
     exportAllocInfo.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
@@ -302,12 +315,12 @@ bool VulkanContext::setResolution(uint32_t width, uint32_t height, DmaBufBuffer&
     allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    if (vkAllocateMemory(m_device, &allocInfo, nullptr, &m_sharedMemory) != VK_SUCCESS) {
+    if (vkAllocateMemory(m_device, &allocInfo, nullptr, &outMemory) != VK_SUCCESS) {
         std::cerr << "Failed to allocate Vulkan memory for export." << std::endl;
         return false;
     }
 
-    vkBindImageMemory(m_device, m_sharedImage, m_sharedMemory, 0);
+    vkBindImageMemory(m_device, outImage, outMemory, 0);
 
     auto fpGetMemoryFdKHR = reinterpret_cast<PFN_vkGetMemoryFdKHR>(vkGetDeviceProcAddr(m_device, "vkGetMemoryFdKHR"));
     if (!fpGetMemoryFdKHR) {
@@ -317,7 +330,7 @@ bool VulkanContext::setResolution(uint32_t width, uint32_t height, DmaBufBuffer&
 
     VkMemoryGetFdInfoKHR getFdInfo{};
     getFdInfo.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
-    getFdInfo.memory = m_sharedMemory;
+    getFdInfo.memory = outMemory;
     getFdInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
 
     int fd = -1;
@@ -329,7 +342,7 @@ bool VulkanContext::setResolution(uint32_t width, uint32_t height, DmaBufBuffer&
     VkImageSubresource subResource{};
     subResource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     VkSubresourceLayout layout;
-    vkGetImageSubresourceLayout(m_device, m_sharedImage, &subResource, &layout);
+    vkGetImageSubresourceLayout(m_device, outImage, &subResource, &layout);
 
     outBuffer.fd = fd;
     outBuffer.width = width;
@@ -337,10 +350,25 @@ bool VulkanContext::setResolution(uint32_t width, uint32_t height, DmaBufBuffer&
     outBuffer.stride = static_cast<uint32_t>(layout.rowPitch);
     outBuffer.format = DRM_FORMAT_ARGB8888;
     outBuffer.size = memRequirements.size;
+    return true;
+}
+
+bool VulkanContext::setResolution(uint32_t width, uint32_t height, DmaBufBuffer& outBuffer) {
+    if (width == 0 || height == 0) return false;
+    if (m_currentBuffer.width == width && m_currentBuffer.height == height && m_sharedImage != VK_NULL_HANDLE) {
+        outBuffer = m_currentBuffer;
+        return true;
+    }
+
+    destroyExportableBuffer();
+
+    if (!createExportableImage(width, height, m_sharedImage, m_sharedMemory, outBuffer)) {
+        return false;
+    }
 
     m_currentBuffer = outBuffer;
-    std::cout << "Dynamic DmaBuf Reallocated: " << width << "x" << height << " (FD: " << fd 
-              << ", Stride: " << outBuffer.stride << " bytes, Size: " << memRequirements.size << " bytes)" << std::endl;
+    std::cout << "Dynamic DmaBuf Reallocated: " << width << "x" << height << " (FD: " << outBuffer.fd
+              << ", Stride: " << outBuffer.stride << " bytes, Size: " << outBuffer.size << " bytes)" << std::endl;
     return true;
 }
 
@@ -428,6 +456,17 @@ void VulkanContext::renderFrame(float time) {
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     vkBeginCommandBuffer(m_commandBuffer, &beginInfo);
 
+    // Legacy primary image first, then every registered per-output target.
+    std::vector<VkImage> targets;
+    targets.reserve(1 + m_outputTargets.size());
+    targets.push_back(m_sharedImage);
+    for (auto& [name, target] : m_outputTargets) {
+        if (target.image != VK_NULL_HANDLE && target.image != m_sharedImage) {
+            targets.push_back(target.image);
+        }
+    }
+
+    for (VkImage image : targets) {
     // Transition image layout to TRANSFER_DST
     VkImageMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -435,7 +474,7 @@ void VulkanContext::renderFrame(float time) {
     barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = m_sharedImage;
+    barrier.image = image;
     barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     barrier.subresourceRange.baseMipLevel = 0;
     barrier.subresourceRange.levelCount = 1;
@@ -465,7 +504,7 @@ void VulkanContext::renderFrame(float time) {
             1
         };
 
-        vkCmdCopyBufferToImage(m_commandBuffer, m_stagingBuffer, m_sharedImage,
+        vkCmdCopyBufferToImage(m_commandBuffer, m_stagingBuffer, image,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
     } else {
         // Render diagnostic pulsating color pattern
@@ -482,7 +521,7 @@ void VulkanContext::renderFrame(float time) {
         range.baseArrayLayer = 0;
         range.layerCount = 1;
 
-        vkCmdClearColorImage(m_commandBuffer, m_sharedImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearColor, 1, &range);
+        vkCmdClearColorImage(m_commandBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearColor, 1, &range);
     }
 
     // Transition to GENERAL for zero-copy reading
@@ -490,10 +529,12 @@ void VulkanContext::renderFrame(float time) {
     barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    barrier.image = image;
 
     vkCmdPipelineBarrier(m_commandBuffer,
         VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
         0, 0, nullptr, 0, nullptr, 1, &barrier);
+    }
 
     vkEndCommandBuffer(m_commandBuffer);
 
@@ -503,6 +544,56 @@ void VulkanContext::renderFrame(float time) {
     submitInfo.pCommandBuffers = &m_commandBuffer;
 
     vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fence);
+}
+
+bool VulkanContext::setResolutionForOutput(const std::string& outputName, uint32_t width, uint32_t height, DmaBufBuffer& outBuffer) {
+    if (outputName.empty() || width == 0 || height == 0) return false;
+
+    auto it = m_outputTargets.find(outputName);
+    if (it != m_outputTargets.end()) {
+        const auto& buf = it->second.buffer;
+        if (buf.width == width && buf.height == height && it->second.image != VK_NULL_HANDLE) {
+            outBuffer = buf;
+            return true; // already correct size
+        }
+        destroyOutputTarget(it->second);
+    }
+
+    OutputTarget target;
+    if (!createExportableImage(width, height, target.image, target.memory, target.buffer)) {
+        // Make sure a failed create does not leave a stale entry behind
+        m_outputTargets.erase(outputName);
+        return false;
+    }
+
+    outBuffer = target.buffer;
+    m_outputTargets[outputName] = std::move(target);
+    std::cout << "Per-output DmaBuf registered: '" << outputName << "' " << width << "x" << height
+              << " (FD: " << outBuffer.fd << ", Stride: " << outBuffer.stride << ")" << std::endl;
+    return true;
+}
+
+const DmaBufBuffer* VulkanContext::getBufferForOutput(const std::string& outputName) const {
+    auto it = m_outputTargets.find(outputName);
+    return it != m_outputTargets.end() ? &it->second.buffer : nullptr;
+}
+
+bool VulkanContext::removeOutput(const std::string& outputName) {
+    auto it = m_outputTargets.find(outputName);
+    if (it == m_outputTargets.end()) return false;
+    destroyOutputTarget(it->second);
+    m_outputTargets.erase(it);
+    std::cout << "Per-output DmaBuf removed: '" << outputName << "'" << std::endl;
+    return true;
+}
+
+std::vector<std::string> VulkanContext::getOutputNames() const {
+    std::vector<std::string> names;
+    names.reserve(m_outputTargets.size());
+    for (const auto& [name, target] : m_outputTargets) {
+        names.push_back(name);
+    }
+    return names;
 }
 
 } // namespace WallpaperEngine::Render
