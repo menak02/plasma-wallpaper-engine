@@ -1,6 +1,0 @@
-set(__QT_DEPLOY_TARGET_plasma-wallpaper-engine-daemon_FILE /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build/daemon/plasma-wallpaper-engine-daemon)
-set(__QT_DEPLOY_TARGET_plasma-wallpaper-engine-daemon_TYPE EXECUTABLE)
-set(__QT_DEPLOY_TARGET_plasma-wallpaper-engine-verifier_FILE /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build/daemon/plasma-wallpaper-engine-verifier)
-set(__QT_DEPLOY_TARGET_plasma-wallpaper-engine-verifier_TYPE EXECUTABLE)
-set(__QT_DEPLOY_TARGET_plasma-wallpaper-engine-viewer_FILE /home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build/viewer/plasma-wallpaper-engine-viewer)
-set(__QT_DEPLOY_TARGET_plasma-wallpaper-engine-viewer_TYPE EXECUTABLE)

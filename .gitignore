@@ -12,11 +12,7 @@ compile_commands.json
 .qt/
 
 # Claude session/cache artifacts
-.claude/cache/
-.claude/logs/
-.claude/flags/
-.claude/worktrees/
-.claude/memory/local/
+.claude/
 
 # Verifier output
 *.png.out

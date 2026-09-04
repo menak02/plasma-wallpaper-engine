@@ -1,0 +1,94 @@
+# Remaining V3 — Competitive Analysis + Plan (post 9dbb7fa)
+
+Batch 55✅/17⚠️/0❌. Verifier 72/72 baseline match (mae=0.000). C1–C9 from PLAN_REMAINING(_V2) all landed.
+
+## Competitive landscape (researched 2026-09-03)
+
+| Project | Stack | Wayland | Interactive | Audio-reactive | Web | Video | Packaging | Distribution |
+|---|---|---|---|---|---|---|---|---|
+| **Almamu/linux-wallpaperengine** | C++ / OpenGL 3.3 / GLFW+SDL2 / mpv+FFmpeg / CEF | layer-shell + X11 | mouse forwarding, fullscreen pause | PulseAudio 64-band | CEF (full WebGL) | mpv | cmake install | AUR, website (wpengine.alma.mu), GUI by 3rd party (Suhoiyis GTK4) |
+| **AzPepoze/linux-wallpaperengine** | **Go** / native reimplementation | yes | mouse events | yes | native WebGL | yes | single binary | GitHub releases, own GUI |
+| **waywallen** (ex catsout/wallpaper-engine-kde-plugin) | C++/QML **KDE Plasma plugin** | Plasma-only | Plasma integration | yes | QtWebEngine | QtMultimedia | KPack plugin | AUR (`plasma6-wallpapers-wallpaper-engine-git`), full wallpaper **manager GUI**, workshop browse |
+| **Hidamari** | Python / video-only | GNOME/wayland | pause on fullscreen/maximized, volume | no | webpage-as-wallpaper | mpv/yt-dlp (streaming URLs!) | Flatpak on **Flathub**, autostart | Flathub, simple UX |
+| **Ours** | C++ / Qt6 / Vulkan compute / D-Bus daemon | layer-shell-style per-output DmaBuf | mouse parallax only | engine exists, **not wired** | QtWebEngine (loadFinished + JS bridge done) | ffmpeg single-decoder | install() daemon only | **none** — no README, no AUR, no CI |
+
+### What we do better (keep and advertise)
+1. **Verifier + PNG regression baseline (72 wallpapers, mae gate)** — nobody else has CI-grade per-wallpaper output verification. Unique selling point.
+2. Vulkan compute pipeline (descriptor-wired) — GPU effect path none of the others have.
+3. Security hardening done (path traversal, LZ4 bounds, D-Bus path allowlist) — Almamu had CVEs here.
+4. Single-decoder video fix + multi-output per-screen buffers + live property reload via D-Bus.
+
+### What they have that we lack (the gaps)
+- G1 **Mouse forwarding / click interaction** — Almamu + AzPepoze. We only do parallax (`scene_compositor.cpp:106`). Interactive wallpapers are a visible class in the workshop.
+- G2 **Pause on fullscreen / maximized window** — Almamu + Hidamari. We have `setMuteOnFullscreen` for audio only; render still burns GPU. Perf + battery differentiator.
+- G3 **Autostart after login** — Hidamari's basic UX. Our daemon needs a systemd user unit / autostart .desktop.
+- G4 **Workshop browse → subscribe flow** — waywallen is a full manager. Our plugin QML already queries Steam Web API (`WorkshopView.qml`) but has no "open in Steam"/rescan loop. LibraryScanner already auto-discovers workshop paths, so this is a small UX loop.
+- G5 **Packaging: AUR + README + site** — every competitor is on AUR/Flathub with a README. We have zero user-facing surface.
+- G6 **Rendering depth** — composition is still QPainter raster with Vulkan compute for effects; Almamu/AzPepoze render scene natively on GPU. Medium-term: QRhi or full-Vulkan swapchain path.
+- G7 **Streaming URLs (yt-dlp)** — Hidamari-only niche; optional.
+
+---
+
+## Plan (merged, priority order)
+
+### T0 — Repo hygiene (do first, 30 min) — ✅ DONE (S0)
+- Untracked 386 build artifacts (build/, build-asan/) + all of .claude/ (was also a gitlink for the nested worktree repo). Pruned all 3 worktrees + branches (analysis-worktree's 2 unmerged commits verified obsolete: they removed C9 multi-output features; VideoDecoder UAF fix superseded by master's m_dataCopy version).
+- Moved 9 root debug scripts (dump_*.py, patch_*.patch) to tools/debug/, deleted batch_verifier.cpp.orig.
+- **NEW FINDING:** D-Bus `loadWallpaper` path allowlist was recorded as a decision (memory: decision-dbus-path-validation.md) but never implemented — master only checks `info.exists()` at wallpaper_service.cpp:161. Promoted to its own task: see T1b.
+
+### T1b — D-Bus loadWallpaper path allowlist — P1 security
+The security hardening session (24928f5) claimed DBus hardening, but master's `loadWallpaper` still accepts any existing path. Implement the recorded decision: restrict to LibraryScanner's known directories (custom + Steam workshop), reject `../` traversal. Small diff in `wallpaper_service.cpp:161` + `library_scanner.h` (expose scanned dirs; the worktree branch already had the `getScannedDirectories()` accessor pattern).
+
+### T1 — Wire audio reactive (last C6 half) — P1
+`AudioVisualizer::startLiveCapture()` + `getBand()` exist but nothing calls them. Wire: `wallpaper_service` starts live capture on scene load → per-tick `getBand(i)` → `JSEngine` audio hooks + compositor/push-constants. Verify on an audio-reactive workshop wallpaper; batch must stay 55/17/0.
+
+### T2 — FilmGrain GPU pass — P1
+Parsed (`scene_parser.cpp:548`) but ignored (`scene_compositor.cpp:349` empty case). RenderGraph descriptor plumbing is fixed, so add grain shader (noise overlay, seed+intensity push constants) to the RenderGraph path. Same for any remaining `ColorAdjust`/`Tint` cases that are free wins.
+
+### T3 — G1 Mouse forwarding — P2
+Beyond parallax: forward cursor position + click events to (a) JS engine (`wallpaperPropertyListener`-style hooks) and (b) web wallpapers via `runJavaScript`. Source: compositor already gets normalized mouse via D-Bus; add click channel from viewer/plugin.
+
+### T4 — G2 Pause on fullscreen/maximized — P2
+Extend existing `AudioPlayer` fullscreen detection to a render gate: stop compositor ticking (or drop to 1 fps) when a fullscreen window is focused. Big battery/perf win, cheap to implement.
+
+### T5 — G3 Autostart + install polish — P2
+systemd user unit (`plasma-wallpaper-engine-daemon.service`) + autostart .desktop; `install()` rules for verifier + viewer; restore last wallpaper on daemon start (persist D-Bus state).
+
+### T6 — G4 Workshop UX loop — P2
+In plugin QML: "Open in Steam" deep link per search result (`steam://url/CommunityFilePage/<fileid>`) + auto rescan via `LibraryScanner` after return. No download code needed.
+
+### T7 — G5 Docs + packaging — P2 (highest visibility-per-effort)
+- README.md: what it is, build steps, compatibility statement, screenshot of verifier output.
+- AUR PKGBUILD (`plasma-wallpaper-engine-git`) — both major competitors live on AUR.
+- Later: Flathub, GitHub Pages site.
+
+### T8 — MDLA puppet animation playback — P3
+Bones render in rest pose (`mesh_renderer.h:35` `animatedPos/animatedAngle` never driven). Implement MDLA timeline playback driving bone state.
+
+### T9 — G6 GPU composition path — P3 (medium-term)
+Evaluate QRhi vs pure-Vulkan swapchain to move composition off QPainter raster. Big change; schedule after T1–T7 stabilize.
+
+### T10 — 17 ⚠️ wallpapers — P3
+All script-dependent (clock/date visibility). Feed user-property values (from the T-landed `setProperty` path) through `JSEngine` re-eval and re-measure how many convert to ✅.
+
+### GitHub integrations (paired with this plan)
+1. `.github/workflows/build.yml` — matrix build + ctest (regression job needs wallpapers as private artifact/cache).
+2. `regression.yml` — verifier → compare_images.py → PR comment with diff PNGs (our unique gate).
+3. Nightly ASan job (build-asan config exists).
+4. Issue templates: wallpaper-ID + log required. PR template: "55/17/0 unchanged?" checklist.
+5. Tag → release.yml: tarball with daemon+viewer+plugin header; AUR PKGBUILD update on tag.
+6. GitHub Discussions + wiki compatibility table (waywallen-style), linking verifier results.
+
+## Commit slicing
+- S0: hygiene (T0) — ✅ committed
+- S0.5: DBus path allowlist (T1b) — batch unchanged
+- S1: audio wire (T1) — batch unchanged or better
+- S2: FilmGrain (T2)
+- S3: fullscreen pause (T4)
+- S4: mouse click forwarding (T3)
+- S5: autostart + install (T5)
+- S6: workshop UX (T6)
+- S7: README + AUR (T7)
+- S8: MDLA playback (T8)
+
+Each commit: `cmake --build build -j`, verifier 72/72 baseline, `ctest` green, batch 55/17/0 unchanged or better.

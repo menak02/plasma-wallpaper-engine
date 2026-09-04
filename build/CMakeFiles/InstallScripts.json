@@ -1,9 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build/cmake_install.cmake",
-		"/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build/daemon/cmake_install.cmake",
-		"/home/mena/Projects/plasma-wallpaper-engine-20260826T143005Z-1-001/plasma-wallpaper-engine/build/viewer/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
