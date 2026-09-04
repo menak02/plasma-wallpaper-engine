@@ -567,6 +567,18 @@ bool SceneParser::resolveEffect(Assets::PkgReader& pkgReader, const QJsonObject&
         if (consts.contains(QStringLiteral("strength"))) {
             outEffect.strength = resolveUserFloat(consts.value(QStringLiteral("strength")), outEffect.strength);
         }
+        // Film grain passes expose grainpower/power and grainscale constants
+        // (user props filmgrainpower / filmgrainscale). Power drives overlay
+        // intensity; grain timing is engine-side, so the WE "time" constant
+        // is intentionally not mapped to speed.
+        if (consts.contains(QStringLiteral("grainpower"))) {
+            outEffect.strength = resolveUserFloat(consts.value(QStringLiteral("grainpower")), outEffect.strength);
+        } else if (consts.contains(QStringLiteral("power"))) {
+            outEffect.strength = resolveUserFloat(consts.value(QStringLiteral("power")), outEffect.strength);
+        }
+        if (consts.contains(QStringLiteral("grainscale"))) {
+            outEffect.scale = resolveUserFloat(consts.value(QStringLiteral("grainscale")), outEffect.scale);
+        }
         if (consts.contains(QStringLiteral("scale"))) {
             outEffect.scale = resolveUserFloat(consts.value(QStringLiteral("scale")), outEffect.scale);
         }

@@ -35,6 +35,9 @@ public:
     bool hasScene() const { return m_hasScene; }
     bool isWeb() const;
 
+    // Post-composite post-processing info (scene-level effects like film grain).
+    bool hasFilmGrain() const { return m_hasFilmGrain; }
+
 private:
     Render::VulkanContext* m_vulkanCtx = nullptr;
     Render::VulkanCompute m_compute;
@@ -57,6 +60,14 @@ private:
     float m_mouseY = 0.5f;
 
     bool initComputePipelines();
+
+    // Post-composite post-processing state. Film grain is a scene-level
+    // screen-space effect in Wallpaper Engine, applied once after all
+    // layers/particles are composited.
+    void scanPostEffects();
+    bool m_hasFilmGrain = false;
+    float m_grainPower = 0.0f;
+    float m_grainScale = 4.0f;
 };
 
 } // namespace WallpaperEngine::Scene

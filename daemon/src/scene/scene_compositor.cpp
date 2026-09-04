@@ -91,7 +91,34 @@ bool SceneCompositor::initComputePipelines() {
     m_compute.createPipeline("pulse", pulse_spv, waveBindings);
     // Composition: 0 sampler,1 sampler,2 storage
     m_compute.createPipeline("composition", composition_spv, waveBindings);
+    // Film grain: 0 sampler, 1 storage (frame in, grained frame out)
+    std::vector<VkDescriptorSetLayoutBinding> grainBindings(2);
+    grainBindings[0].binding=0; grainBindings[0].descriptorType=VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; grainBindings[0].descriptorCount=1; grainBindings[0].stageFlags=VK_SHADER_STAGE_COMPUTE_BIT;
+    grainBindings[1].binding=1; grainBindings[1].descriptorType=VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; grainBindings[1].descriptorCount=1; grainBindings[1].stageFlags=VK_SHADER_STAGE_COMPUTE_BIT;
+    m_compute.createPipeline("film_grain", film_grain_spv, grainBindings);
     return m_compute.getPipeline("blur") != nullptr;
+}
+
+void SceneCompositor::scanPostEffects() {
+    // Film grain is a scene-level screen-space effect in Wallpaper Engine:
+    // find the most recently declared visible instance among all layers and
+    // use its power/scale. Deterministic (no randomness at scan time).
+    m_hasFilmGrain = false;
+    m_grainPower = 0.0f;
+    m_grainScale = 4.0f;
+    for (const auto& layer : m_scene.layers) {
+        if (!layer.visible) continue;
+        for (const auto& eff : layer.effects) {
+            if (!eff.visible || eff.type != EffectType::FilmGrain) continue;
+            m_hasFilmGrain = true;
+            m_grainPower = eff.strength;
+            m_grainScale = eff.scale > 0.0f ? eff.scale : 4.0f;
+        }
+    }
+    if (m_hasFilmGrain) {
+        std::cout << "SceneCompositor: FilmGrain post-process power=" << m_grainPower
+                  << " scale=" << m_grainScale << std::endl;
+    }
 }
 
 void SceneCompositor::setTargetResolution(uint32_t width, uint32_t height) {
@@ -133,6 +160,7 @@ bool SceneCompositor::loadScene(Assets::PkgReader& pkgReader, const std::unorder
     m_scene = std::move(desc);
     m_particleEngine.setEmitters(m_scene.emitters);
     m_renderGraph.clear();
+    scanPostEffects();
     m_hasScene = true;
     std::cout << "SceneCompositor: Loaded scene '" << m_scene.title 
               << "' with " << m_scene.layers.size() << " layers" << std::endl;
@@ -451,6 +479,40 @@ void SceneCompositor::updateAndRender(float dt, float time) {
     m_particleEngine.render(painter, m_width, m_height);
 
     painter.end();
+
+    // 3b. Scene-level post-processing: film grain over the composite frame.
+    // GPU when compute is available, CPU fallback otherwise. Grain timing is
+    // quantized to whole frames so each rendered frame stays deterministic.
+    if (m_hasFilmGrain && m_grainPower > 0.0f) {
+        const float grainFrame = std::floor(time);
+        bool grained = false;
+        if (m_hasCompute) {
+            grained = m_compute.applyFilmGrain(m_canvas, m_grainPower, m_grainScale, grainFrame);
+        }
+        if (!grained) {
+            const int w = m_canvas.width();
+            const int h = m_canvas.height();
+            const float scale = std::max(m_grainScale, 0.001f);
+            // Same interleaved gradient noise as the GPU pass (byte-wise so
+            // Format_RGBA8888 channel order is preserved).
+            for (int y = 0; y < h; ++y) {
+                auto* line = m_canvas.scanLine(y);
+                for (int x = 0; x < w; ++x) {
+                    const float gx = static_cast<float>(x) / scale + grainFrame * 137.0f;
+                    const float gy = static_cast<float>(y) / scale + grainFrame * 137.0f;
+                    const float d = gx * 0.06711056f + gy * 0.00583715f;
+                    const float fd = d - std::floor(d);
+                    float noise = fd + 52.9829189f * fd;
+                    noise -= std::floor(noise);
+                    const float g = (noise - 0.5f) * m_grainPower * 255.0f;
+                    uint8_t* px = line + static_cast<ptrdiff_t>(x) * 4;
+                    px[0] = static_cast<uint8_t>(std::clamp(static_cast<int>(px[0]) + static_cast<int>(g), 0, 255));
+                    px[1] = static_cast<uint8_t>(std::clamp(static_cast<int>(px[1]) + static_cast<int>(g), 0, 255));
+                    px[2] = static_cast<uint8_t>(std::clamp(static_cast<int>(px[2]) + static_cast<int>(g), 0, 255));
+                }
+            }
+        }
+    }
 
     // 4. Upload composite frame to Vulkan Context
     m_vulkanCtx->uploadSceneImage(m_width, m_height,

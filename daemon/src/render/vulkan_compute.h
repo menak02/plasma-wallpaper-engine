@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../vulkan/vulkan_context.h"
+#include <QImage>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -34,6 +35,13 @@ struct ComputeImage {
     uint32_t width = 0;
     uint32_t height = 0;
     VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+};
+
+// Simple RAII staging buffer for host<->device pixel round-trips.
+struct ComputeStagingBuffer {
+    VkBuffer buffer = VK_NULL_HANDLE;
+    VkDeviceMemory memory = VK_NULL_HANDLE;
+    VkDeviceSize size = 0;
 };
 
 /**
@@ -73,6 +81,11 @@ public:
                     float speed, float amount, float power, float time);
     bool applyComposition(const ComputeImage& current, const ComputeImage& background, ComputeImage& output,
                           int blendMode);
+    // Full-frame film grain post-process: uploads the QImage, applies the
+    // grain compute pass on the GPU and reads the result back into the same
+    // QImage. Single submit; returns false when the pipeline/GPU is not
+    // available so the caller can fall back to the CPU path.
+    bool applyFilmGrain(QImage& frame, float power, float scale, float frameTime);
 
     // Push constants for dynamic parameters
     struct BlurParams {
@@ -107,6 +120,15 @@ public:
         uint32_t height;
     };
 
+    struct GrainParams {
+        float power;
+        float scale;
+        float frame;
+        float pad;
+        uint32_t width;
+        uint32_t height;
+    };
+
     VulkanContext* m_vulkanCtx = nullptr;
     VkDevice m_device = VK_NULL_HANDLE;
     VkQueue m_computeQueue = VK_NULL_HANDLE;
@@ -117,6 +139,13 @@ public:
 
     std::unordered_map<std::string, ComputePipeline> m_pipelines;
     std::unordered_map<std::string, ComputeShader> m_shaders;
+
+    // Reused for the film grain upload/readback round-trip.
+    ComputeStagingBuffer m_grainStaging;
+    ComputeImage m_grainImage;
+    ComputeImage m_grainOutImage;
+    bool ensureGrainResources(uint32_t width, uint32_t height);
+    void destroyStagingBuffer(ComputeStagingBuffer& staging);
 
 private:
     bool createCommandPool();

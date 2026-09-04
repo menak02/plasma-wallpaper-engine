@@ -37,7 +37,7 @@ Batch 55✅/17⚠️/0❌. Verifier 72/72 baseline match (mae=0.000). C1–C9 fr
 - **NEW FINDING:** D-Bus `loadWallpaper` path allowlist was recorded as a decision (memory: decision-dbus-path-validation.md) but never implemented — master only checks `info.exists()` at wallpaper_service.cpp:161. Promoted to its own task: see T1b.
 
 ### T1b — D-Bus loadWallpaper path allowlist — P1 security — ✅ DONE (S0.5)
-Implemented and verified live over D-Bus: canonicalized-path containment check against trusted library roots (Steam workshop roots seeded from LibraryScanner + custom dirs), static `..`-segment rejection, explicit `registerTrustedDirectory` D-Bus call (dirs only, refuses `/`), `--trusted-directory=` daemon flag, and auto-trust in `addCustomLibraryPath`. Viewer GUI/CLI register the picked file's directory before load so arbitrary user picks keep working. Live probe results: deny `/etc/passwd`, deny `../../` traversal, deny unregistered `/tmp`, allow workshop pkg, register→allow flow OK, file-as-dir refused. Verifier regression 72/72 PASS (earlier 17-fail scare was a stale Aug-16 `build/bin/` binary from pre-repo state — deleted; CMake outputs to `build/daemon/`).
+Implemented and verified live over D-Bus: canonicalized-path containment check against trusted library roots (Steam workshop roots seeded from LibraryScanner + custom dirs), static `..`-segment rejection, explicit `registerTrustedDirectory` D-Bus call (dirs only, refuses `/`), `--trusted-directory=` daemon flag, and auto-trust in `addCustomLibraryPath`. Viewer GUI/CLI register the picked file's directory before load so arbitrary user picks keep working. Live probe results: deny `/etc/passwd`, deny `../../` traversal, deny unregistered `/tmp`, allow workshop pkg, register→allow flow OK, file-as-dir refused. Verifier regression 72/72 PASS (earlier 17-fail scare was a stale Aug-16 `build/bin/` binary from pre-repo state — deleted; CMake outputs to `build/daemon/`). Postscript: `build/bin/` leftovers + empty `build/<id>/` dirs fully swept in S2; both build/ dirs had to be reconfigured from scratch because their caches still pointed at the old `plasma-wallpaper-engine-20260826T143005Z-1-001` project path.
 
 ### T1 — Wire audio reactive (last C6 half) — P1 — ✅ DONE
 Wired end-to-end and verified with a live 440Hz sine: compositor owns `AudioVisualizer`, ticks it per frame (`updateAndRender`), live band energy modulates the Pulse effect (`getBand(0)`, gated on `isLive()` so batch stays deterministic). D-Bus: `startAudioCapture`/`stopAudioCapture`/`getAudioBands`. Auto-start on scenes with pulse effects; capture targets the **default sink monitor only** (never mic) and also hears the wallpaper's own OST. Regression 72/72 PASS.
@@ -49,8 +49,8 @@ Key findings while debugging:
 - `getBand()`/`update()` had latent OOB on a fresh daemon (buffers sized only in never-called `init()`) — bounds-checked.
 - gdb attach fails with ptrace_scope=1 (not a child); forced SIGABRT + `coredumpctl info` gives full stacks instead. `qInfo` output doesn't reach redirected stdout — use `std::cout` for daemon probes.
 
-### T2 — FilmGrain GPU pass — P1
-Parsed (`scene_parser.cpp:548`) but ignored (`scene_compositor.cpp:349` empty case). RenderGraph descriptor plumbing is fixed, so add grain shader (noise overlay, seed+intensity push constants) to the RenderGraph path. Same for any remaining `ColorAdjust`/`Tint` cases that are free wins.
+### T2 — FilmGrain GPU pass — P1 — ✅ DONE (S2)
+Full post-process path now live: new `film_grain.comp` (interleaved-gradient-noise overlay modeled on WE's filmgrainpower/filmgrainscale user props, deterministic per frame index) embedded as `film_grain_spv` in shaders_spv.h. `VulkanCompute::applyFilmGrain()` does the first real dispatch of the whole compute stack: upload→grain→readback in ONE submit (RAII staging buffer + persistent images, re-created on resize). SceneCompositor scans scenes at load for a visible FilmGrain effect (screen-space, like WE) and applies it post-composite; CPU fallback mirrors the GPU math byte-wise. Parser maps `grainpower`/`power`→strength, `grainscale`→scale. Verified: unit probe (grain applied, bit-identical same-frame, differs across frames), live daemon probe on 3690417937 (`FilmGrain post-process power=0.3 scale=4`, VulkanCompute ACTIVE, 60fps), regression 72/72 PASS (verifier uses its own blit loop, untouched). Discovery: ALL prior RenderGraph/VulkanCompute pass helpers were dead code — grain is the first wired pass. Note: `power` mapping is generic (any effect pass with a `power` constant now lands in strength); fine for grain, revisit if other effects collide.
 
 ### T3 — G1 Mouse forwarding — P2
 Beyond parallax: forward cursor position + click events to (a) JS engine (`wallpaperPropertyListener`-style hooks) and (b) web wallpapers via `runJavaScript`. Source: compositor already gets normalized mouse via D-Bus; add click channel from viewer/plugin.
@@ -90,7 +90,7 @@ All script-dependent (clock/date visibility). Feed user-property values (from th
 - S0: hygiene (T0) — ✅ committed
 - S0.5: DBus path allowlist (T1b) — ✅ committed
 - S1: audio wire (T1) — ✅ committed
-- S2: FilmGrain (T2)
+- S2: FilmGrain (T2) — ✅ committed
 - S3: fullscreen pause (T4)
 - S4: mouse click forwarding (T3)
 - S5: autostart + install (T5)

@@ -1,0 +1,45 @@
+#version 450
+
+// Film grain post-process, modeled on Wallpaper Engine's filmgrain shader
+// (grainPower / grainScale). Deterministic: the hash depends only on pixel
+// coords and the push-constant frame index, so a fixed frame renders the
+// same image every run — required by the PNG regression gate.
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(set = 0, binding = 0) uniform sampler2D inputImage;
+layout(set = 0, binding = 1) uniform writeonly image2D outputImage;
+
+layout(push_constant) uniform GrainParams {
+    float power;   // grain intensity (user prop filmgrainpower, default 0.2)
+    float scale;   // noise cell size in pixels (user prop filmgrainscale, default 4)
+    float frame;   // animation frame index (time); keeps runs deterministic
+    float pad;
+    uint width;
+    uint height;
+} params;
+
+// Interleaved gradient noise (Jimenez 2014): cheap, stable, well-distributed.
+float grainNoise(vec2 p, float frame) {
+    p += frame * 137.0;
+    return fract(dot(p, vec2(0.06711056, 0.00583715)) + 52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
+}
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    if (coord.x >= int(params.width) || coord.y >= int(params.height)) {
+        return;
+    }
+
+    vec4 color = texelFetch(inputImage, coord, 0);
+
+    // Scale pixel coords into noise cells; grid offset adds temporal variation.
+    vec2 grainCoord = vec2(coord) / max(params.scale, 0.001);
+    float noise = grainNoise(grainCoord, params.frame);
+
+    // Monochrome overlay centered on mid-grey: average luminance stays put.
+    float g = (noise - 0.5) * params.power;
+    color.rgb = clamp(color.rgb + g, vec3(0.0), vec3(1.0));
+
+    imageStore(outputImage, coord, color);
+}
