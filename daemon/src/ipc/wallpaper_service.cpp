@@ -149,6 +149,25 @@ void WallpaperService::setMousePosition(float normX, float normY) {
     m_compositor.setMouseParallax(normX, normY);
 }
 
+bool WallpaperService::startAudioCapture() {
+    return m_compositor.startAudioCapture();
+}
+
+void WallpaperService::stopAudioCapture() {
+    m_compositor.stopAudioCapture();
+}
+
+QVariantList WallpaperService::getAudioBands() {
+    QVariantList bands;
+    const Audio::AudioVisualizer& vis = m_compositor.audioVisualizer();
+    for (int i = 0; i < vis.getBandCount(); ++i) {
+        // double, not float: QVariant(float) fails to marshal over D-Bus
+        // (reply silently dropped), QVariant(double) is the portable path.
+        bands.append(static_cast<double>(vis.getBand(i)));
+    }
+    return bands;
+}
+
 void WallpaperService::setAudioVolume(int volume) {
     m_audioPlayer.setVolume(volume);
 }
@@ -221,6 +240,8 @@ bool WallpaperService::loadWallpaper(const QString& path) {
     }
 
     m_activeWallpaperId = canonical;
+    // A freshly loading scene invalidates any previous capture session.
+    m_compositor.stopAudioCapture();
     QString title;
 
     // Web wallpaper detection: project.json file==index.html or path ends with .html
@@ -288,6 +309,23 @@ bool WallpaperService::loadWallpaper(const QString& path) {
 
     if (title.isEmpty()) {
         title = info.baseName();
+    }
+
+    // Audio-reactive wallpapers: auto-start monitor-only capture when the
+    // loaded scene uses pulse effects. Never touches the microphone.
+    bool wantsAudio = false;
+    for (const auto& layer : m_compositor.getScene().layers) {
+        for (const auto& eff : layer.effects) {
+            if (eff.type == Scene::EffectType::Pulse) { wantsAudio = true; break; }
+        }
+        if (wantsAudio) break;
+    }
+    if (wantsAudio) {
+        if (m_compositor.startAudioCapture()) {
+            qInfo() << "WallpaperService: audio-reactive scene, live capture active";
+        } else {
+            qInfo() << "WallpaperService: no monitor capture device available, audio reactivity disabled";
+        }
     }
 
     qInfo() << "WallpaperService: Successfully loaded wallpaper:" << title;

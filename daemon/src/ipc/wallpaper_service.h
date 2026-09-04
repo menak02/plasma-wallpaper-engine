@@ -44,6 +44,9 @@ public Q_SLOTS:
     void setMousePosition(float normX, float normY);
 
     // Audio & playback control
+    bool startAudioCapture();
+    void stopAudioCapture();
+    QVariantList getAudioBands();
     void setAudioVolume(int volume);
     void setAudioMuted(bool muted);
     void setMuteOnOtherAudio(bool enabled);

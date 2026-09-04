@@ -39,8 +39,15 @@ Batch 55✅/17⚠️/0❌. Verifier 72/72 baseline match (mae=0.000). C1–C9 fr
 ### T1b — D-Bus loadWallpaper path allowlist — P1 security — ✅ DONE (S0.5)
 Implemented and verified live over D-Bus: canonicalized-path containment check against trusted library roots (Steam workshop roots seeded from LibraryScanner + custom dirs), static `..`-segment rejection, explicit `registerTrustedDirectory` D-Bus call (dirs only, refuses `/`), `--trusted-directory=` daemon flag, and auto-trust in `addCustomLibraryPath`. Viewer GUI/CLI register the picked file's directory before load so arbitrary user picks keep working. Live probe results: deny `/etc/passwd`, deny `../../` traversal, deny unregistered `/tmp`, allow workshop pkg, register→allow flow OK, file-as-dir refused. Verifier regression 72/72 PASS (earlier 17-fail scare was a stale Aug-16 `build/bin/` binary from pre-repo state — deleted; CMake outputs to `build/daemon/`).
 
-### T1 — Wire audio reactive (last C6 half) — P1
-`AudioVisualizer::startLiveCapture()` + `getBand()` exist but nothing calls them. Wire: `wallpaper_service` starts live capture on scene load → per-tick `getBand(i)` → `JSEngine` audio hooks + compositor/push-constants. Verify on an audio-reactive workshop wallpaper; batch must stay 55/17/0.
+### T1 — Wire audio reactive (last C6 half) — P1 — ✅ DONE
+Wired end-to-end and verified with a live 440Hz sine: compositor owns `AudioVisualizer`, ticks it per frame (`updateAndRender`), live band energy modulates the Pulse effect (`getBand(0)`, gated on `isLive()` so batch stays deterministic). D-Bus: `startAudioCapture`/`stopAudioCapture`/`getAudioBands`. Auto-start on scenes with pulse effects; capture targets the **default sink monitor only** (never mic) and also hears the wallpaper's own OST. Regression 72/72 PASS.
+
+Key findings while debugging:
+- Original `startLiveCapture` never connected `QIODevice::readyRead` → capture produced silence by design.
+- Qt Multimedia `QAudioSource` (Qt 6.11 + PipeWire) wedges/kills the event loop after start/stop → replaced with `QProcess` capture: `pw-record --raw --format=s16 ... -` (parec fallback; plain parec also hangs on this setup — pw-record is reliable).
+- `QVariant(float)` fails to marshal over D-Bus — the reply is **silently dropped** (method runs, client times out). Cast to `double`.
+- `getBand()`/`update()` had latent OOB on a fresh daemon (buffers sized only in never-called `init()`) — bounds-checked.
+- gdb attach fails with ptrace_scope=1 (not a child); forced SIGABRT + `coredumpctl info` gives full stacks instead. `qInfo` output doesn't reach redirected stdout — use `std::cout` for daemon probes.
 
 ### T2 — FilmGrain GPU pass — P1
 Parsed (`scene_parser.cpp:548`) but ignored (`scene_compositor.cpp:349` empty case). RenderGraph descriptor plumbing is fixed, so add grain shader (noise overlay, seed+intensity push constants) to the RenderGraph path. Same for any remaining `ColorAdjust`/`Tint` cases that are free wins.
@@ -82,7 +89,7 @@ All script-dependent (clock/date visibility). Feed user-property values (from th
 ## Commit slicing
 - S0: hygiene (T0) — ✅ committed
 - S0.5: DBus path allowlist (T1b) — ✅ committed
-- S1: audio wire (T1) — batch unchanged or better
+- S1: audio wire (T1) — ✅ committed
 - S2: FilmGrain (T2)
 - S3: fullscreen pause (T4)
 - S4: mouse click forwarding (T3)

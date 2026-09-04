@@ -5,6 +5,7 @@
 #include "scene_parser.h"
 #include "particle_engine.h"
 #include "../vulkan/vulkan_context.h"
+#include "../audio/audio_visualizer.h"
 #include "../render/render_graph.h"
 #include "../render/mesh_renderer.h"
 #include "../render/vulkan_compute.h"
@@ -25,6 +26,11 @@ public:
     void setMouseParallax(float normX, float normY);
     void setTargetResolution(uint32_t width, uint32_t height);
 
+    // Audio-reactive support: live capture control + per-frame band access.
+    Audio::AudioVisualizer& audioVisualizer() { return m_audioVisualizer; }
+    bool startAudioCapture();
+    void stopAudioCapture();
+
     const SceneDescription& getScene() const { return m_scene; }
     bool hasScene() const { return m_hasScene; }
     bool isWeb() const;
@@ -36,6 +42,7 @@ private:
     Render::RenderGraph m_renderGraph;
     SceneDescription m_scene;
     ParticleEngine m_particleEngine;
+    Audio::AudioVisualizer m_audioVisualizer;
     bool m_hasScene = false;
     bool m_isWeb = false;
     std::unique_ptr<class WebWallpaper> m_web;

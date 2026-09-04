@@ -4,6 +4,8 @@
 #include <vector>
 #include <cstdint>
 
+class QProcess;
+
 namespace WallpaperEngine::Audio {
 
 /**
@@ -80,7 +82,9 @@ public:
      */
     void setVolume(float volume);
 
-    // Live capture (PulseAudio/PipeWire via Qt Multimedia)
+    // Live capture of the default sink's monitor via parec (PulseAudio/
+    // PipeWire). Records system output only — never a microphone — and also
+    // hears the wallpaper's own OST playback.
     bool startLiveCapture(int sampleRate = 44100, int channels = 1);
     void stopLiveCapture();
     bool isLive() const;
@@ -107,9 +111,8 @@ private:
     float m_duration = 0.0f;
     size_t m_playbackPos = 0;
 
-    // Live capture state
-    struct LiveImpl;
-    LiveImpl* m_live = nullptr;
+    // Live capture state (parec subprocess reading the default sink monitor)
+    QProcess* m_captureProcess = nullptr;
     bool m_isLive = false;
 };
 

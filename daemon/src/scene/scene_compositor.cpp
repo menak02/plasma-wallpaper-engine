@@ -108,6 +108,16 @@ void SceneCompositor::setMouseParallax(float normX, float normY) {
     m_mouseY = std::clamp(normY, 0.0f, 1.0f);
 }
 
+bool SceneCompositor::startAudioCapture() {
+    // Capture targets the default sink monitor (system output) only — never
+    // a microphone — and also hears the wallpaper's own OST playback.
+    return m_audioVisualizer.startLiveCapture();
+}
+
+void SceneCompositor::stopAudioCapture() {
+    m_audioVisualizer.stopLiveCapture();
+}
+
 bool SceneCompositor::loadScene(Assets::PkgReader& pkgReader) {
     return loadScene(pkgReader, {});
 }
@@ -173,6 +183,10 @@ void SceneCompositor::setWebProperty(const QString& key, const QVariant& value) 
 
 void SceneCompositor::updateAndRender(float dt, float time) {
     if (!m_hasScene || !m_vulkanCtx) return;
+
+    // Audio-reactive tick: sample the visualizer once per frame so band
+    // energies reflect the current audio window.
+    m_audioVisualizer.update();
 
     // Web: refresh from QWebEngineView each frame (throttled)
     if (m_isWeb && m_web) {
@@ -323,8 +337,14 @@ void SceneCompositor::updateAndRender(float dt, float time) {
                     break;
                 }
                 case EffectType::Pulse: {
-                    float pulsePhase = time * eff.speed * 3.0f;
-                    animScale *= (1.0f + eff.strength * std::sin(pulsePhase));
+                    // Live audio modulates the pulse when capture is active;
+                    // otherwise the deterministic time-based pulse (batch-safe).
+                    const float band = m_audioVisualizer.isLive()
+                        ? m_audioVisualizer.getBand(0)
+                        : 0.0f;
+                    const float pulsePhase = time * eff.speed * 3.0f;
+                    animScale *= (1.0f + eff.strength * std::sin(pulsePhase)
+                                         + eff.strength * 2.0f * band);
                     break;
                 }
                 case EffectType::Wind:

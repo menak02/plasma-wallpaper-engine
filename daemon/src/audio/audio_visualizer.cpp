@@ -1,24 +1,12 @@
 #include "audio_visualizer.h"
+#include <QDebug>
+#include <QProcess>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <complex>
-#if __has_include(<QAudioSource>)
-#include <QAudioSource>
-#include <QMediaDevices>
-#include <QAudioDevice>
-#include <QAudioFormat>
-#include <QIODevice>
-#endif
 
 namespace WallpaperEngine::Audio {
-
-struct AudioVisualizer::LiveImpl {
-#if __has_include(<QAudioSource>)
-    QAudioSource* source = nullptr;
-    QIODevice* device = nullptr;
-#endif
-};
 
 AudioVisualizer::AudioVisualizer() : m_bandCount(8), m_waveSize(2048) {}
 
@@ -50,6 +38,28 @@ void AudioVisualizer::update() {
         std::fill(m_waveform.begin(), m_waveform.end(), 0.0f);
         return;
     }
+    // The live-capture path never runs init(): size the window buffers here
+    // so all writes below stay in-bounds.
+    if (m_waveform.size() != static_cast<size_t>(m_waveSize)) {
+        m_waveform.resize(m_waveSize, 0.0f);
+    }
+    if (m_spectrum.size() != static_cast<size_t>(m_bandCount)
+        && m_spectrum.size() != static_cast<size_t>(m_waveSize / 2)) {
+        m_spectrum.assign(m_bandCount, 0.0f);
+    }
+
+    if (m_isLive) {
+        // Live mode: window = the most recent samples of the capture ring.
+        const int avail = static_cast<int>(m_rawAudio.size());
+        const int start = std::max(0, avail - m_waveSize);
+        for (int i = 0; i < m_waveSize; ++i) {
+            const int idx = start + i;
+            m_waveform[i] = idx < avail ? static_cast<float>(m_rawAudio[idx]) / 32768.0f : 0.0f;
+        }
+        computeFFT();
+        return;
+    }
+
     int windowStart = static_cast<int>(m_playbackPos % m_rawAudio.size());
     int windowEnd = std::min(windowStart + m_waveSize, static_cast<int>(m_rawAudio.size()));
     for (int i = 0; i < m_waveSize; ++i) {
@@ -65,7 +75,6 @@ void AudioVisualizer::update() {
 void AudioVisualizer::computeBands() {
     // If we have FFT spectrum, map linear bins to logarithmic bands
     if (m_spectrum.size() == static_cast<size_t>(m_waveSize / 2)) {
-        // Check if spectrum was filled by FFT (non-zero beyond simple energy)
         // Aggregate FFT bins into bands using logarithmic spacing
         for (int band = 0; band < m_bandCount; ++band) {
             // Logarithmic band boundaries: 0..1024
@@ -123,7 +132,7 @@ static void fftRadix2(std::vector<std::complex<float>>& data) {
 }
 
 void AudioVisualizer::computeFFT() {
-    if (m_waveform.empty()) return;
+    if (m_waveform.size() != static_cast<size_t>(m_waveSize)) return;
     size_t n = m_waveform.size();
     std::vector<std::complex<float>> buf(n);
     // Hann window + copy
@@ -133,16 +142,13 @@ void AudioVisualizer::computeFFT() {
     }
     fftRadix2(buf);
     // Magnitude spectrum (first half)
-    m_spectrum.resize(n / 2);
+    std::vector<float> full(n / 2);
     for (size_t i = 0; i < n / 2; ++i) {
         float mag = std::abs(buf[i]) / static_cast<float>(n);
         // Log scale
-        m_spectrum[i] = std::clamp(mag * 50.0f, 0.0f, 1.0f);
+        full[i] = std::clamp(mag * 50.0f, 0.0f, 1.0f);
     }
-    // Now aggregate into bands (reuse computeBands path after resize)
-    // Keep full spectrum for getBand per-bin? But getBand expects bandCount bands.
-    // Preserve full spectrum then compute band summary into first bandCount entries
-    std::vector<float> full = m_spectrum;
+    // Aggregate into the bandCount-band summary (what getBand serves)
     m_spectrum.assign(m_bandCount, 0.0f);
     for (int band = 0; band < m_bandCount; ++band) {
         float lowFrac = static_cast<float>(band) / m_bandCount;
@@ -159,15 +165,19 @@ void AudioVisualizer::computeFFT() {
 }
 
 float AudioVisualizer::getBand(int band) const {
-    if (band < 0 || band >= m_bandCount) {
+    // m_spectrum may be empty before init()/update() ever ran (fresh daemon,
+    // no capture): reading it would be out-of-bounds.
+    if (band < 0 || band >= m_bandCount || band >= static_cast<int>(m_spectrum.size())) {
         return 0.0f;
     }
     return m_spectrum[band];
 }
 
 int AudioVisualizer::getWaveform(float* outBuffer, int maxSamples) const {
-    int count = std::min(maxSamples, m_waveSize);
-    std::memcpy(outBuffer, m_waveform.data(), count * sizeof(float));
+    const int count = std::min({maxSamples, m_waveSize, static_cast<int>(m_waveform.size())});
+    if (count > 0) {
+        std::memcpy(outBuffer, m_waveform.data(), static_cast<size_t>(count) * sizeof(float));
+    }
     return count;
 }
 
@@ -176,37 +186,76 @@ void AudioVisualizer::setVolume(float volume) {
 }
 
 bool AudioVisualizer::startLiveCapture(int sampleRate, int channels) {
-#if __has_include(<QAudioSource>)
     stopLiveCapture();
-    m_isLive = true;
+
+    // Resolve the default sink (PipeWire/Pulse). Recording a sink captures
+    // its monitor — system output only, never a microphone — and also hears
+    // the wallpaper's own OST playback.
+    QProcess pactl;
+    pactl.start(QStringLiteral("pactl"), QStringList{QStringLiteral("get-default-sink")});
+    if (!pactl.waitForFinished(2000)) {
+        qWarning() << "AudioVisualizer: pactl not available, live capture disabled";
+        return false;
+    }
+    const QString sink = QString::fromUtf8(pactl.readAllStandardOutput()).trimmed();
+    if (sink.isEmpty()) {
+        qWarning() << "AudioVisualizer: no default sink found";
+        return false;
+    }
+
+    m_captureProcess = new QProcess();
+
+    // Primary: pw-record --raw (PipeWire native; parec hangs on this setup).
+    QStringList args;
+    args << QStringLiteral("--raw")
+         << QStringLiteral("--format=s16")
+         << QStringLiteral("--rate=%1").arg(sampleRate)
+         << QStringLiteral("--channels=%1").arg(channels)
+         << QStringLiteral("--target=%1").arg(sink)
+         << QStringLiteral("-");
+    m_captureProcess->start(QStringLiteral("pw-record"), args);
+    if (!m_captureProcess->waitForStarted(3000)) {
+        // Fallback: parec reading the sink's monitor source directly.
+        qWarning() << "AudioVisualizer: pw-record unavailable, falling back to parec";
+        const QString monitor = sink + QStringLiteral(".monitor");
+        QStringList parecArgs;
+        parecArgs << QStringLiteral("--format=s16le")
+                  << QStringLiteral("--rate=%1").arg(sampleRate)
+                  << QStringLiteral("--channels=%1").arg(channels)
+                  << QStringLiteral("--device=%1").arg(monitor);
+        m_captureProcess->start(QStringLiteral("parec"), parecArgs);
+        if (!m_captureProcess->waitForStarted(3000)) {
+            qWarning() << "AudioVisualizer: no capture backend available";
+            stopLiveCapture();
+            return false;
+        }
+    }
+
     m_sampleRate = sampleRate;
     m_channels = channels;
-    m_live = new LiveImpl();
-    QAudioFormat fmt;
-    fmt.setSampleRate(sampleRate);
-    fmt.setChannelCount(channels);
-    fmt.setSampleFormat(QAudioFormat::Int16);
-    QAudioDevice dev = QMediaDevices::defaultAudioInput();
-    if (dev.isNull()) return false;
-    m_live->source = new QAudioSource(dev, fmt);
-    m_live->device = m_live->source->start();
-    if (!m_live->device) { stopLiveCapture(); return false; }
-    // Prime buffers
     m_rawAudio.assign(m_waveSize, 0);
+
+    m_isLive = true;
+    QObject::connect(m_captureProcess, &QProcess::readyReadStandardOutput, m_captureProcess, [this]() {
+        if (!m_captureProcess) return;
+        const QByteArray chunk = m_captureProcess->readAllStandardOutput();
+        const int16_t* samples = reinterpret_cast<const int16_t*>(chunk.constData());
+        onLiveData(std::vector<int16_t>(samples, samples + chunk.size() / sizeof(int16_t)));
+    });
+    qInfo() << "AudioVisualizer: live monitor capture started for sink" << sink;
     return true;
-#else
-    Q_UNUSED(sampleRate); Q_UNUSED(channels);
-    return false;
-#endif
 }
 
 void AudioVisualizer::stopLiveCapture() {
-#if __has_include(<QAudioSource>)
-    if (m_live) {
-        if (m_live->source) { m_live->source->stop(); delete m_live->source; }
-        delete m_live; m_live = nullptr;
+    if (m_captureProcess) {
+        m_captureProcess->terminate();
+        if (!m_captureProcess->waitForFinished(300)) {
+            m_captureProcess->kill();
+            m_captureProcess->waitForFinished(300);
+        }
+        delete m_captureProcess;
+        m_captureProcess = nullptr;
     }
-#endif
     m_isLive = false;
 }
 
