@@ -68,8 +68,22 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // Explicitly trusted directories from the command line
+    // (--trusted-directory=<path>, repeatable). These extend the load-path
+    // allowlist seeded from the library scanner's known library roots.
+    QStringList trustedDirs;
+    static constexpr QLatin1String trustedFlag("--trusted-directory=");
+    for (const QString& arg : app.arguments()) {
+        if (arg.startsWith(trustedFlag)) {
+            const QString dir = arg.mid(trustedFlag.size());
+            if (!dir.isEmpty()) {
+                trustedDirs.append(dir);
+            }
+        }
+    }
+
     // Register DBus service on session bus
-    WallpaperEngine::IPC::WallpaperService service(&vulkanCtx);
+    WallpaperEngine::IPC::WallpaperService service(&vulkanCtx, trustedDirs);
     QDBusConnection connection = QDBusConnection::sessionBus();
 
     if (!connection.registerService(QStringLiteral("org.antigravity.WallpaperEngine"))) {

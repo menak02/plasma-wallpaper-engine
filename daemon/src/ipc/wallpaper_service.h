@@ -19,7 +19,8 @@ class WallpaperService : public QObject {
     Q_CLASSINFO("D-Bus Interface", "org.antigravity.WallpaperEngine")
 
 public:
-    explicit WallpaperService(Render::VulkanContext* vulkanCtx, QObject* parent = nullptr);
+    explicit WallpaperService(Render::VulkanContext* vulkanCtx,
+                              const QStringList& trustedDirs = {}, QObject* parent = nullptr);
 
     void updateAndRender(float dt, float time);
 
@@ -58,6 +59,12 @@ public Q_SLOTS:
     void scanLibrary();
     void addCustomLibraryPath(const QString& path);
 
+    // Load-path trust management: loadWallpaper only accepts paths inside
+    // trusted library roots (Steam workshop + custom dirs). A directory can
+    // be trusted explicitly over D-Bus (or via --trusted-directory at startup).
+    bool registerTrustedDirectory(const QString& dirPath);
+    QStringList getTrustedDirectories();
+
     // Live property manipulation
     QVariantMap getWallpaperProperties(const QString& id);
     void setProperty(const QString& key, const QDBusVariant& value);
@@ -78,6 +85,11 @@ private:
     Audio::AudioPlayer m_audioPlayer;
     QVariantMap m_activeProperties;
     QString m_activeWallpaperId;
+
+    // Allowlist of canonical library roots for D-Bus loadWallpaper
+    QStringList m_trustedDirs;
+    QString canonicalizePath(const QString& path) const;
+    bool isPathAllowed(const QString& canonicalPath) const;
 };
 
 } // namespace WallpaperEngine::IPC

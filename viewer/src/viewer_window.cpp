@@ -234,6 +234,22 @@ void ViewerWindow::checkConnection() {
 void ViewerWindow::loadPath(const QString& path) {
     if (path.isEmpty()) return;
 
+    // The daemon only loads wallpapers from trusted library roots; registering
+    // the picked file's directory keeps arbitrary user selections working.
+    {
+        QDBusInterface iface(
+            QStringLiteral("org.antigravity.WallpaperEngine"),
+            QStringLiteral("/WallpaperEngine"),
+            QStringLiteral("org.antigravity.WallpaperEngine"),
+            QDBusConnection::sessionBus());
+        if (iface.isValid()) {
+            const QString dir = QFileInfo(path).absolutePath();
+            if (!dir.isEmpty()) {
+                iface.call(QStringLiteral("registerTrustedDirectory"), dir);
+            }
+        }
+    }
+
     QDBusInterface iface(
         QStringLiteral("org.antigravity.WallpaperEngine"),
         QStringLiteral("/WallpaperEngine"),

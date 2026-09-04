@@ -38,6 +38,10 @@ public:
 
     WallpaperItemMetadata getWallpaperById(const QString& id) const;
 
+    // Canonical library roots (Steam workshop roots + custom directories),
+    // used by the daemon to seed the D-Bus loadWallpaper allowlist.
+    QStringList getTrustedDirectories() const;
+
 Q_SIGNALS:
     void scanCompleted(int count);
 
@@ -50,7 +54,7 @@ private:
     void parseWallpaperFolder(const std::filesystem::path& folderPath, bool isCustom = false);
     void parsePkgFile(const std::filesystem::path& pkgPath, bool isCustom = false);
 
-    QStringList findSteamLibraryPaths();
+    QStringList findSteamLibraryPaths() const;
 };
 
 } // namespace WallpaperEngine::Assets

@@ -4,16 +4,57 @@
 #include <QDebug>
 #include <QFileInfo>
 #include <QDir>
+#include <QDirIterator>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
 
+#include <algorithm>
+
 namespace WallpaperEngine::IPC {
 
-WallpaperService::WallpaperService(Render::VulkanContext* vulkanCtx, QObject* parent)
+WallpaperService::WallpaperService(Render::VulkanContext* vulkanCtx,
+                                   const QStringList& trustedDirs,
+                                   QObject* parent)
     : QObject(parent), m_vulkanCtx(vulkanCtx), m_compositor(vulkanCtx) {
     connect(&m_libraryScanner, &Assets::LibraryScanner::scanCompleted, this, &WallpaperService::libraryUpdated);
     m_libraryScanner.scanAll();
+
+    // Seed the load-path allowlist: canonical library roots known to the
+    // scanner (Steam workshop roots + custom dirs) plus anything the daemon
+    // process was explicitly told to trust at startup.
+    m_trustedDirs = m_libraryScanner.getTrustedDirectories();
+    for (const QString& dir : trustedDirs) {
+        const QString canon = canonicalizePath(dir);
+        if (!canon.isEmpty() && !m_trustedDirs.contains(canon)) {
+            m_trustedDirs.append(canon);
+        }
+    }
+}
+
+QString WallpaperService::canonicalizePath(const QString& path) const {
+    // QDir::canonicalPath resolves symlinks, ".." and "." segments; it
+    // returns an empty string for non-existent targets, so fall back to an
+    // absolute cleaning pass (no symlink resolution) for the not-yet-existing
+    // case so validation stays deterministic.
+    QString canon = QDir(path).canonicalPath();
+    if (canon.isEmpty()) {
+        canon = QDir::cleanPath(QFileInfo(path).absoluteFilePath());
+    }
+    return canon;
+}
+
+bool WallpaperService::isPathAllowed(const QString& canonicalPath) const {
+    // Cheap static traversal rejection first: no parent-directory segments.
+    const QStringList segments = canonicalPath.split(u'/', Qt::SkipEmptyParts);
+    if (segments.contains(QStringLiteral(".."))) {
+        return false;
+    }
+    // Containment: the path must live under one of the trusted library roots.
+    return std::any_of(m_trustedDirs.cbegin(), m_trustedDirs.cend(),
+                       [&canonicalPath](const QString& root) {
+                           return canonicalPath.startsWith(root + u'/');
+                       });
 }
 
 void WallpaperService::updateAndRender(float dt, float time) {
@@ -160,14 +201,26 @@ QVariantList WallpaperService::getAvailableGpus() {
 
 bool WallpaperService::loadWallpaper(const QString& path) {
     qInfo() << "WallpaperService: Loading wallpaper from:" << path;
-    QFileInfo info(path);
 
-    if (!info.exists()) {
-        qWarning() << "Path does not exist:" << path;
+    // Security gate: only accept wallpapers that live inside a trusted
+    // library root (Steam workshop roots, registered custom directories).
+    // Canonicalizing first neutralizes symlink and '..' traversal tricks.
+    const QString canonical = canonicalizePath(path);
+    if (!isPathAllowed(canonical)) {
+        qWarning() << "WallpaperService: rejected untrusted load path:" << path
+                   << "(canonical:" << canonical << ")"
+                   << "— register its directory via registerTrustedDirectory first.";
         return false;
     }
 
-    m_activeWallpaperId = path;
+    QFileInfo info(canonical);
+
+    if (!info.exists()) {
+        qWarning() << "Path does not exist:" << canonical;
+        return false;
+    }
+
+    m_activeWallpaperId = canonical;
     QString title;
 
     // Web wallpaper detection: project.json file==index.html or path ends with .html
@@ -181,7 +234,7 @@ bool WallpaperService::loadWallpaper(const QString& path) {
     };
 
     if (info.suffix().toLower() == QStringLiteral("pkg") || info.isDir()) {
-        QString pkgFile = info.isDir() ? (path + QStringLiteral("/scene.pkg")) : path;
+        QString pkgFile = info.isDir() ? (canonical + QStringLiteral("/scene.pkg")) : canonical;
         
         if (QFile::exists(pkgFile) && m_pkgReader.open(pkgFile.toStdString())) {
             // Load Project metadata
@@ -257,6 +310,46 @@ void WallpaperService::scanLibrary() {
 void WallpaperService::addCustomLibraryPath(const QString& path) {
     m_libraryScanner.addCustomDirectory(path);
     m_libraryScanner.scanAll();
+
+    // Registering a library directory is an explicit local act, so the new
+    // root is trusted for loadWallpaper too. Refresh against the scanner's
+    // view so custom dirs added by other means are picked up as well.
+    for (const QString& dir : m_libraryScanner.getTrustedDirectories()) {
+        const QString canon = canonicalizePath(dir);
+        if (!canon.isEmpty() && !m_trustedDirs.contains(canon)) {
+            m_trustedDirs.append(canon);
+        }
+    }
+}
+
+bool WallpaperService::registerTrustedDirectory(const QString& dirPath) {
+    if (dirPath.isEmpty()) {
+        return false;
+    }
+    // Only existing directories may be registered — not files.
+    QFileInfo info(dirPath);
+    if (!info.isDir()) {
+        qWarning() << "WallpaperService: registerTrustedDirectory: not a directory:" << dirPath;
+        return false;
+    }
+    const QString canon = canonicalizePath(dirPath);
+    if (canon.isEmpty()) {
+        return false;
+    }
+    // Refuse to trust the filesystem root — that would disable the gate.
+    if (canon == QStringLiteral("/")) {
+        qWarning() << "WallpaperService: refusing to trust filesystem root";
+        return false;
+    }
+    if (!m_trustedDirs.contains(canon)) {
+        m_trustedDirs.append(canon);
+        qInfo() << "WallpaperService: trusted directory registered:" << canon;
+    }
+    return true;
+}
+
+QStringList WallpaperService::getTrustedDirectories() {
+    return m_trustedDirs;
 }
 
 QVariantMap WallpaperService::getWallpaperProperties(const QString& id) {

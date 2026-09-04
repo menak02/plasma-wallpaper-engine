@@ -36,8 +36,8 @@ Batch 55✅/17⚠️/0❌. Verifier 72/72 baseline match (mae=0.000). C1–C9 fr
 - Moved 9 root debug scripts (dump_*.py, patch_*.patch) to tools/debug/, deleted batch_verifier.cpp.orig.
 - **NEW FINDING:** D-Bus `loadWallpaper` path allowlist was recorded as a decision (memory: decision-dbus-path-validation.md) but never implemented — master only checks `info.exists()` at wallpaper_service.cpp:161. Promoted to its own task: see T1b.
 
-### T1b — D-Bus loadWallpaper path allowlist — P1 security
-The security hardening session (24928f5) claimed DBus hardening, but master's `loadWallpaper` still accepts any existing path. Implement the recorded decision: restrict to LibraryScanner's known directories (custom + Steam workshop), reject `../` traversal. Small diff in `wallpaper_service.cpp:161` + `library_scanner.h` (expose scanned dirs; the worktree branch already had the `getScannedDirectories()` accessor pattern).
+### T1b — D-Bus loadWallpaper path allowlist — P1 security — ✅ DONE (S0.5)
+Implemented and verified live over D-Bus: canonicalized-path containment check against trusted library roots (Steam workshop roots seeded from LibraryScanner + custom dirs), static `..`-segment rejection, explicit `registerTrustedDirectory` D-Bus call (dirs only, refuses `/`), `--trusted-directory=` daemon flag, and auto-trust in `addCustomLibraryPath`. Viewer GUI/CLI register the picked file's directory before load so arbitrary user picks keep working. Live probe results: deny `/etc/passwd`, deny `../../` traversal, deny unregistered `/tmp`, allow workshop pkg, register→allow flow OK, file-as-dir refused. Verifier regression 72/72 PASS (earlier 17-fail scare was a stale Aug-16 `build/bin/` binary from pre-repo state — deleted; CMake outputs to `build/daemon/`).
 
 ### T1 — Wire audio reactive (last C6 half) — P1
 `AudioVisualizer::startLiveCapture()` + `getBand()` exist but nothing calls them. Wire: `wallpaper_service` starts live capture on scene load → per-tick `getBand(i)` → `JSEngine` audio hooks + compositor/push-constants. Verify on an audio-reactive workshop wallpaper; batch must stay 55/17/0.
@@ -81,7 +81,7 @@ All script-dependent (clock/date visibility). Feed user-property values (from th
 
 ## Commit slicing
 - S0: hygiene (T0) — ✅ committed
-- S0.5: DBus path allowlist (T1b) — batch unchanged
+- S0.5: DBus path allowlist (T1b) — ✅ committed
 - S1: audio wire (T1) — batch unchanged or better
 - S2: FilmGrain (T2)
 - S3: fullscreen pause (T4)

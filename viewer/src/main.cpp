@@ -6,6 +6,7 @@
 #include <QDBusConnection>
 #include <QDebug>
 #include <QRegularExpression>
+#include <QFileInfo>
 #include <algorithm>
 #include <iostream>
 #include "viewer_window.h"
@@ -21,6 +22,16 @@ static QDBusInterface* serviceInterface() {
         return nullptr;
     }
     return iface;
+}
+
+// The daemon only loads wallpapers from trusted library roots; registering
+// the target file's directory keeps arbitrary CLI paths working while the
+// allowlist still blocks unregistered locations.
+static void ensureDirectoryTrusted(QDBusInterface* iface, const QString& path) {
+    const QString dir = QFileInfo(path).absolutePath();
+    if (!dir.isEmpty()) {
+        iface->call(QStringLiteral("registerTrustedDirectory"), dir);
+    }
 }
 
 static QVariant parsePropertyValue(const QString& raw) {
@@ -84,6 +95,7 @@ static int runSetProperty(const QString& keyValue, const QString& optionalPath) 
 
     // Optionally load a wallpaper first so the property applies to it live.
     if (!optionalPath.isEmpty()) {
+        ensureDirectoryTrusted(iface, optionalPath);
         QDBusReply<bool> loadReply = iface->call(QStringLiteral("loadWallpaper"), optionalPath);
         if (!loadReply.isValid() || !loadReply.value()) {
             std::cerr << "Error: loadWallpaper failed for '" << optionalPath.toStdString() << "'." << std::endl;

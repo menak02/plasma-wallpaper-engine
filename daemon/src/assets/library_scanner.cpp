@@ -21,7 +21,7 @@ void LibraryScanner::addCustomDirectory(const QString& path) {
     }
 }
 
-QStringList LibraryScanner::findSteamLibraryPaths() {
+QStringList LibraryScanner::findSteamLibraryPaths() const {
     QStringList candidates = {
         QDir::homePath() + QStringLiteral("/.steam/debian-installation"),
         QDir::homePath() + QStringLiteral("/.local/share/Steam"),
@@ -254,6 +254,12 @@ WallpaperItemMetadata LibraryScanner::getWallpaperById(const QString& id) const 
         }
     }
     return {};
+}
+
+QStringList LibraryScanner::getTrustedDirectories() const {
+    // The scanner's own view of library roots: every Steam workshop root it
+    // scans plus user-registered custom directories.
+    return findSteamLibraryPaths() + m_customDirectories;
 }
 
 } // namespace WallpaperEngine::Assets
