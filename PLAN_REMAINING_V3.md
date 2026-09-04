@@ -1,6 +1,6 @@
-# Remaining V3 — Competitive Analysis + Plan (post 9dbb7fa)
+# Remaining V3 — Competitive Analysis + Plan (post c271566, updated 2026-09-04)
 
-Batch 55✅/17⚠️/0❌. Verifier 72/72 baseline match (mae=0.000). C1–C9 from PLAN_REMAINING(_V2) all landed.
+Batch 55✅/17⚠️/0❌. Verifier 72/72 baseline match (mae=0.000). C1–C9 from PLAN_REMAINING(_V2) all landed. Landed since: D-Bus path allowlist (S0.5), audio-reactive wiring (S1), FilmGrain GPU post-process (S2, first wired Vulkan compute pass). **Next up: S3 = T4 fullscreen pause.**
 
 ## Competitive landscape (researched 2026-09-03)
 
@@ -10,7 +10,8 @@ Batch 55✅/17⚠️/0❌. Verifier 72/72 baseline match (mae=0.000). C1–C9 fr
 | **AzPepoze/linux-wallpaperengine** | **Go** / native reimplementation | yes | mouse events | yes | native WebGL | yes | single binary | GitHub releases, own GUI |
 | **waywallen** (ex catsout/wallpaper-engine-kde-plugin) | C++/QML **KDE Plasma plugin** | Plasma-only | Plasma integration | yes | QtWebEngine | QtMultimedia | KPack plugin | AUR (`plasma6-wallpapers-wallpaper-engine-git`), full wallpaper **manager GUI**, workshop browse |
 | **Hidamari** | Python / video-only | GNOME/wayland | pause on fullscreen/maximized, volume | no | webpage-as-wallpaper | mpv/yt-dlp (streaming URLs!) | Flatpak on **Flathub**, autostart | Flathub, simple UX |
-| **Ours** | C++ / Qt6 / Vulkan compute / D-Bus daemon | layer-shell-style per-output DmaBuf | mouse parallax only | engine exists, **not wired** | QtWebEngine (loadFinished + JS bridge done) | ffmpeg single-decoder | install() daemon only | **none** — no README, no AUR, no CI |
+| **Ours** | C++ / Qt6 / Vulkan compute / D-Bus daemon | layer-shell-style per-output DmaBuf | mouse parallax only | ✅ wired (T1: monitor capture → pulse) | QtWebEngine (loadFinished + JS bridge done) | ffmpeg single-decoder | install() daemon only | **none** — no README, no AUR, no CI |
+| **Ours, gaps still open** | | | G1 clicks, G2 fullscreen pause | 64-band parity vs PulseAudio TBD | | | G5 | |
 
 ### What we do better (keep and advertise)
 1. **Verifier + PNG regression baseline (72 wallpapers, mae gate)** — nobody else has CI-grade per-wallpaper output verification. Unique selling point.
@@ -52,7 +53,7 @@ Key findings while debugging:
 ### T2 — FilmGrain GPU pass — P1 — ✅ DONE (S2)
 Full post-process path now live: new `film_grain.comp` (interleaved-gradient-noise overlay modeled on WE's filmgrainpower/filmgrainscale user props, deterministic per frame index) embedded as `film_grain_spv` in shaders_spv.h. `VulkanCompute::applyFilmGrain()` does the first real dispatch of the whole compute stack: upload→grain→readback in ONE submit (RAII staging buffer + persistent images, re-created on resize). SceneCompositor scans scenes at load for a visible FilmGrain effect (screen-space, like WE) and applies it post-composite; CPU fallback mirrors the GPU math byte-wise. Parser maps `grainpower`/`power`→strength, `grainscale`→scale. Verified: unit probe (grain applied, bit-identical same-frame, differs across frames), live daemon probe on 3690417937 (`FilmGrain post-process power=0.3 scale=4`, VulkanCompute ACTIVE, 60fps), regression 72/72 PASS (verifier uses its own blit loop, untouched). Discovery: ALL prior RenderGraph/VulkanCompute pass helpers were dead code — grain is the first wired pass. Note: `power` mapping is generic (any effect pass with a `power` constant now lands in strength); fine for grain, revisit if other effects collide.
 
-### T3 — G1 Mouse forwarding — P2
+### T3 — G1 Mouse forwarding — P2 (NEXT after S3)
 Beyond parallax: forward cursor position + click events to (a) JS engine (`wallpaperPropertyListener`-style hooks) and (b) web wallpapers via `runJavaScript`. Source: compositor already gets normalized mouse via D-Bus; add click channel from viewer/plugin.
 
 ### T4 — G2 Pause on fullscreen/maximized — P2
@@ -80,7 +81,7 @@ All script-dependent (clock/date visibility). Feed user-property values (from th
 
 ### GitHub integrations (paired with this plan)
 1. `.github/workflows/build.yml` — matrix build + ctest (regression job needs wallpapers as private artifact/cache).
-2. `regression.yml` — verifier → compare_images.py → PR comment with diff PNGs (our unique gate).
+2. `regression.yml` — verifier → compare_images.py → PR comment with diff PNGs (our unique gate). NOTE: pure-Python PNG diff took >10 min over 72×1080p (timed out twice locally); numpy-vectorized comparison with identical thresholds ran in seconds. Vectorize `compare_images.py` (numpy is available) before wiring CI, or CI burns 10+ min per run.
 3. Nightly ASan job (build-asan config exists).
 4. Issue templates: wallpaper-ID + log required. PR template: "55/17/0 unchanged?" checklist.
 5. Tag → release.yml: tarball with daemon+viewer+plugin header; AUR PKGBUILD update on tag.
@@ -90,8 +91,8 @@ All script-dependent (clock/date visibility). Feed user-property values (from th
 - S0: hygiene (T0) — ✅ committed
 - S0.5: DBus path allowlist (T1b) — ✅ committed
 - S1: audio wire (T1) — ✅ committed
-- S2: FilmGrain (T2) — ✅ committed
-- S3: fullscreen pause (T4)
+- S2: FilmGrain (T2) — ✅ committed (c271566)
+- S3: fullscreen pause (T4) ← NEXT
 - S4: mouse click forwarding (T3)
 - S5: autostart + install (T5)
 - S6: workshop UX (T6)
