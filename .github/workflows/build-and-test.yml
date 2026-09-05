@@ -16,7 +16,10 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y cmake qtbase5-dev qtchooser qt5-qmake qtbase5-dev-tools vulkan-tools libvulkan-dev
+        sudo apt-get install -y cmake qt6-base-dev qt6-tools-dev-tools \
+          qt6-image-formats-plugins qt6-qpa-wayland vulkan-tools libvulkan-dev \
+          liblz4-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
+          libpulse-dev
 
     - name: Configure
       run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
@@ -26,6 +29,34 @@ jobs:
 
     - name: Test
       run: ctest --test-dir build --output-on-failure
+
+  repo-quality:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Check for common AI-telltale patterns (fail on scaffolding)
+      run: |
+        set -euo pipefail
+
+        EXTRA=true
+
+        echo "== comment scaffolding =="
+        grep -RInE "^\s*// (This |The |Simple |Implementation |Forward |Main |Get |Discover |Build |Send |Connect |Parse |Skip|For )" \
+          --include='*.cpp' --include='*.h' --include='*.hpp' . || EXTRA=false
+
+        echo "== generic helper/util/wrapper names =="
+        grep -RInE "(util|helper|manager|wrapper|base|common|impl)[_-]?[a-z]" \
+          --include='*.cpp' --include='*.h' --include='*.hpp' . || EXTRA=false
+
+        if [ "$EXTRA" = true ]; then
+          echo
+          echo "Found patterns that look like AI scaffolding or generic naming."
+          echo "Cleanup guidance: keep comments why-focused and names specific to the domain."
+          exit 1
+        fi
+
+        echo "Repo-quality checks passed."
 
   security-scan:
     runs-on: ubuntu-latest
