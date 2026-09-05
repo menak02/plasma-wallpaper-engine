@@ -201,8 +201,7 @@ std::string discoverHyprlandSignature() {
     if (runtimeDir.empty()) return "";
     
     std::string hyprDir = runtimeDir + "/hypr";
-    // List directories in hyprDir to find the signature
-    // This is a simplified version; production code would use opendir/readdir
+    // List directories in hyprDir to find the signature        // Discovery is simplified; full impl would enumerate the runtime dir.
     return "";
 }
 
@@ -272,7 +271,7 @@ int connectToHyprlandIpc(const std::string& socketPath) {
 
 namespace WallpaperEngine::Scene {
 
-// Hyprland IPC backend implementation.
+
 
 class HyprlandBackend : public CompositorBackend {
 public:
@@ -342,8 +341,7 @@ public:
             return false;
         }
         
-        // This is called from the pause gate. Returns the cached state
-        // computed in update().
+        // Return cached coverage computed by update().
         return m_cachedCovered;
     }
 

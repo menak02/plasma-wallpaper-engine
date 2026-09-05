@@ -10,7 +10,7 @@
 namespace WallpaperEngine::Assets {
 
 // Format codes match the actual Wallpaper Engine binary format.
-// Verified against Almamu's reference implementation (linux-wallpaperengine).
+// Verified against linux-wallpaperengine reference implementation.
 enum class TextureFormat : uint32_t {
     ARGB8888 = 0,
     RGB888 = 1,

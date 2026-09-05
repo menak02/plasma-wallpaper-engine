@@ -16,7 +16,7 @@ void AudioVisualizer::init(const std::vector<uint8_t>& audioBytes, int sampleRat
     m_sampleRate = sampleRate;
     m_channels = channels;
 
-    // Convert audio bytes to PCM (simple 16-bit conversion)
+    // Convert incoming audio bytes to 16-bit PCM.
     m_rawAudio.resize(audioBytes.size() / 2);
     if (!audioBytes.empty()) {
         std::memcpy(m_rawAudio.data(), audioBytes.data(), audioBytes.size());
@@ -93,7 +93,7 @@ void AudioVisualizer::computeBands() {
         }
         return;
     }
-    // Fallback: energy-based
+    // Fallback when FFT band data is unavailable.
     int bandSize = m_waveSize / m_bandCount;
     for (int band = 0; band < m_bandCount; ++band) {
         float energy = 0.0f;
@@ -203,8 +203,6 @@ bool AudioVisualizer::startLiveCapture(int sampleRate, int channels) {
         return false;
     }
 
-    m_captureProcess = new QProcess();
-
     // Primary: pw-record --raw (PipeWire native; parec hangs on this setup).
     QStringList args;
     args << QStringLiteral("--raw")
@@ -213,8 +211,9 @@ bool AudioVisualizer::startLiveCapture(int sampleRate, int channels) {
          << QStringLiteral("--channels=%1").arg(channels)
          << QStringLiteral("--target=%1").arg(sink)
          << QStringLiteral("-");
-    m_captureProcess->start(QStringLiteral("pw-record"), args);
-    if (!m_captureProcess->waitForStarted(3000)) {
+    if (m_captureProcess.start(QStringLiteral("pw-record"), args, 3000)) {
+        // live
+    } else {
         // Fallback: parec reading the sink's monitor source directly.
         qWarning() << "AudioVisualizer: pw-record unavailable, falling back to parec";
         const QString monitor = sink + QStringLiteral(".monitor");
@@ -223,8 +222,7 @@ bool AudioVisualizer::startLiveCapture(int sampleRate, int channels) {
                   << QStringLiteral("--rate=%1").arg(sampleRate)
                   << QStringLiteral("--channels=%1").arg(channels)
                   << QStringLiteral("--device=%1").arg(monitor);
-        m_captureProcess->start(QStringLiteral("parec"), parecArgs);
-        if (!m_captureProcess->waitForStarted(3000)) {
+        if (!m_captureProcess.start(QStringLiteral("parec"), parecArgs, 3000)) {
             qWarning() << "AudioVisualizer: no capture backend available";
             stopLiveCapture();
             return false;
@@ -236,9 +234,10 @@ bool AudioVisualizer::startLiveCapture(int sampleRate, int channels) {
     m_rawAudio.assign(m_waveSize, 0);
 
     m_isLive = true;
-    QObject::connect(m_captureProcess, &QProcess::readyReadStandardOutput, m_captureProcess, [this]() {
-        if (!m_captureProcess) return;
-        const QByteArray chunk = m_captureProcess->readAllStandardOutput();
+    QObject::connect(m_captureProcess.process(), &QProcess::readyReadStandardOutput, m_captureProcess.process(), [this]() {
+        QProcess* proc = m_captureProcess.process();
+        if (!proc) return;
+        const QByteArray chunk = proc->readAllStandardOutput();
         const int16_t* samples = reinterpret_cast<const int16_t*>(chunk.constData());
         onLiveData(std::vector<int16_t>(samples, samples + chunk.size() / sizeof(int16_t)));
     });
@@ -247,15 +246,7 @@ bool AudioVisualizer::startLiveCapture(int sampleRate, int channels) {
 }
 
 void AudioVisualizer::stopLiveCapture() {
-    if (m_captureProcess) {
-        m_captureProcess->terminate();
-        if (!m_captureProcess->waitForFinished(300)) {
-            m_captureProcess->kill();
-            m_captureProcess->waitForFinished(300);
-        }
-        delete m_captureProcess;
-        m_captureProcess = nullptr;
-    }
+    m_captureProcess.terminate();
     m_isLive = false;
 }
 
@@ -263,9 +254,12 @@ bool AudioVisualizer::isLive() const { return m_isLive; }
 
 void AudioVisualizer::onLiveData(const std::vector<int16_t>& chunk) {
     if (chunk.empty()) return;
-    // Append to ring buffer
+    // Append to ring buffer. Keep a fixed-size window so the FFT path stays
+    // predictable even when the capture process runs for a long time.
     m_rawAudio.insert(m_rawAudio.end(), chunk.begin(), chunk.end());
-    if (m_rawAudio.size() > 8192) m_rawAudio.erase(m_rawAudio.begin(), m_rawAudio.begin() + (m_rawAudio.size() - 8192));
+    if (m_rawAudio.size() > 8192) {
+        m_rawAudio.erase(m_rawAudio.begin(), m_rawAudio.begin() + (m_rawAudio.size() - 8192));
+    }
 }
 
 } // namespace WallpaperEngine::Audio

@@ -283,7 +283,7 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
         }
 
         SceneLayer layer;
-        // Parse unique integer ID and parent ID for hierarchy
+        // Parse unique integer ID and parent ID for hierarchy.
         layer.id = obj.value(QStringLiteral("id")).toInt(-1);
         layer.parentId = obj.value(QStringLiteral("parent")).toInt(-1);
         layer.attachpoint = obj.value(QStringLiteral("attachpoint")).toString().toStdString();
@@ -399,7 +399,7 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
         }
     }
 
-    // Build id -> layer lookup map for hierarchy resolution
+    // Build id -> layer lookup for hierarchy resolution.
     std::unordered_map<int, SceneLayer*> idToLayer;
     idToLayer.reserve(outScene.layers.size());
     for (auto& layer : outScene.layers) {
@@ -422,7 +422,7 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
     }
 
     // Topological sort: parents before children, then by zOrder
-    // This ensures composition layers render before their children
+    // Ensures composition layers render before children.
     std::vector<SceneLayer*> sortedLayers;
     sortedLayers.reserve(outScene.layers.size());
     std::unordered_set<int> visited;
@@ -595,7 +595,7 @@ bool SceneParser::resolveEffect(Assets::PkgReader& pkgReader, const QJsonObject&
             outEffect.center = parseVector2D(consts.value(QStringLiteral("center")), outEffect.center);
         }
 
-        // Parse mask texture if present
+        // Parse mask texture when present.
         QJsonArray texArr = passObj.value(QStringLiteral("textures")).toArray();
         for (const auto& t : texArr) {
             if (t.isString()) {
@@ -714,9 +714,9 @@ bool SceneParser::resolveMaterial(Assets::PkgReader& pkgReader, const std::strin
         if (resolveTexture(pkgReader, fullTexPath, layer.image, layer.videoDecoder, videoBytes)) {
             if (!videoBytes.empty()) layer.videoData = std::move(videoBytes);
             // GenericImage/genericimage2 shaders should NOT modify the texture.
-            // The old qRgba(r,g,b,r) code used the RED channel as alpha, which
+            // Old qRgba(r,g,b,r) used RED channel as alpha, which
             // destroyed images (made dark-red areas transparent, changed colors).
-            // The texture's own alpha channel is already correct from decoding.
+            // Texture's own alpha channel is already correct from decoding.
             return true;
         }
     }

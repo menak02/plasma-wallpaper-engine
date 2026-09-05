@@ -1,17 +1,13 @@
 #include "audio_player.h"
 #include <QFile>
 #include <QDir>
-#include <QStandardPaths>
-#include <QDebug>
 #include <iostream>
-#include <csignal>
+
+#include <Qt>
 
 namespace WallpaperEngine::Audio {
 
 AudioPlayer::AudioPlayer(QObject* parent) : QObject(parent) {
-    m_process = new QProcess(this);
-    m_audioCheckProcess = new QProcess(this);
-
     connect(&m_audioActivityTimer, &QTimer::timeout, this, &AudioPlayer::checkOtherAudioActivity);
     m_audioActivityTimer.setInterval(1000); // Check every 1s
     m_audioActivityTimer.start();
@@ -27,6 +23,33 @@ void AudioPlayer::cleanupTempFile() {
         QFile::remove(QString::fromStdString(m_tempFilePath));
         m_tempFilePath.clear();
     }
+}
+
+bool AudioPlayer::startPlaybackProcess() {
+    if (m_tempFilePath.empty()) return false;
+
+    QString tempPath = QString::fromStdString(m_tempFilePath);
+    int effectiveVolume = m_isMuted || m_enginePaused ? 0 : m_volume;
+
+    QStringList args;
+    args << QStringLiteral("-nodisp")
+         << QStringLiteral("-loop") << QStringLiteral("0")
+         << QStringLiteral("-volume") << QString::number(effectiveVolume)
+         << tempPath;
+
+    if (m_process.start(QStringLiteral("ffplay"), args, 1000)) {
+        return true;
+    }
+
+    if (m_process.start(QStringLiteral("pw-play"), {tempPath}, 1000)) {
+        return true;
+    }
+
+    return false;
+}
+
+void AudioPlayer::stopPlaybackProcess() {
+    m_process.terminate();
 }
 
 bool AudioPlayer::play(const std::vector<uint8_t>& audioBytes, const std::string& extension) {
@@ -45,37 +68,36 @@ bool AudioPlayer::play(const std::vector<uint8_t>& audioBytes, const std::string
     tempFile.close();
     m_tempFilePath = tempPath.toStdString();
 
-    int effectiveVolume = m_isMuted ? 0 : m_volume;
-
-    QStringList args;
-    args << QStringLiteral("-nodisp")
-         << QStringLiteral("-loop") << QStringLiteral("0")
-         << QStringLiteral("-volume") << QString::number(effectiveVolume)
-         << tempPath;
-
-    m_process->start(QStringLiteral("ffplay"), args);
-    if (!m_process->waitForStarted(1000)) {
-        m_process->start(QStringLiteral("pw-play"), QStringList() << tempPath);
+    if (!startPlaybackProcess()) {
+        std::cerr << "AudioPlayer: failed to start playback process" << std::endl;
+        cleanupTempFile();
+        return false;
     }
 
-    std::cout << "AudioPlayer: Playing background OST (" << audioBytes.size() 
-              << " bytes, Volume: " << effectiveVolume << "%)" << std::endl;
+    std::cout << "AudioPlayer: Playing background OST (" << audioBytes.size()
+              << " bytes, Volume: " << (m_isMuted ? 0 : m_volume) << "%)" << std::endl;
     return true;
 }
 
 void AudioPlayer::checkOtherAudioActivity() {
-    if (!m_muteOnOtherAudio || m_process->state() != QProcess::Running || m_isMuted) {
+    if (!m_muteOnOtherAudio || m_isMuted || m_isPaused || m_enginePaused) {
         return;
     }
 
-    if (m_audioCheckProcess->state() != QProcess::NotRunning) return;
+    if (!m_audioCheckProcess.isRunning()) {
+        // Start a one-shot probe only when the timer fires and no probe is
+        // already in flight. This bounds the process churn instead of
+        // launching a new pactl every second unconditionally.
+        if (m_audioCheckProcess.start(QStringLiteral("pactl"),
+                                      {QStringLiteral("list"),
+                                       QStringLiteral("sink-inputs")},
+                                      2000)) {
+            return;
+        }
+    }
 
-    // Check PulseAudio / PipeWire sink inputs state
-    m_audioCheckProcess->start(QStringLiteral("pactl"), QStringList() << QStringLiteral("list") << QStringLiteral("sink-inputs"));
-    m_audioCheckProcess->waitForFinished(500);
+    QString output = QString::fromUtf8(m_audioCheckProcess.process()->readAllStandardOutput());
 
-    QString output = QString::fromUtf8(m_audioCheckProcess->readAllStandardOutput());
-    
     // Count active running audio streams excluding ourselves
     int runningCount = 0;
     QStringList lines = output.split(QLatin1Char('\n'));
@@ -85,53 +107,56 @@ void AudioPlayer::checkOtherAudioActivity() {
         }
     }
 
-    // If there is another audio source active (> 1 because ffplay is 1)
+    // If another audio source is active (> 1 because the OST client counts as 1).
     if (runningCount > 1 && !m_temporarilyMutedByOtherAudio) {
-        pause();
+        stopPlaybackProcess();
         m_temporarilyMutedByOtherAudio = true;
         std::cout << "AudioPlayer: Ducked wallpaper audio (other application is playing sound)" << std::endl;
     } else if (runningCount <= 1 && m_temporarilyMutedByOtherAudio) {
-        resume();
         m_temporarilyMutedByOtherAudio = false;
+        if (!m_isMuted && !m_isPaused && !m_enginePaused) {
+            startPlaybackProcess();
+        }
         std::cout << "AudioPlayer: Resumed wallpaper audio" << std::endl;
     }
+
+    m_audioCheckProcess.terminate(200);
 }
 
 void AudioPlayer::pause() {
-    if (m_process && m_process->state() == QProcess::Running) {
-        kill(m_process->processId(), SIGSTOP);
-        m_isPaused = true;
-    }
+    m_isPaused = true;
+    stopPlaybackProcess();
 }
 
 void AudioPlayer::resume() {
-    if (m_process && m_process->state() == QProcess::Running && m_isPaused) {
-        kill(m_process->processId(), SIGCONT);
-        m_isPaused = false;
+    m_isPaused = false;
+    if (!m_isMuted && !m_enginePaused) {
+        startPlaybackProcess();
     }
 }
 
 void AudioPlayer::stop() {
-    if (m_process && m_process->state() != QProcess::NotRunning) {
-        m_process->terminate();
-        if (!m_process->waitForFinished(500)) {
-            m_process->kill();
-        }
-    }
     m_isPaused = false;
+    m_enginePaused = false;
     m_temporarilyMutedByOtherAudio = false;
+    stopPlaybackProcess();
+    cleanupTempFile();
 }
 
 void AudioPlayer::setVolume(int volumePercent) {
     m_volume = std::clamp(volumePercent, 0, 100);
+    if (!m_isMuted && !m_isPaused && !m_enginePaused) {
+        stopPlaybackProcess();
+        startPlaybackProcess();
+    }
 }
 
 void AudioPlayer::setMuted(bool muted) {
     m_isMuted = muted;
     if (muted) {
-        pause();
-    } else {
-        resume();
+        stopPlaybackProcess();
+    } else if (!m_isPaused && !m_enginePaused) {
+        startPlaybackProcess();
     }
 }
 
@@ -141,6 +166,15 @@ void AudioPlayer::setMuteOnOtherAudio(bool enabled) {
 
 void AudioPlayer::setMuteOnFullscreen(bool enabled) {
     m_muteOnFullscreen = enabled;
+}
+
+void AudioPlayer::setEnginePaused(bool paused) {
+    m_enginePaused = paused;
+    if (paused) {
+        stopPlaybackProcess();
+    } else if (!m_isMuted && !m_isPaused) {
+        startPlaybackProcess();
+    }
 }
 
 } // namespace WallpaperEngine::Audio

@@ -328,7 +328,7 @@ void SceneCompositor::updateAndRender(float dt, float time) {
         // Resolve parent transform chain (accumulated origin/scale/angle)
         AccumulatedTransform acc = resolveParentTransform(layer, sceneW, sceneH);
 
-        // scene-space (center-based, Y-UP) → screen-space (top-left-based, Y-DOWN)
+        // scene-space (center-based, Y-UP) to screen-space (top-left, Y-DOWN).
         float finalX = (acc.origin.x() / sceneW) * m_width + parallaxOffsetX * layer.parallaxDepth.x();
         float finalY = ((sceneH - acc.origin.y()) / sceneH) * m_height + parallaxOffsetY * layer.parallaxDepth.y();
 
@@ -366,7 +366,7 @@ void SceneCompositor::updateAndRender(float dt, float time) {
                 }
                 case EffectType::Pulse: {
                     // Live audio modulates the pulse when capture is active;
-                    // otherwise the deterministic time-based pulse (batch-safe).
+                    // deterministic time-based pulse (batch-safe).
                     const float band = m_audioVisualizer.isLive()
                         ? m_audioVisualizer.getBand(0)
                         : 0.0f;

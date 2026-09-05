@@ -1,6 +1,7 @@
 #include "wallpaper_service.h"
 #include "../assets/tex_parser.h"
 #include "../assets/dxt_decoder.h"
+#include "../scene/pause_gate.h"
 #include <QDebug>
 #include <QFileInfo>
 #include <QDir>
@@ -30,6 +31,11 @@ WallpaperService::WallpaperService(Render::VulkanContext* vulkanCtx,
             m_trustedDirs.append(canon);
         }
     }
+
+    // Try to attach a compositor backend. Right now the only implemented
+    // backend is Hyprland IPC. If none is available the pause gate simply
+    // does not trip (daemon keeps rendering), which is the safe fallback.
+    m_backend = Scene::makeHyprlandBackend();
 }
 
 QString WallpaperService::canonicalizePath(const QString& path) const {
@@ -58,9 +64,46 @@ bool WallpaperService::isPathAllowed(const QString& canonicalPath) const {
 }
 
 void WallpaperService::updateAndRender(float dt, float time) {
+    if (!shouldRenderThisFrame()) {
+        return;
+    }
+
     if (m_compositor.hasScene()) {
         m_compositor.updateAndRender(dt, time);
     }
+}
+
+bool WallpaperService::shouldRenderThisFrame() const {
+    if (!m_backend) {
+        return true;
+    }
+
+    Scene::PauseGateConfig config;
+    config.enabled = m_pauseEnabled.load();
+    config.pauseAllOutputs = m_pauseAllOutputs.load();
+    return Scene::shouldRender(*m_backend, config);
+}
+
+bool WallpaperService::isOutputCovered(const std::string& outputName) const {
+    if (!m_backend) {
+        return false;
+    }
+    return m_backend->isOutputCovered(outputName);
+}
+
+void WallpaperService::updatePauseGate() {
+    const bool paused = !shouldRenderThisFrame();
+    m_audioPlayer.setEnginePaused(paused);
+}
+
+void WallpaperService::setPauseEnabled(bool enabled) {
+    m_pauseEnabled.store(enabled);
+    updatePauseGate();
+}
+
+void WallpaperService::setPauseAllOutputs(bool enabled) {
+    m_pauseAllOutputs.store(enabled);
+    updatePauseGate();
 }
 
 QDBusUnixFileDescriptor WallpaperService::getBufferFd() {

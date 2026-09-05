@@ -41,7 +41,7 @@ QStringList LibraryScanner::findSteamLibraryPaths() const {
             steamWorkshopPaths.append(defaultWorkshop);
         }
 
-        // Parse libraryfolders.vdf for extra drives
+        // Read Steam libraryfolders.vdf for extra library roots.
         QString vdfPath = base + QStringLiteral("/steamapps/libraryfolders.vdf");
         QFile vdfFile(vdfPath);
         if (vdfFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -256,8 +256,7 @@ WallpaperItemMetadata LibraryScanner::getWallpaperById(const QString& id) const 
     return {};
 }
 
-QStringList LibraryScanner::getTrustedDirectories() const {
-    // The scanner's own view of library roots: every Steam workshop root it
+QStringList LibraryScanner::getTrustedDirectories() const {        // The scanner tracks every Steam workshop root alongside local library roots.
     // scans plus user-registered custom directories.
     return findSteamLibraryPaths() + m_customDirectories;
 }

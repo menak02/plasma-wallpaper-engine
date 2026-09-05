@@ -6,10 +6,18 @@
 #include <QDBusVariant>
 #include <QVariantMap>
 #include <QVariantList>
+
+#include <memory>
+#include <string>
+#include <vector>
+#include <unordered_map>
+#include <atomic>
+
 #include "../vulkan/vulkan_context.h"
 #include "../assets/pkg_reader.h"
 #include "../assets/library_scanner.h"
 #include "../scene/scene_compositor.h"
+#include "../scene/compositor_backend.h"
 #include "../audio/audio_player.h"
 
 namespace WallpaperEngine::IPC {
@@ -20,7 +28,8 @@ class WallpaperService : public QObject {
 
 public:
     explicit WallpaperService(Render::VulkanContext* vulkanCtx,
-                              const QStringList& trustedDirs = {}, QObject* parent = nullptr);
+                              const QStringList& trustedDirs = {},
+                              QObject* parent = nullptr);
 
     void updateAndRender(float dt, float time);
 
@@ -42,6 +51,12 @@ public Q_SLOTS:
 
     // Interactive mouse parallax
     void setMousePosition(float normX, float normY);
+
+    // Pause gate control
+    void setPauseEnabled(bool enabled);
+    bool isPauseEnabled() const { return m_pauseEnabled.load(); }
+    void setPauseAllOutputs(bool enabled);
+    bool isPauseAllOutputs() const { return m_pauseAllOutputs.load(); }
 
     // Audio & playback control
     bool startAudioCapture();
@@ -86,13 +101,26 @@ private:
     Assets::LibraryScanner m_libraryScanner;
     Scene::SceneCompositor m_compositor;
     Audio::AudioPlayer m_audioPlayer;
+    std::unique_ptr<Scene::CompositorBackend> m_backend;
+
     QVariantMap m_activeProperties;
     QString m_activeWallpaperId;
 
     // Allowlist of canonical library roots for D-Bus loadWallpaper
     QStringList m_trustedDirs;
+
+    // Pause gate state
+    std::atomic<bool> m_pauseEnabled{false};
+    std::atomic<bool> m_pauseAllOutputs{false};
+
     QString canonicalizePath(const QString& path) const;
     bool isPathAllowed(const QString& canonicalPath) const;
+
+    // Pause gate implementation
+    bool shouldRenderThisFrame() const;
+    bool isOutputCovered(const std::string& outputName) const;
+    void updatePauseGate();
 };
 
 } // namespace WallpaperEngine::IPC
+

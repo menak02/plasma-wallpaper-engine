@@ -55,7 +55,7 @@ void MeshDeformer::deformVertices(std::vector<MeshVertex>& vertices, float time,
     float sinDir = std::sin(direction);
 
     for (auto& vert : vertices) {
-        // Vertex displacement based on UV coordinates and distance from mesh origin
+        // Displace vertices by UV + distance from mesh origin.
         float distFactor = std::sin(vert.uv.y() * 3.14159f);
         float offset = std::sin(phase + vert.uv.x() * 6.28318f) * strength * 12.0f * distFactor;
 

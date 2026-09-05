@@ -10,9 +10,8 @@ namespace WallpaperEngine::Scene {
 /** Compositor-specific backend that answers "is this wallpaper output
     covered right now?".
 
-    The pause gate asks this per output. Different compositors implement
-    the same query differently (Hyprland IPC, KWin D-Bus, X11 geometry,
-    etc.). This interface is the stable seam.
+    The pause gate asks this per output; different compositors implement
+    the query differently (Hyprland IPC, KWin D-Bus, X11 geometry).
  */
 class CompositorBackend {
 public:
@@ -25,11 +24,13 @@ public:
 
     /** Whether the given output is covered right now.
 
-        A return of true means the wallpaper on this output should pause
-        (no tick, OST muted by default). False means keep rendering.
-        The decision is based on fullscreen-family windows OR tiling
-        coverage >= the configured threshold on the given output. */
+    True means this output should pause (no tick, OST muted by default).
+    Decision uses fullscreen-family windows OR tiling coverage >= threshold. */
     virtual bool isOutputCovered(const std::string& outputName) const = 0;
+
+    /** Update internal state from IPC events. Called periodically to
+        process pending events and refresh coverage state. */
+    virtual void update() {}
 };
 
 std::unique_ptr<CompositorBackend> makeHyprlandBackend();

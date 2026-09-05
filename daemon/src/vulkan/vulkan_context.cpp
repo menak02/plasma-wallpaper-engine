@@ -133,7 +133,7 @@ std::vector<GpuDeviceInfo> VulkanContext::getAvailableGpus() const {
         info.name = props.deviceName;
         info.isDiscrete = (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU);
 
-        // Check for extension support
+        // Extension support check.
         uint32_t extCount = 0;
         vkEnumerateDeviceExtensionProperties(devices[i], nullptr, &extCount, nullptr);
         std::vector<VkExtensionProperties> exts(extCount);
@@ -167,7 +167,7 @@ bool VulkanContext::selectPhysicalDevice(int preferredGpuIndex) {
     if (preferredGpuIndex >= 0 && preferredGpuIndex < static_cast<int>(deviceCount)) {
         m_physicalDevice = devices[preferredGpuIndex];
     } else {
-        // Auto-select: Discrete GPU (NVIDIA / AMD) first, fallback to Integrated (Intel / AMD APU)
+        // Auto-select: discrete GPU first, fallback to integrated.
         for (const auto& dev : devices) {
             VkPhysicalDeviceProperties props;
             vkGetPhysicalDeviceProperties(dev, &props);
@@ -393,7 +393,7 @@ bool VulkanContext::uploadSceneImage(uint32_t width, uint32_t height, std::span<
 
     clearSceneImage();
 
-    // Scale and center-crop image to match target framebuffer dimensions exactly
+    // Scale + center-crop to target framebuffer dimensions.
     QImage srcImg(rgbaPixels.data(), width, height, width * 4, QImage::Format_RGBA8888);
     QImage scaledImg = srcImg.scaled(m_currentBuffer.width, m_currentBuffer.height, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
     
@@ -456,7 +456,7 @@ void VulkanContext::renderFrame(float time) {
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     vkBeginCommandBuffer(m_commandBuffer, &beginInfo);
 
-    // Legacy primary image first, then every registered per-output target.
+    // Primary image first, then every registered per-output target.
     std::vector<VkImage> targets;
     targets.reserve(1 + m_outputTargets.size());
     targets.push_back(m_sharedImage);
@@ -467,7 +467,7 @@ void VulkanContext::renderFrame(float time) {
     }
 
     for (VkImage image : targets) {
-    // Transition image layout to TRANSFER_DST
+    // Transition to TRANSFER_DST layout.
     VkImageMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -507,7 +507,7 @@ void VulkanContext::renderFrame(float time) {
         vkCmdCopyBufferToImage(m_commandBuffer, m_stagingBuffer, image,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
     } else {
-        // Render diagnostic pulsating color pattern
+        // Diagnostic pulsating color when no scene image is available.
         VkClearColorValue clearColor{};
         clearColor.float32[0] = std::sin(time) * 0.5f + 0.5f;
         clearColor.float32[1] = std::sin(time + 2.0f) * 0.5f + 0.5f;
@@ -524,7 +524,7 @@ void VulkanContext::renderFrame(float time) {
         vkCmdClearColorImage(m_commandBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearColor, 1, &range);
     }
 
-    // Transition to GENERAL for zero-copy reading
+    // Transition to GENERAL for zero-copy reads.
     barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;

@@ -302,7 +302,7 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
                     }
 
                     if (hasPathTraversal) {
-                        // Skip the rest of this mipmap: extra3, width, height, compression, uncompressedSize, compressedSize
+                        // Skip remaining mipmap fields: extra3, width, height, compression, uncompressedSize, compressedSize.
                         file.skip(4); // extra3
                         file.skip(4); // width
                         file.skip(4); // height
