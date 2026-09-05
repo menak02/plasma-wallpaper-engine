@@ -15,7 +15,7 @@ bool VulkanContext::init() {
     try {
         m_instance = vk::createInstance(createInfo);
         std::cout << "Vulkan instance created successfully." << std::endl;
-        // Device enumeration and dmabuf extensions setup will be implemented in later phases
+        // Device enumeration and dmabuf extensions; deferred to later phases.
     } catch (const std::exception& e) {
         std::cerr << "Vulkan instance creation failed: " << e.what() << std::endl;
         return false;

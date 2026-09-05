@@ -92,7 +92,7 @@ int main() {
                      "one covered, pause-all -> no render");
     }
 
-    // Disabled gate should always render.
+    // When the gate is disabled, covered outputs still render.
     {
         backend.setCovered("screen0", true);
         PauseGateConfig cfg;

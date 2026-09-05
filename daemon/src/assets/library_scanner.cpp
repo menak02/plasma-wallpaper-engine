@@ -141,7 +141,7 @@ void LibraryScanner::parseWallpaperFolder(const std::filesystem::path& folderPat
     if (!previewRel.isEmpty()) {
         item.previewPath = QString::fromStdString((folderPath / previewRel.toStdString()).string());
     } else {
-        // Fallbacks
+        // Guess preview from common extensions when not declared.
         for (const auto& ext : {".jpg", ".png", ".gif"}) {
             auto candidate = folderPath / ("preview" + std::string(ext));
             if (std::filesystem::exists(candidate)) {

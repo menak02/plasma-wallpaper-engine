@@ -37,7 +37,7 @@ struct ComputeImage {
     VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
 };
 
-// Simple RAII staging buffer for host<->device pixel round-trips.
+// Host/device staging buffer for pixel round-trips.
 struct ComputeStagingBuffer {
     VkBuffer buffer = VK_NULL_HANDLE;
     VkDeviceMemory memory = VK_NULL_HANDLE;
@@ -73,7 +73,7 @@ public:
     void dispatchCompute(const std::string& pipelineName, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ,
                          const std::vector<VkDescriptorSet>& descriptorSets);
 
-    // Effect-specific dispatch helpers
+    // Dispatch helpers per effect.
     bool applyBlur(const ComputeImage& input, ComputeImage& output, float radius, bool vertical);
     bool applyWaterWaves(const ComputeImage& input, const ComputeImage& mask, ComputeImage& output,
                          float speed, float scale, float strength, float direction, float time);

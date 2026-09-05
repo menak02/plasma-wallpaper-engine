@@ -122,7 +122,7 @@ bool JSEngine::evaluateVisibility(const QJsonValue& visibleVal) {
             condVar = userObj[QStringLiteral("condition")].toInt(-1);
         QString propName = userObj[QStringLiteral("name")].toString();
         QVariant defaultValue = obj.contains(QStringLiteral("value")) ? obj[QStringLiteral("value")].toVariant() : QVariant(true);
-        // Build QJsonObject for evaluateConditionUser compat.
+        // Wrap condition into the shape evaluateConditionUser expects.
         QJsonObject tmp;
         tmp[QStringLiteral("name")] = propName;
         tmp[QStringLiteral("condition")] = QJsonValue::fromVariant(condVar);

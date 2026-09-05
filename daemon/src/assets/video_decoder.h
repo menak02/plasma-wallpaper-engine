@@ -44,8 +44,8 @@ public:
         // Stub: convert without full pixel format conversion.
         // Caller handles conversion assumptions.
         QImage result(m_width, m_height, format);
-        // Note: We are not actually converting the image data.
-        // Assumes data is already in the desired format or caller handles it.
+        // Pixel data is not actually converted here; the caller supplies
+        // data in the target format or converts afterwards.
         return result;
     }
 
