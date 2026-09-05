@@ -62,6 +62,12 @@ add_executable(plasma-wallpaper-engine-daemon
     src/audio/audio_player.cpp
     src/audio/audio_visualizer.h
     src/audio/audio_visualizer.cpp
+    src/common/managed_process.h
+    src/common/managed_process.cpp
+    src/scene/compositor_backend.h
+    src/scene/compositor_backend.cpp
+    src/scene/pause_gate.h
+    src/scene/pause_gate.cpp
     src/vulkan/vulkan_context.cpp
     src/ipc/wallpaper_service.h
     src/ipc/wallpaper_service.cpp
@@ -127,6 +133,13 @@ add_executable(plasma-wallpaper-engine-verifier
     src/audio/audio_player.cpp
     src/audio/audio_visualizer.h
     src/audio/audio_visualizer.cpp
+    src/common/managed_process.h
+    src/common/managed_process.cpp
+    src/scene/compositor_backend.h
+    src/scene/compositor_backend.cpp
+    src/scene/pause_gate.h
+    src/scene/pause_gate.cpp
+    src/scene/compositor_backend_fake.h
     src/vulkan/vulkan_context.cpp
     src/ipc/wallpaper_service.h
     src/ipc/wallpaper_service.cpp
@@ -172,3 +185,26 @@ endif()
 target_compile_options(plasma-wallpaper-engine-verifier PRIVATE -fexceptions)
 
 install(TARGETS plasma-wallpaper-engine-daemon DESTINATION ${KDE_INSTALL_LIBEXECDIR})
+
+# ---------- Headless pause gate test ----------
+# Registered at this scope so ctest sees it directly. The test binary is
+# built in the daemon build tree and linked to Qt6::Core plus the pause gate
+# implementation.
+add_executable(pause_gate_test
+    ../tests/pause_gate_test.cpp
+    src/scene/compositor_backend_fake.h
+)
+
+target_include_directories(pause_gate_test
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(pause_gate_test
+    PRIVATE
+        Qt6::Core
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/scene/pause_gate.cpp
+)
+
+# Test registered at top level so ctest sees it directly.
+# (pause_gate_headless is added in the top-level CMakeLists.txt.)

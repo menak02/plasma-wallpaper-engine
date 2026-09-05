@@ -49,9 +49,7 @@ add_subdirectory(viewer)
 
 if(HAVE_PLASMA)
     add_subdirectory(plugin)
-endif()
-
-# ---------- Regression tests ----------
+endif()# ---------- Regression tests ----------
 # PNG-diff comparison of the batch verifier output against a reference
 # baseline. Baseline lives in tests/regression/baseline/ (one PNG per
 # wallpaper ID, generated from a verified 55-pass/17-review/0-fail run).
@@ -84,4 +82,22 @@ if(ENABLE_REGRESSION_TESTS)
     else()
         message(STATUS "Regression tests: SKIPPED (missing baseline dir or verifier output)")
     endif()
+
+    # Pause gate headless test (built in the daemon tree).
+    add_test(NAME pause_gate_headless
+             COMMAND ${CMAKE_CURRENT_BINARY_DIR}/daemon/pause_gate_test)
+    set_tests_properties(pause_gate_headless PROPERTIES TIMEOUT 60)
+
+    # Hyprland IPC backend connection test
+    add_executable(hyprland_backend_test tests/hyprland_backend_test.cpp)
+    target_compile_features(hyprland_backend_test PRIVATE cxx_std_17)
+    if(EXISTS "${CMAKE_CURRENT_BINARY_DIR}/hyprland_backend_test")
+        add_test(NAME hyprland_backend_connect
+                 COMMAND ${CMAKE_CURRENT_BINARY_DIR}/hyprland_backend_test)
+        set_tests_properties(hyprland_backend_connect PROPERTIES
+            LABELS "hyprland;integration"
+            TIMEOUT 30
+        )
+    endif()
 endif()
+
