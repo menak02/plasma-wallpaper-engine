@@ -77,8 +77,8 @@ This document serves as the central planning board and roadmap for the project.
 Total: 16 issues tracking all work items
 
 ### Workflows
-- **build-and-test.yml**: Matrix build + ctest on push/PR
-- **security-scan.yml**: Secret scanning + vulnerability checks
+- **build-and-test.yml**: Build + ctest + repo-quality gate on push/PR (GREEN)
+- **security-scan.yml**: Secret scanning + vulnerability checks (GREEN)
 
 ### Issue Templates
 - feature_request.md
