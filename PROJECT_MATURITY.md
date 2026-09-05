@@ -29,16 +29,18 @@ This document serves as the central planning board and roadmap for the project.
 - [x] ManagedProcess wrapper with deterministic lifecycle
 - [x] AudioPlayer/AudioVisualizer cleanup
 - [x] CompositorBackend interface
-- [x] Hyprland IPC backend (placeholder)
+- [x] Hyprland IPC backend (real implementation with hyprctl polling)
 - [x] Pause gate logic (per-output, toggleable)
 - [x] Headless decision tests
 - [x] CI/CD workflows
+- [x] Connection test for CI validation
 
 ## Upcoming Work
 
 ### High Priority
-1. **Implement Hyprland IPC backend** (#9) - Real event socket integration
-2. **Expose pause settings via D-Bus** (#10) - Runtime configurability
+1. **Expose pause settings via D-Bus** (#10) - Runtime configurability
+   
+   Note: Hyprland IPC backend is now implemented (#61369f7)
 
 ### Medium Priority  
 3. **Add musl/Alpine CI runner** (#11) - Cross-compiler testing
