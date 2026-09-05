@@ -1,0 +1,38 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [master, feat/hyprland-pause]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake qtbase5-dev qtchooser qt5-qmake qtbase5-dev-tools vulkan-tools libvulkan-dev
+
+    - name: Configure
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: cmake --build build -j$(nproc)
+
+    - name: Test
+      run: ctest --test-dir build --output-on-failure
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Run security audit
+      run: |
+        echo "Security scan would run here"
+        # Placeholder for actual security scanning tools
