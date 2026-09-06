@@ -11,6 +11,7 @@
 
 #include "vulkan/vulkan_context.h"
 #include "ipc/wallpaper_service.h"
+#include "ipc/wallpaper_service_adaptor.h"
 #include "plugin/wallpaper_plugin.h"
 
 volatile sig_atomic_t g_quitRequested = 0;
@@ -90,10 +91,17 @@ int main(int argc, char *argv[]) {
         qWarning() << "Service already registered or failed:" << connection.lastError().message();
     }
 
+    // Pin the D-Bus surface to the generated adaptor so the runtime
+    // interface matches the validated XML contract exactly (issue #21).
+    // Using ExportAdaptors + the adaptor subclass instead of ExportAll*
+    // avoids accidentally exposing internals and keeps the panic/crash
+    // surface small.
+    new WallpaperServiceAdaptor(&service);
+
     if (!connection.registerObject(QStringLiteral("/WallpaperEngine"), &service,
-                                  QDBusConnection::ExportAllSlots |
-                                  QDBusConnection::ExportAllSignals |
-                                  QDBusConnection::ExportAllProperties)) {
+                                  QDBusConnection::ExportAdaptors |
+                                  QDBusConnection::ExportScriptableSlots |
+                                  QDBusConnection::ExportScriptableSignals)) {
         qCritical() << "Failed to register DBus object:" << connection.lastError().message();
         return 1;
     }

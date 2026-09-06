@@ -1,4 +1,5 @@
 #include "compositor_backend.h"
+#include <algorithm>
 #include <string>
 #include <vector>
 #include <cstdint>
@@ -273,6 +274,35 @@ namespace WallpaperEngine::Scene {
 
 
 
+struct MonitorInfo {
+    std::string name;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    int32_t monitorId = -1;
+};
+
+struct WorkspaceInfo {
+    std::string name;
+    int32_t monitorId = -1;
+    std::string monitorName;
+    bool hasFullscreen = false;
+    int32_t windowCount = 0;
+};
+
+struct ClientInfo {
+    bool mapped = false;
+    bool visible = false;
+    bool floating = false;
+    int32_t monitorId = -1;
+    int32_t workspaceId = -1;
+    int32_t fullscreen = 0;
+    bool fullscreenOrPopupWindow = false;
+    double posX = 0;
+    double posY = 0;
+    double width = 0;
+    double height = 0;
+};
+
 class HyprlandBackend : public CompositorBackend {
 public:
     explicit HyprlandBackend(const std::string& controlSocketPath)
@@ -290,20 +320,20 @@ public:
             std::cerr << "HyprlandBackend: No control socket path provided" << std::endl;
             return false;
         }
-        
+
         std::string testResponse = sendHyprlandCommandViaHyprctl("VERSION");
         if (testResponse.empty()) {
             std::cerr << "HyprlandBackend: Failed to connect to Hyprland" << std::endl;
             return false;
         }
-        
+
         m_socketFd = connectToHyprlandIpc(m_controlSocketPath);
         if (m_socketFd >= 0) {
             std::cout << "HyprlandBackend: Connected to IPC socket" << std::endl;
         } else {
             std::cout << "HyprlandBackend: Using hyprctl polling" << std::endl;
         }
-        
+
         m_initialized = true;
         return true;
     }
@@ -312,101 +342,94 @@ public:
         if (!m_initialized) {
             return {};
         }
-        
-        // Query Hyprland for monitor names using hyprctl
-        std::string response = sendHyprlandCommandViaHyprctl("MONITORS");
-        if (response.empty()) {
-            return {};
-        }
-        
-        JsonValue json = parseJson(response);
-        std::vector<std::string> outputs;
-        
-        if (json.isArray()) {
-            for (size_t i = 0; i < json.size(); i++) {
-                const JsonValue& monitor = json[i];
-                if (monitor.isObject() && monitor["name"].isString()) {
-                    outputs.push_back(monitor["name"].asString());
-                }
+        // Return cached output names from the last update() so we do not
+        // hit hyprctl on every call. If update() has not run yet, fall back
+        // to a live query so the first call still works.
+        if (!m_monitorInfos.empty()) {
+            std::vector<std::string> names;
+            names.reserve(m_monitorInfos.size());
+            for (const auto& m : m_monitorInfos) {
+                names.push_back(m.name);
             }
+            return names;
         }
-        
-        return outputs;
+        return liveOutputNames();
     }
 
     bool isOutputCovered(const std::string& outputName) const override {
-        (void)outputName;
         if (!m_initialized) {
-            // No Hyprland backend available -> assume not covered
             return false;
         }
-        
-        // Return cached coverage computed by update().
-        return m_cachedCovered;
+        if (m_monitorInfos.empty()) {
+            return false;
+        }
+
+        // Look up the monitor by name.
+        auto it = std::find_if(m_monitorInfos.begin(), m_monitorInfos.end(),
+                               [&outputName](const MonitorInfo& m) { return m.name == outputName; });
+        if (it == m_monitorInfos.end()) {
+            // Unknown output — assume not covered.
+            return false;
+        }
+
+        const MonitorInfo& mon = *it;
+
+        // Find the active workspace for this monitor.
+        const WorkspaceInfo* activeWs = nullptr;
+        for (const auto& ws : m_workspaceInfos) {
+            if (ws.monitorName == outputName) {
+                if (!activeWs || ws.name > activeWs->name) {
+                    activeWs = &ws;
+                }
+            }
+        }
+
+        if (!activeWs) {
+            // No workspace on this monitor — desktop is visible.
+            return false;
+        }
+
+        // If the active workspace has fullscreen, the output is covered.
+        if (activeWs->hasFullscreen) {
+            return true;
+        }
+
+        // Otherwise compute tiling coverage from clients on this monitor.
+        double monitorArea = static_cast<double>(mon.width) * static_cast<double>(mon.height);
+        if (monitorArea <= 0.0) {
+            return false;
+        }
+
+        double coveredArea = 0.0;
+        for (const auto& client : m_clientInfos) {
+            if (!client.mapped || !client.visible) continue;
+            if (client.monitorId != mon.monitorId) continue;
+            // Skip fullscreen/popup-window clients — those are handled by
+            // the workspace hasfullscreen flag above.
+            if (client.fullscreen != 0 || client.fullscreenOrPopupWindow) continue;
+            coveredArea += client.width * client.height;
+        }
+
+        double ratio = coveredArea / monitorArea;
+        return ratio >= coverageThreshold();
     }
 
     void update() override {
         if (!m_initialized) {
-            m_cachedCovered = false;
+            m_monitorInfos.clear();
+            m_workspaceInfos.clear();
+            m_clientInfos.clear();
             return;
         }
-        
-        std::string response = sendHyprlandCommandViaHyprctl("WORKSPACES");
-        if (response.empty()) {
-            m_cachedCovered = false;
-            return;
-        }
-        
-        JsonValue json = parseJson(response);
-        bool hasFullscreen = false;
-        
-        if (json.isArray()) {
-            for (size_t i = 0; i < json.size(); i++) {
-                const JsonValue& workspace = json[i];
-                if (workspace.isObject()) {
-                    if (workspace["hasfullscreen"].isBool() && workspace["hasfullscreen"].asBool()) {
-                        hasFullscreen = true;
-                        break;
-                    }
-                }
-            }
-        }
-        
-        if (!hasFullscreen) {
-            std::string clientsResponse = sendHyprlandCommandViaHyprctl("clients");
-            if (!clientsResponse.empty()) {
-                JsonValue clients = parseJson(clientsResponse);
-                if (clients.isArray()) {
-                    for (size_t i = 0; i < clients.size(); i++) {
-                        const JsonValue& client = clients[i];
-                        if (client.isObject()) {
-                            if (client["fullscreen"].isNumber() && client["fullscreen"].asNumber() > 0) {
-                                hasFullscreen = true;
-                                break;
-                            }
-                            if (client["fullscreenOrPopupWindow"].isBool() && client["fullscreenOrPopupWindow"].asBool()) {
-                                hasFullscreen = true;
-                                break;
-                            }
-                            if (client["floating"].isBool() && client["floating"].asBool()) {
-                                if (client["size"].isArray() && client["size"].size() == 2) {
-                                    double width = client["size"][0].asNumber();
-                                    double height = client["size"][1].asNumber();
-                                    if (width > 1800 && height > 1000) {
-                                        hasFullscreen = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        m_cachedCovered = hasFullscreen;
 
-        // TODO: Implement per-output coverage detection
+        // Refresh monitor list.
+        m_monitorInfos = parseMonitors();
+
+        // Refresh workspace list.
+        m_workspaceInfos = parseWorkspaces();
+
+        // Refresh client list.
+        m_clientInfos = parseClients();
     }
 
     static std::string discoverControlSocket() {
@@ -417,9 +440,111 @@ public:
 
 private:
     std::string m_controlSocketPath;
-    int m_socketFd;
-    bool m_initialized;
-    mutable bool m_cachedCovered = false;
+    int m_socketFd = -1;
+    bool m_initialized = false;
+
+    std::vector<MonitorInfo> m_monitorInfos;
+    std::vector<WorkspaceInfo> m_workspaceInfos;
+    std::vector<ClientInfo> m_clientInfos;
+
+    std::vector<std::string> liveOutputNames() const {
+        std::string response = sendHyprlandCommandViaHyprctl("MONITORS");
+        if (response.empty()) return {};
+
+        JsonValue json = parseJson(response);
+        std::vector<std::string> outputs;
+        if (json.isArray()) {
+            for (size_t i = 0; i < json.size(); i++) {
+                const JsonValue& monitor = json[i];
+                if (monitor.isObject() && monitor["name"].isString()) {
+                    outputs.push_back(monitor["name"].asString());
+                }
+            }
+        }
+        return outputs;
+    }
+
+    std::vector<MonitorInfo> parseMonitors() const {
+        std::vector<MonitorInfo> monitors;
+        std::string response = sendHyprlandCommandViaHyprctl("MONITORS");
+        if (response.empty()) return monitors;
+
+        JsonValue json = parseJson(response);
+        if (!json.isArray()) return monitors;
+
+        for (size_t i = 0; i < json.size(); i++) {
+            const JsonValue& m = json[i];
+            if (!m.isObject()) continue;
+            MonitorInfo info;
+            if (m["name"].isString()) info.name = m["name"].asString();
+            if (m["width"].isNumber()) info.width = static_cast<uint32_t>(m["width"].asNumber());
+            if (m["height"].isNumber()) info.height = static_cast<uint32_t>(m["height"].asNumber());
+            if (m["id"].isNumber()) info.monitorId = static_cast<int32_t>(m["id"].asNumber());
+            if (!info.name.empty()) {
+                monitors.push_back(info);
+            }
+        }
+        return monitors;
+    }
+
+    std::vector<WorkspaceInfo> parseWorkspaces() const {
+        std::vector<WorkspaceInfo> workspaces;
+        std::string response = sendHyprlandCommandViaHyprctl("WORKSPACES");
+        if (response.empty()) return workspaces;
+
+        JsonValue json = parseJson(response);
+        if (!json.isArray()) return workspaces;
+
+        for (size_t i = 0; i < json.size(); i++) {
+            const JsonValue& ws = json[i];
+            if (!ws.isObject()) continue;
+            WorkspaceInfo info;
+            if (ws["name"].isString()) info.name = ws["name"].asString();
+            if (ws["monitor"].isString()) info.monitorName = ws["monitor"].asString();
+            if (ws["monitorID"].isNumber()) info.monitorId = static_cast<int32_t>(ws["monitorID"].asNumber());
+            if (ws["hasfullscreen"].isBool()) info.hasFullscreen = ws["hasfullscreen"].asBool();
+            if (ws["windows"].isNumber()) info.windowCount = static_cast<int32_t>(ws["windows"].asNumber());
+            workspaces.push_back(info);
+        }
+        return workspaces;
+    }
+
+    std::vector<ClientInfo> parseClients() const {
+        std::vector<ClientInfo> clients;
+        std::string response = sendHyprlandCommandViaHyprctl("clients");
+        if (response.empty()) return clients;
+
+        JsonValue json = parseJson(response);
+        if (!json.isArray()) return clients;
+
+        for (size_t i = 0; i < json.size(); i++) {
+            const JsonValue& c = json[i];
+            if (!c.isObject()) continue;
+            ClientInfo info;
+            info.mapped = c["mapped"].isBool() ? c["mapped"].asBool() : false;
+            info.visible = c["visible"].isBool() ? c["visible"].asBool() : false;
+            info.floating = c["floating"].isBool() ? c["floating"].asBool() : false;
+            if (c["monitor"].isNumber()) info.monitorId = static_cast<int32_t>(c["monitor"].asNumber());
+            if (c["workspace"].isObject()) {
+                const JsonValue& ws = c["workspace"];
+                if (ws["id"].isNumber()) info.workspaceId = static_cast<int32_t>(ws["id"].asNumber());
+            }
+            if (c["fullscreen"].isNumber()) info.fullscreen = static_cast<int32_t>(c["fullscreen"].asNumber());
+            if (c["fullscreenOrPopupWindow"].isBool()) info.fullscreenOrPopupWindow = c["fullscreenOrPopupWindow"].asBool();
+            if (c["at"].isArray() && c["at"].size() >= 2) {
+                info.posX = c["at"][0].asNumber();
+                info.posY = c["at"][1].asNumber();
+            }
+            if (c["size"].isArray() && c["size"].size() >= 2) {
+                info.width = c["size"][0].asNumber();
+                info.height = c["size"][1].asNumber();
+            }
+            if (info.width > 0 && info.height > 0) {
+                clients.push_back(info);
+            }
+        }
+        return clients;
+    }
 };
 
 std::unique_ptr<CompositorBackend> makeHyprlandBackend() {
@@ -428,13 +553,13 @@ std::unique_ptr<CompositorBackend> makeHyprlandBackend() {
         std::cerr << "makeHyprlandBackend: No Hyprland IPC socket found" << std::endl;
         return nullptr;
     }
-    
+
     auto backend = std::make_unique<HyprlandBackend>(socketPath);
     if (!backend->initialize()) {
         std::cerr << "makeHyprlandBackend: Failed to initialize" << std::endl;
         return nullptr;
     }
-    
+
     return backend;
 }
 

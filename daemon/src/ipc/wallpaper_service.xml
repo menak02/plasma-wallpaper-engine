@@ -13,11 +13,6 @@
 <node>
   <interface name="org.antigravity.WallpaperEngine">
     <!-- Frame / buffer -->
-    <method name="getBufferFd">
-      <annotation name="org.qt.QtDBus.QDBusUnixFileDescriptor" value="true"/>
-      <annotation name="org.qt.QtDBus.ParameterCount" value="0"/>
-      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getBufferFd"/>
-    </method>
     <method name="getBufferInfo">
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getBufferInfo"/>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantMap"/>
@@ -226,10 +221,11 @@
 
     <!-- Keep this file in sync with WallpaperService (daemon/src/ipc/wallpaper_service.h/cpp).
          Run `scripts/verify_dbus_interface.sh` after editing.
-         Updating the XML without wiring the same surface in the daemon does not
-         change runtime behavior by itself; registration currently uses
-         ExportAllSlots/Signals, so this file is primarily a contract + validation
-         document against Qt's D-Bus tooling. -->
+         The daemon wires this interface via the generated
+         WallpaperServiceAdaptor (daemon/src/ipc/wallpaper_service_adaptor.*)
+         and registers with ExportAdaptors so the runtime D-Bus surface
+         matches this XML exactly (see issue #21).
+    -->
 
   </interface>
 </node>
