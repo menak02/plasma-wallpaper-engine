@@ -40,8 +40,19 @@ public:
     void setMuteAudioOnPause(bool enabled);
     bool isMuteAudioOnPause() const { return mutedAudioOnPause; }
 
+    // Audio activity probing: starts only when audio is actually active
+    // (OST playback or audio capture for reactive scenes) and uses a
+    // single-shot timer with exponential backoff so a slow/unavailable
+    // pactl does not spawn a process every second under load (issue #13).
+    void setAudioActive(bool active);
+
 private Q_SLOTS:
     void checkOtherAudioActivity();
+
+private:
+    void startAudioActivityProbe();
+    void stopAudioActivityProbe();
+    void scheduleAudioProbe();
 
 private:
     Common::ManagedProcess m_process;
@@ -57,6 +68,13 @@ private:
     bool m_muteOnFullscreen = true;
     bool m_temporarilyMutedByOtherAudio = false;
     bool mutedAudioOnPause = true;
+
+    // Probe backoff state: interval doubles on each failed/slow probe,
+    // capped at 10s, resets to base interval on a successful probe.
+    int m_audioProbeIntervalMs = 1000;
+    static constexpr int m_audioProbeBaseIntervalMs = 1000;
+    static constexpr int m_audioProbeMaxIntervalMs = 10000;
+    static constexpr int m_audioProbeTimeoutMs = 2000;
 
     void cleanupTempFile();
     void applyVolume();

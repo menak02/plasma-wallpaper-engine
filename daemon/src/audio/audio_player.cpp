@@ -2,6 +2,7 @@
 #include <QFile>
 #include <QDir>
 #include <iostream>
+#include <algorithm>
 
 #include <Qt>
 
@@ -9,11 +10,13 @@ namespace WallpaperEngine::Audio {
 
 AudioPlayer::AudioPlayer(QObject* parent) : QObject(parent) {
     connect(&m_audioActivityTimer, &QTimer::timeout, this, &AudioPlayer::checkOtherAudioActivity);
-    m_audioActivityTimer.setInterval(1000); // Check every 1s
-    m_audioActivityTimer.start();
+    m_audioActivityTimer.setSingleShot(true);
+    // Probe is lazy: only activated when audio playback actually starts
+    // (OST or audio-reactive scene). See startAudioActivityProbe().
 }
 
 AudioPlayer::~AudioPlayer() {
+    stopAudioActivityProbe();
     stop();
     cleanupTempFile();
 }
@@ -76,27 +79,77 @@ bool AudioPlayer::play(const std::vector<uint8_t>& audioBytes, const std::string
 
     std::cout << "AudioPlayer: Playing background OST (" << audioBytes.size()
               << " bytes, Volume: " << (m_isMuted ? 0 : m_volume) << "%)" << std::endl;
+    // Start audio activity probing so the mute-on-other-audio feature can
+    // detect when another application starts playing sound.
+    setAudioActive(true);
     return true;
+}
+
+void AudioPlayer::setAudioActive(bool active) {
+    if (active) {
+        startAudioActivityProbe();
+    } else {
+        stopAudioActivityProbe();
+    }
+}
+
+void AudioPlayer::startAudioActivityProbe() {
+    if (!m_muteOnOtherAudio) {
+        return;
+    }
+    // Reset backoff on activation so the first probe uses the base interval.
+    m_audioProbeIntervalMs = m_audioProbeBaseIntervalMs;
+    m_audioActivityTimer.start(m_audioProbeIntervalMs);
+}
+
+void AudioPlayer::stopAudioActivityProbe() {
+    m_audioActivityTimer.stop();
+    m_audioCheckProcess.terminate(200);
 }
 
 void AudioPlayer::checkOtherAudioActivity() {
     if (!m_muteOnOtherAudio || m_isMuted || m_isPaused || m_enginePaused) {
+        // Reschedule the next probe regardless so the timer keeps running
+        // while audio is active (see startAudioActivityProbe).
+        scheduleAudioProbe();
         return;
     }
 
-    if (!m_audioCheckProcess.isRunning()) {
-        // Start a one-shot probe only when the timer fires and no probe is
-        // already in flight. This bounds the process churn instead of
-        // launching a new pactl every second unconditionally.
-        if (m_audioCheckProcess.start(QStringLiteral("pactl"),
-                                      {QStringLiteral("list"),
-                                       QStringLiteral("sink-inputs")},
-                                      2000)) {
-            return;
-        }
+    if (m_audioCheckProcess.isRunning()) {
+        // A probe is already in flight; wait for it to finish before
+        // launching another. The single-shot timer will fire again only
+        // after we reschedule below.
+        return;
     }
 
-    QString output = QString::fromUtf8(m_audioCheckProcess.process()->readAllStandardOutput());
+    // Start a one-shot probe. If pactl is unavailable or slow to start,
+    // ManagedProcess::start returns false and we back off.
+    if (!m_audioCheckProcess.start(QStringLiteral("pactl"),
+                                   {QStringLiteral("list"),
+                                    QStringLiteral("sink-inputs")},
+                                   m_audioProbeTimeoutMs)) {
+        // Back off on failure so a broken/missing pactl does not spin.
+        m_audioProbeIntervalMs = std::min(m_audioProbeIntervalMs * 2,
+                                          m_audioProbeMaxIntervalMs);
+        scheduleAudioProbe();
+        return;
+    }
+
+    // Wait for the probe to finish with a bounded timeout. If it times out
+    // we treat it as "no other audio" and back off.
+    if (!m_audioCheckProcess.process()->waitForFinished(m_audioProbeTimeoutMs)) {
+        m_audioProbeIntervalMs = std::min(m_audioProbeIntervalMs * 2,
+                                          m_audioProbeMaxIntervalMs);
+        m_audioCheckProcess.terminate(200);
+        scheduleAudioProbe();
+        return;
+    }
+
+    // Probe succeeded — reset backoff to base interval.
+    m_audioProbeIntervalMs = m_audioProbeBaseIntervalMs;
+
+    QString output = QString::fromUtf8(
+        m_audioCheckProcess.process()->readAllStandardOutput());
 
     // Count active running audio streams excluding ourselves
     int runningCount = 0;
@@ -121,6 +174,11 @@ void AudioPlayer::checkOtherAudioActivity() {
     }
 
     m_audioCheckProcess.terminate(200);
+    scheduleAudioProbe();
+}
+
+void AudioPlayer::scheduleAudioProbe() {
+    m_audioActivityTimer.start(m_audioProbeIntervalMs);
 }
 
 void AudioPlayer::pause() {
@@ -141,6 +199,8 @@ void AudioPlayer::stop() {
     m_temporarilyMutedByOtherAudio = false;
     stopPlaybackProcess();
     cleanupTempFile();
+    // No audio is active anymore; stop probing.
+    setAudioActive(false);
 }
 
 void AudioPlayer::setVolume(int volumePercent) {

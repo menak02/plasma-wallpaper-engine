@@ -205,11 +205,19 @@ void WallpaperService::setMousePosition(float normX, float normY) {
 }
 
 bool WallpaperService::startAudioCapture() {
-    return m_compositor.startAudioCapture();
+    if (m_compositor.startAudioCapture()) {
+        // Audio-reactive scene: start probing for other audio activity so
+        // the mute-on-other-audio feature can duck the OST when needed.
+        m_audioPlayer.setAudioActive(true);
+        return true;
+    }
+    return false;
 }
 
 void WallpaperService::stopAudioCapture() {
     m_compositor.stopAudioCapture();
+    // No more audio activity to monitor.
+    m_audioPlayer.setAudioActive(false);
 }
 
 QVariantList WallpaperService::getAudioBands() {
