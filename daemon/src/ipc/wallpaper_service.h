@@ -45,7 +45,7 @@ public Q_SLOTS:
     bool setResolutionForOutput(const QString& outputName, uint32_t width, uint32_t height);
     QDBusUnixFileDescriptor getBufferFdForOutput(const QString& outputName);
     QVariantMap getBufferInfoForOutput(const QString& outputName);
-    QVariantList getOutputs();
+    QStringList getOutputs();
 
     // Interactive mouse parallax
     void setMousePosition(float normX, float normY);

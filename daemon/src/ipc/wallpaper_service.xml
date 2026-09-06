@@ -50,7 +50,7 @@
     </method>
     <method name="getBufferFdForOutput">
       <arg direction="in" type="s"/>
-      <annotation name="org.qt.QtDBus.QDBusUnixFileDescriptor" value="true"/>
+      <arg direction="out" type="h"/>
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getBufferFdForOutput"/>
     </method>
     <method name="getBufferInfoForOutput">

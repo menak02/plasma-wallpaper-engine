@@ -190,8 +190,8 @@ QVariantMap WallpaperService::getBufferInfoForOutput(const QString& outputName) 
     return map;
 }
 
-QVariantList WallpaperService::getOutputs() {
-    QVariantList list;
+QStringList WallpaperService::getOutputs() {
+    QStringList list;
     if (m_vulkanCtx) {
         for (const auto& name : m_vulkanCtx->getOutputNames()) {
             list.append(QString::fromStdString(name));

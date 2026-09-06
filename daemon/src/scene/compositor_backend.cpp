@@ -11,6 +11,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <poll.h>
+#include <dirent.h>
 
 namespace {
 
@@ -196,13 +197,28 @@ std::string discoverHyprlandSignature() {
     // Try HYPRLAND_INSTANCE_SIGNATURE environment variable first
     std::string sig = getEnv("HYPRLAND_INSTANCE_SIGNATURE");
     if (!sig.empty()) return sig;
-    
-    // Try to find it in XDG_RUNTIME_DIR
+
+    // Try to find it by enumerating XDG_RUNTIME_DIR/hypr/
     std::string runtimeDir = getEnv("XDG_RUNTIME_DIR");
     if (runtimeDir.empty()) return "";
-    
+
     std::string hyprDir = runtimeDir + "/hypr";
-    // List directories in hyprDir to find the signature        // Discovery is simplified; full impl would enumerate the runtime dir.
+    DIR* dir = opendir(hyprDir.c_str());
+    if (!dir) return "";
+
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        if (entry->d_type == DT_DIR) {
+            std::string name = entry->d_name;
+            // Signature directories are hex-ish, not '.' or '..'
+            if (name == "." || name == "..") continue;
+            if (name.find_first_not_of("0123456789abcdefABCDEF_") == std::string::npos) {
+                closedir(dir);
+                return name;
+            }
+        }
+    }
+    closedir(dir);
     return "";
 }
 
