@@ -1,8 +1,6 @@
 #pragma once
 
 #include <QObject>
-#include <QDBusAbstractAdaptor>
-#include <QDBusUnixFileDescriptor>
 #include <QDBusVariant>
 #include <QVariantMap>
 #include <QVariantList>
@@ -34,7 +32,6 @@ public:
     void updateAndRender(float dt, float time);
 
 public Q_SLOTS:
-    QDBusUnixFileDescriptor getBufferFd();
     QVariantMap getBufferInfo();
     bool loadWallpaper(const QString& path);
     void requestFrame();
@@ -45,7 +42,6 @@ public Q_SLOTS:
 
     // Multi-output: per-output resolution + buffer export (wlr-layer-shell style)
     bool setResolutionForOutput(const QString& outputName, uint32_t width, uint32_t height);
-    QDBusUnixFileDescriptor getBufferFdForOutput(const QString& outputName);
     QVariantMap getBufferInfoForOutput(const QString& outputName);
     QVariantList getOutputs();
 
