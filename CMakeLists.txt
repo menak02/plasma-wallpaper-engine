@@ -107,6 +107,14 @@ if(ENABLE_REGRESSION_TESTS)
     endif()
 endif()
 
+# Lightweight doc/validity checks that don't require a full build.
+find_program(VERIFY_DBUS_INTERFACE_SCRIPT "verify_dbus_interface.sh" PATHS "${CMAKE_SOURCE_DIR}/scripts" REQUIRED)
+add_custom_target(check_dbus_interface
+    COMMAND ${VERIFY_DBUS_INTERFACE_SCRIPT}
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    COMMENT "Validating D-Bus interface XML against Qt tooling (if available)"
+)
+
 
 
 
