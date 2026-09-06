@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ---------- Core deps (always required) ----------
-find_package(Qt6 QUIET COMPONENTS Core Gui Quick DBus Network Widgets)
+find_package(Qt6 QUIET COMPONENTS Core Gui Quick DBus Network Widgets QuickControls2)
 if(NOT Qt6_FOUND)
     message(FATAL_ERROR
         "Qt6 is required but was not found. On Ubuntu install: qt6-base-dev qt6-tools-dev-tools")
