@@ -12,6 +12,8 @@ namespace WallpaperEngine::Scene {
 struct PauseGateConfig {
     bool enabled = false;
     bool pauseAllOutputs = false;
+    double coverageThreshold = 0.90;
+    bool muteAudioOnPause = true;
 };
 
 /** Returns true when the frame should be rendered given the backend state and

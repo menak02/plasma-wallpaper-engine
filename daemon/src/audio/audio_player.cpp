@@ -29,7 +29,7 @@ bool AudioPlayer::startPlaybackProcess() {
     if (m_tempFilePath.empty()) return false;
 
     QString tempPath = QString::fromStdString(m_tempFilePath);
-    int effectiveVolume = m_isMuted || m_enginePaused ? 0 : m_volume;
+    int effectiveVolume = (m_isMuted || m_enginePaused || mutedAudioOnPause) ? 0 : m_volume;
 
     QStringList args;
     args << QStringLiteral("-nodisp")
@@ -177,4 +177,13 @@ void AudioPlayer::setEnginePaused(bool paused) {
     }
 }
 
+// Pause gate integration: ambient pause state the pause gate can set
+// so audio muting tracks engine pause independently from user mute toggles.
+void AudioPlayer::setMuteAudioOnPause(bool enabled) {
+    mutedAudioOnPause = enabled;
+    // Re-evaluate current engine pause state with new setting.
+    if (m_enginePaused && !m_isMuted && !m_isPaused) {
+        startPlaybackProcess();
+    }
+}
 } // namespace WallpaperEngine::Audio

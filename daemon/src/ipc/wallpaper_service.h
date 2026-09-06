@@ -57,6 +57,14 @@ public Q_SLOTS:
     bool isPauseEnabled() const { return m_pauseEnabled.load(); }
     void setPauseAllOutputs(bool enabled);
     bool isPauseAllOutputs() const { return m_pauseAllOutputs.load(); }
+    void setPauseCoverageThreshold(double threshold);
+    double pauseCoverageThreshold() const { return m_pauseCoverageThreshold.load(); }
+    void setPauseMuteAudio(bool muted);
+    bool isPauseMuteAudio() const { return m_pauseMuteAudio.load(); }
+
+    // Pause state queries for UI/diagnostics
+    bool isOutputCovered(const QString& outputName) const;
+    QVariantList getPauseState() const;
 
     // Audio & playback control
     bool startAudioCapture();
@@ -112,6 +120,8 @@ private:
     // Pause gate state
     std::atomic<bool> m_pauseEnabled{false};
     std::atomic<bool> m_pauseAllOutputs{false};
+    std::atomic<double> m_pauseCoverageThreshold{0.90};
+    std::atomic<bool> m_pauseMuteAudio{true};
 
     QString canonicalizePath(const QString& path) const;
     bool isPathAllowed(const QString& canonicalPath) const;

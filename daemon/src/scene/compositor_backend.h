@@ -31,6 +31,10 @@ public:
     /** Update internal state from IPC events. Called periodically to
         process pending events and refresh coverage state. */
     virtual void update() {}
+
+    /** Coverage threshold used for tiling/pseudotile coverage calculations.
+        0.0 - 1.0, default 0.90. */
+    virtual double coverageThreshold() const { return 0.90; }
 };
 
 std::unique_ptr<CompositorBackend> makeHyprlandBackend();

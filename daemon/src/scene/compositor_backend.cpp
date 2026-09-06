@@ -405,6 +405,8 @@ public:
         }
         
         m_cachedCovered = hasFullscreen;
+
+        // TODO: Implement per-output coverage detection
     }
 
     static std::string discoverControlSocket() {

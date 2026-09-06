@@ -198,13 +198,18 @@ add_executable(pause_gate_test
 target_include_directories(pause_gate_test
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/scene
 )
 
 target_link_libraries(pause_gate_test
     PRIVATE
         Qt6::Core
         ${CMAKE_CURRENT_SOURCE_DIR}/src/scene/pause_gate.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/scene/compositor_backend.cpp
 )
+
+# Test registered at top level so ctest sees it directly.
+# (pause_gate_headless is added in the top-level CMakeLists.txt.)
 
 # Test registered at top level so ctest sees it directly.
 # (pause_gate_headless is added in the top-level CMakeLists.txt.)

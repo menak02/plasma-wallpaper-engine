@@ -15,8 +15,8 @@ find_package(Vulkan REQUIRED)
 # ---------- Optional: KDE/Plasma plugin ----------
 # Only needed when building the Plasma wallpaper plugin.
 # The daemon and viewer are standalone — no KDE deps required.
-option(ENABLE_PLASMA_PLUGIN "Build KDE Plasma wallpaper plugin (requires ECM, KF6, Plasma)" OFF)
 
+option(ENABLE_PLASMA_PLUGIN "Build KDE Plasma wallpaper plugin (requires ECM, KF6, Plasma)" OFF)
 set(HAVE_PLASMA FALSE)
 if(ENABLE_PLASMA_PLUGIN)
     find_package(ECM 6.0.0 QUIET NO_MODULE)
@@ -53,7 +53,9 @@ add_subdirectory(viewer)
 
 if(HAVE_PLASMA)
     add_subdirectory(plugin)
-endif()# ---------- Regression tests ----------
+endif()
+
+# ---------- Regression tests ----------
 # PNG-diff comparison of the batch verifier output against a reference
 # baseline. Baseline lives in tests/regression/baseline/ (one PNG per
 # wallpaper ID, generated from a verified 55-pass/17-review/0-fail run).
@@ -104,4 +106,10 @@ if(ENABLE_REGRESSION_TESTS)
         )
     endif()
 endif()
+
+
+
+
+
+
 

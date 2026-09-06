@@ -81,6 +81,8 @@ bool WallpaperService::shouldRenderThisFrame() const {
     Scene::PauseGateConfig config;
     config.enabled = m_pauseEnabled.load();
     config.pauseAllOutputs = m_pauseAllOutputs.load();
+    config.coverageThreshold = m_pauseCoverageThreshold.load();
+    config.muteAudioOnPause = m_pauseMuteAudio.load();
     return Scene::shouldRender(*m_backend, config);
 }
 
@@ -89,6 +91,17 @@ bool WallpaperService::isOutputCovered(const std::string& outputName) const {
         return false;
     }
     return m_backend->isOutputCovered(outputName);
+}
+
+QVariantList WallpaperService::getPauseState() const {
+    QVariantList state;
+    QVariantMap map;
+    map[QStringLiteral("enabled")] = m_pauseEnabled.load();
+    map[QStringLiteral("pauseAllOutputs")] = m_pauseAllOutputs.load();
+    map[QStringLiteral("coverageThreshold")] = m_pauseCoverageThreshold.load();
+    map[QStringLiteral("muteAudioOnPause")] = m_pauseMuteAudio.load();
+    state.append(map);
+    return state;
 }
 
 void WallpaperService::updatePauseGate() {
@@ -103,6 +116,16 @@ void WallpaperService::setPauseEnabled(bool enabled) {
 
 void WallpaperService::setPauseAllOutputs(bool enabled) {
     m_pauseAllOutputs.store(enabled);
+    updatePauseGate();
+}
+
+void WallpaperService::setPauseCoverageThreshold(double threshold) {
+    double clamped = std::clamp(threshold, 0.0, 1.0);
+    m_pauseCoverageThreshold.store(clamped);
+}
+
+void WallpaperService::setPauseMuteAudio(bool muted) {
+    m_pauseMuteAudio.store(muted);
     updatePauseGate();
 }
 

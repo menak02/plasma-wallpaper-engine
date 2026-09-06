@@ -35,6 +35,20 @@ public:
     int getVolume() const { return m_volume; }
     bool isMuted() const { return m_isMuted; }
 
+    // Pause gate integration: ambient pause state the pause gate can set
+    // so audio muting tracks engine pause independently from user mute toggles.
+    // Pause gate integration: ambient pause state the pause gate can set
+    // so audio muting tracks engine pause independently from user mute toggles.
+    void setMuteAudioOnPause(bool enabled);
+    bool isMuteAudioOnPause() const { return mutedAudioOnPause; }
+
+private:
+    bool mutedAudioOnPause = true;
+
+
+private:
+    bool mutedAudioOnPause = true;
+
 private Q_SLOTS:
     void checkOtherAudioActivity();
 
@@ -49,8 +63,19 @@ private:
     bool m_isPaused = false;
     bool m_enginePaused = false;
     bool m_muteOnOtherAudio = true;
-    bool m_muteOnFullscreen = true;
-    bool m_temporarilyMutedByOtherAudio = false;
+    bool m_muteOnFullscreen = true;    bool m_temporarilyMutedByOtherAudio = false;
+
+private:
+    bool mutedAudioOnPause = true;
+
+    void cleanupTempFile();
+    void applyVolume();
+    bool startPlaybackProcess();
+    void stopPlaybackProcess();
+
+};
+
+private:
 
     void cleanupTempFile();
     void applyVolume();
