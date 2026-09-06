@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QDBusVariant>
+#include <QDBusUnixFileDescriptor>
 #include <QVariantMap>
 #include <QVariantList>
 
@@ -42,6 +43,7 @@ public Q_SLOTS:
 
     // Multi-output: per-output resolution + buffer export (wlr-layer-shell style)
     bool setResolutionForOutput(const QString& outputName, uint32_t width, uint32_t height);
+    QDBusUnixFileDescriptor getBufferFdForOutput(const QString& outputName);
     QVariantMap getBufferInfoForOutput(const QString& outputName);
     QVariantList getOutputs();
 
