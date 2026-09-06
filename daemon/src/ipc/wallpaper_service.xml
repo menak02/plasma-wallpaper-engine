@@ -20,6 +20,7 @@
     </method>
     <method name="getBufferInfo">
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getBufferInfo"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantMap"/>
       <arg direction="out" type="a{sv}"/>
     </method>
     <method name="loadWallpaper">
@@ -39,6 +40,7 @@
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::setResolution"/>
     </method>
     <method name="getAvailableGpus">
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantList"/>
       <arg direction="out" type="a{sv}"/>
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getAvailableGpus"/>
     </method>
@@ -58,10 +60,12 @@
     </method>
     <method name="getBufferInfoForOutput">
       <arg direction="in" type="s"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantMap"/>
       <arg direction="out" type="a{sv}"/>
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getBufferInfoForOutput"/>
     </method>
     <method name="getOutputs">
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QStringList"/>
       <arg direction="out" type="as"/>
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getOutputs"/>
     </method>
@@ -114,6 +118,7 @@
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::isOutputCovered"/>
     </method>
     <method name="getPauseState">
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantList"/>
       <arg direction="out" type="a{sv}"/>
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getPauseState"/>
     </method>
@@ -127,6 +132,7 @@
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::stopAudioCapture"/>
     </method>
     <method name="getAudioBands">
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantList"/>
       <arg direction="out" type="d"/>
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getAudioBands"/>
     </method>
@@ -147,6 +153,7 @@
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::setMuteOnFullscreen"/>
     </method>
     <method name="getAudioSettings">
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantMap"/>
       <arg direction="out" type="a{sv}"/>
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getAudioSettings"/>
     </method>
@@ -158,6 +165,7 @@
 
     <!-- Library -->
     <method name="getLibrary">
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantList"/>
       <arg direction="out" type="a{sv}"/>
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getLibrary"/>
     </method>
@@ -174,6 +182,7 @@
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::registerTrustedDirectory"/>
     </method>
     <method name="getTrustedDirectories">
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QStringList"/>
       <arg direction="out" type="as"/>
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getTrustedDirectories"/>
     </method>
@@ -181,34 +190,46 @@
     <!-- Properties -->
     <method name="getWallpaperProperties">
       <arg direction="in" type="s"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantMap"/>
       <arg direction="out" type="a{sv}"/>
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getWallpaperProperties"/>
     </method>
     <method name="setProperty">
       <arg direction="in" type="s"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.In1" value="QVariant"/>
       <arg direction="in" type="v"/>
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::setProperty"/>
     </method>
     <method name="getProperty">
       <arg direction="in" type="s"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariant"/>
       <arg direction="out" type="v"/>
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getProperty"/>
     </method>
 
     <signal name="frameReady"/>
     <signal name="wallpaperLoaded">
-      <arg type="s"/>
+      <arg direction="out" type="s"/>
     </signal>
     <signal name="libraryUpdated">
-      <arg type="i"/>
+      <arg direction="out" type="i"/>
     </signal>
     <signal name="bufferResized">
-      <arg type="u"/>
-      <arg type="u"/>
+      <arg direction="out" type="u"/>
+      <arg direction="out" type="u"/>
     </signal>
     <signal name="propertyChanged">
-      <arg type="s"/>
-      <arg type="v"/>
+      <arg direction="out" type="s"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.In1" value="QVariant"/>
+      <arg direction="out" type="v"/>
     </signal>
+
+    <!-- Keep this file in sync with WallpaperService (daemon/src/ipc/wallpaper_service.h/cpp).
+         Run `scripts/verify_dbus_interface.sh` after editing.
+         Updating the XML without wiring the same surface in the daemon does not
+         change runtime behavior by itself; registration currently uses
+         ExportAllSlots/Signals, so this file is primarily a contract + validation
+         document against Qt's D-Bus tooling. -->
+
   </interface>
 </node>

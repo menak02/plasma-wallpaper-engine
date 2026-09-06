@@ -28,12 +28,17 @@ else
   echo "SKIP: qdbusxml2cpp not installed; XML is uncheckable here."
 fi
 
-# 2) Sanity: every <method> should have a name attribute and no illegal
-#    characters. Keep this lightweight and fast in CI.
-if ! grep -E '<method[[:space:]]+name="[a-zA-Z_][a-zA-Z0-9_]*"' "$XML" >/dev/null; then
-  echo "FAIL: no valid <method> entries in $XML" >&2
+# 2) Structural sanity: count <method>/<signal> entries and ensure every
+#    <arg> has a direction attribute. Kept lightweight so this is fast in CI.
+METHOD_COUNT=$(grep -c '<method[[:space:]]' "$XML" || true)
+SIGNAL_COUNT=$(grep -c '<signal[[:space:]]' "$XML" || true)
+BAD_ARG=$(grep -nE '<arg[^>]*>' "$XML" | grep -vE 'direction="(in|out)"' || true)
+
+if [ -n "$BAD_ARG" ]; then
+  echo "FAIL: <arg> entries without direction attributes found:" >&2
+  echo "$BAD_ARG" >&2
   exit 1
 fi
 
-echo "OK: dbus interface looks structurally sound."
+echo "OK: dbus interface looks structurally sound ($METHOD_COUNT methods, $SIGNAL_COUNT signals)."
 exit 0
