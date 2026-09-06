@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
     // unless a compositor provides one.
     QGuiApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("plasma-wallpaper-engine-daemon"));
-    app.setOrganizationDomain(QStringLiteral("org.antigravity"));
+    app.setOrganizationDomain(QStringLiteral("org.plasmawallpaperengine"));
 
     qInfo() << "Starting Plasma Wallpaper Engine Daemon (Phase 3 Engine)...";
 
@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
     WallpaperEngine::IPC::WallpaperService service(&vulkanCtx, trustedDirs);
     QDBusConnection connection = QDBusConnection::sessionBus();
 
-    if (!connection.registerService(QStringLiteral("org.antigravity.WallpaperEngine"))) {
+    if (!connection.registerService(QStringLiteral("org.plasmawallpaperengine.Daemon"))) {
         qWarning() << "Service already registered or failed:" << connection.lastError().message();
     }
 
@@ -106,7 +106,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    qInfo() << "DBus service registered: org.antigravity.WallpaperEngine at /WallpaperEngine";
+    qInfo() << "DBus service registered: org.plasmawallpaperengine.Daemon at /WallpaperEngine";
 
     // 60 FPS Simulation & Render Loop
     QTimer frameTimer;

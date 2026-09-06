@@ -23,7 +23,7 @@ namespace WallpaperEngine::IPC {
 
 class WallpaperService : public QObject {
     Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "org.antigravity.WallpaperEngine")
+    Q_CLASSINFO("D-Bus Interface", "org.plasmawallpaperengine.Daemon")
 
 public:
     explicit WallpaperService(Render::VulkanContext* vulkanCtx,

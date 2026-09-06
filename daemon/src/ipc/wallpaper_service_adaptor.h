@@ -17,14 +17,14 @@
 #include <QtDBus/QtDBus>
 
 /*
- * Adaptor class for interface org.antigravity.WallpaperEngine
+ * Adaptor class for interface org.plasmawallpaperengine.Daemon
  */
 class WallpaperServiceAdaptor: public QDBusAbstractAdaptor
 {
     Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "org.antigravity.WallpaperEngine")
+    Q_CLASSINFO("D-Bus Interface", "org.plasmawallpaperengine.Daemon")
     Q_CLASSINFO("D-Bus Introspection", ""
-"  <interface name=\"org.antigravity.WallpaperEngine\">\n"
+"  <interface name=\"org.plasmawallpaperengine.Daemon\">\n"
 "    <method name=\"getBufferInfo\">\n"
 "      <annotation value=\"WallpaperService::getBufferInfo\" name=\"org.qt.QtDBus.MethodAdaptor\"/>\n"
 "      <annotation value=\"QVariantMap\" name=\"org.qtproject.QtDBus.QtTypeName.Out0\"/>\n"

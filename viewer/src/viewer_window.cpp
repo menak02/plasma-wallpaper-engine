@@ -127,18 +127,18 @@ ViewerWindow::ViewerWindow(QWidget* parent) : QMainWindow(parent) {
 
     // Connect to DBus signals
     QDBusConnection::sessionBus().connect(
-        QStringLiteral("org.antigravity.WallpaperEngine"),
+        QStringLiteral("org.plasmawallpaperengine.Daemon"),
         QStringLiteral("/WallpaperEngine"),
-        QStringLiteral("org.antigravity.WallpaperEngine"),
+        QStringLiteral("org.plasmawallpaperengine.Daemon"),
         QStringLiteral("frameReady"),
         this,
         SLOT(onFrameReady())
     );
 
     QDBusConnection::sessionBus().connect(
-        QStringLiteral("org.antigravity.WallpaperEngine"),
+        QStringLiteral("org.plasmawallpaperengine.Daemon"),
         QStringLiteral("/WallpaperEngine"),
-        QStringLiteral("org.antigravity.WallpaperEngine"),
+        QStringLiteral("org.plasmawallpaperengine.Daemon"),
         QStringLiteral("wallpaperLoaded"),
         this,
         SLOT(onWallpaperLoaded(QString))
@@ -146,9 +146,9 @@ ViewerWindow::ViewerWindow(QWidget* parent) : QMainWindow(parent) {
 
     connect(m_viewport, &LiveViewport::mouseMoved, this, [](float x, float y) {
         QDBusInterface iface(
-            QStringLiteral("org.antigravity.WallpaperEngine"),
+            QStringLiteral("org.plasmawallpaperengine.Daemon"),
             QStringLiteral("/WallpaperEngine"),
-            QStringLiteral("org.antigravity.WallpaperEngine"),
+            QStringLiteral("org.plasmawallpaperengine.Daemon"),
             QDBusConnection::sessionBus()
         );
         if (iface.isValid()) {
@@ -162,16 +162,16 @@ ViewerWindow::ViewerWindow(QWidget* parent) : QMainWindow(parent) {
 
 void ViewerWindow::ensureDaemonRunning() {
     QDBusInterface iface(
-        QStringLiteral("org.antigravity.WallpaperEngine"),
+        QStringLiteral("org.plasmawallpaperengine.Daemon"),
         QStringLiteral("/WallpaperEngine"),
-        QStringLiteral("org.antigravity.WallpaperEngine"),
+        QStringLiteral("org.plasmawallpaperengine.Daemon"),
         QDBusConnection::sessionBus()
     );
 
     if (!iface.isValid()) {
         QString daemonBin = QDir::homePath() + QStringLiteral("/.local/lib/x86_64-linux-gnu/libexec/plasma-wallpaper-engine-daemon");
         if (!QFile::exists(daemonBin)) {
-            daemonBin = QStringLiteral("/home/mena/Documents/antigravity/agitated-shannon/build/bin/plasma-wallpaper-engine-daemon");
+            daemonBin = QStringLiteral("/usr/lib/plasma-wallpaper-engine/plasma-wallpaper-engine-daemon");
         }
 
         if (QFile::exists(daemonBin)) {
@@ -184,9 +184,9 @@ void ViewerWindow::ensureDaemonRunning() {
 
 void ViewerWindow::checkConnection() {
     QDBusInterface iface(
-        QStringLiteral("org.antigravity.WallpaperEngine"),
+        QStringLiteral("org.plasmawallpaperengine.Daemon"),
         QStringLiteral("/WallpaperEngine"),
-        QStringLiteral("org.antigravity.WallpaperEngine"),
+        QStringLiteral("org.plasmawallpaperengine.Daemon"),
         QDBusConnection::sessionBus()
     );
 
@@ -201,7 +201,21 @@ void ViewerWindow::checkConnection() {
         return;
     }
 
-    QDBusReply<QVariantMap> reply = iface.call(QStringLiteral("getBufferInfo"));
+    // Pick the first available output for the viewer.
+    QDBusReply<QStringList> outReply = iface.call(QStringLiteral("getOutputs"));
+    QString outputName;
+    if (outReply.isValid() && !outReply.value().isEmpty()) {
+        outputName = outReply.value().first();
+        m_activeOutput = outputName;
+    }
+
+    if (outputName.isEmpty()) {
+        m_statusLabel->setText(QStringLiteral("Status: No outputs reported by daemon."));
+        m_statusLabel->setStyleSheet(QStringLiteral("font-weight: bold; font-size: 13px; color: #e67e22;"));
+        return;
+    }
+
+    QDBusReply<QVariantMap> reply = iface.call(QStringLiteral("getBufferInfoForOutput"), outputName);
     if (reply.isValid()) {
         auto map = reply.value();
         uint32_t width = map.value(QStringLiteral("width")).toUInt();
@@ -209,15 +223,15 @@ void ViewerWindow::checkConnection() {
         uint32_t stride = map.value(QStringLiteral("stride")).toUInt();
         size_t size = map.value(QStringLiteral("size")).toULongLong();
 
-        QDBusReply<QDBusUnixFileDescriptor> fdReply = iface.call(QStringLiteral("getBufferFd"));
+        QDBusReply<QDBusUnixFileDescriptor> fdReply = iface.call(QStringLiteral("getBufferFdForOutput"), outputName);
         int fd = fdReply.isValid() ? fdReply.value().fileDescriptor() : -1;
         m_activeFd = fd;
 
         m_statusLabel->setText(QStringLiteral("Status: Connected to Vulkan Engine (Zero-Copy DmaBuf Active)"));
         m_statusLabel->setStyleSheet(QStringLiteral("font-weight: bold; font-size: 13px; color: #2ecc71;"));
 
-        m_infoLabel->setText(QStringLiteral("Active DmaBuf: %1x%2 | Stride: %3 bytes | Shared Linux FD: %4")
-                             .arg(width).arg(height).arg(stride).arg(fd));
+        m_infoLabel->setText(QStringLiteral("Active DmaBuf (%1): %2x%3 | Stride: %4 bytes | Shared Linux FD: %5")
+                             .arg(outputName).arg(width).arg(height).arg(stride).arg(fd));
 
         if (m_viewport && fd >= 0) {
             m_viewport->updateBuffer(fd, width, height, stride, size);
@@ -238,9 +252,9 @@ void ViewerWindow::loadPath(const QString& path) {
     // the picked file's directory keeps arbitrary user selections working.
     {
         QDBusInterface iface(
-            QStringLiteral("org.antigravity.WallpaperEngine"),
+            QStringLiteral("org.plasmawallpaperengine.Daemon"),
             QStringLiteral("/WallpaperEngine"),
-            QStringLiteral("org.antigravity.WallpaperEngine"),
+            QStringLiteral("org.plasmawallpaperengine.Daemon"),
             QDBusConnection::sessionBus());
         if (iface.isValid()) {
             const QString dir = QFileInfo(path).absolutePath();
@@ -251,9 +265,9 @@ void ViewerWindow::loadPath(const QString& path) {
     }
 
     QDBusInterface iface(
-        QStringLiteral("org.antigravity.WallpaperEngine"),
+        QStringLiteral("org.plasmawallpaperengine.Daemon"),
         QStringLiteral("/WallpaperEngine"),
-        QStringLiteral("org.antigravity.WallpaperEngine"),
+        QStringLiteral("org.plasmawallpaperengine.Daemon"),
         QDBusConnection::sessionBus()
     );
 

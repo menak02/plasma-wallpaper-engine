@@ -1,5 +1,5 @@
 <?xml version="1.0" ?>
-<!-- D-Bus interface definition for org.antigravity.WallpaperEngine.
+<!-- D-Bus interface definition for org.plasmawallpaperengine.Daemon.
      Used as documentation + a validation source for the exposed slots.
      The daemon currently registers with ExportAllSlots, so this file is
      the source of truth for what callers should assume is available.
@@ -11,7 +11,7 @@
        render/compositor side and is triggered indirectly via state changes.
 -->
 <node>
-  <interface name="org.antigravity.WallpaperEngine">
+  <interface name="org.plasmawallpaperengine.Daemon">
     <!-- Frame / buffer -->
     <method name="getBufferInfo">
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getBufferInfo"/>

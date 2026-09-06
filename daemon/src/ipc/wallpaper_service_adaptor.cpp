@@ -35,13 +35,13 @@ WallpaperServiceAdaptor::~WallpaperServiceAdaptor()
 
 void WallpaperServiceAdaptor::addCustomLibraryPath(const QString &in0)
 {
-    // handle method call org.antigravity.WallpaperEngine.addCustomLibraryPath
+    // handle method call org.plasmawallpaperengine.Daemon.addCustomLibraryPath
     QMetaObject::invokeMethod(parent(), "addCustomLibraryPath", Q_ARG(QString, in0));
 }
 
 double WallpaperServiceAdaptor::getAudioBands()
 {
-    // handle method call org.antigravity.WallpaperEngine.getAudioBands
+    // handle method call org.plasmawallpaperengine.Daemon.getAudioBands
     double out0;
     QMetaObject::invokeMethod(parent(), "getAudioBands", Q_RETURN_ARG(double, out0));
     return out0;
@@ -49,7 +49,7 @@ double WallpaperServiceAdaptor::getAudioBands()
 
 QVariantMap WallpaperServiceAdaptor::getAudioSettings()
 {
-    // handle method call org.antigravity.WallpaperEngine.getAudioSettings
+    // handle method call org.plasmawallpaperengine.Daemon.getAudioSettings
     QVariantMap out0;
     QMetaObject::invokeMethod(parent(), "getAudioSettings", Q_RETURN_ARG(QVariantMap, out0));
     return out0;
@@ -57,7 +57,7 @@ QVariantMap WallpaperServiceAdaptor::getAudioSettings()
 
 QVariantList WallpaperServiceAdaptor::getAvailableGpus()
 {
-    // handle method call org.antigravity.WallpaperEngine.getAvailableGpus
+    // handle method call org.plasmawallpaperengine.Daemon.getAvailableGpus
     QVariantList out0;
     QMetaObject::invokeMethod(parent(), "getAvailableGpus", Q_RETURN_ARG(QVariantList, out0));
     return out0;
@@ -65,13 +65,13 @@ QVariantList WallpaperServiceAdaptor::getAvailableGpus()
 
 void WallpaperServiceAdaptor::getBufferFdForOutput(const QString &in0)
 {
-    // handle method call org.antigravity.WallpaperEngine.getBufferFdForOutput
+    // handle method call org.plasmawallpaperengine.Daemon.getBufferFdForOutput
     QMetaObject::invokeMethod(parent(), "getBufferFdForOutput", Q_ARG(QString, in0));
 }
 
 QVariantMap WallpaperServiceAdaptor::getBufferInfo()
 {
-    // handle method call org.antigravity.WallpaperEngine.getBufferInfo
+    // handle method call org.plasmawallpaperengine.Daemon.getBufferInfo
     QVariantMap out0;
     QMetaObject::invokeMethod(parent(), "getBufferInfo", Q_RETURN_ARG(QVariantMap, out0));
     return out0;
@@ -79,7 +79,7 @@ QVariantMap WallpaperServiceAdaptor::getBufferInfo()
 
 QVariantMap WallpaperServiceAdaptor::getBufferInfoForOutput(const QString &in0)
 {
-    // handle method call org.antigravity.WallpaperEngine.getBufferInfoForOutput
+    // handle method call org.plasmawallpaperengine.Daemon.getBufferInfoForOutput
     QVariantMap out0;
     QMetaObject::invokeMethod(parent(), "getBufferInfoForOutput", Q_RETURN_ARG(QVariantMap, out0), Q_ARG(QString, in0));
     return out0;
@@ -87,7 +87,7 @@ QVariantMap WallpaperServiceAdaptor::getBufferInfoForOutput(const QString &in0)
 
 QVariantList WallpaperServiceAdaptor::getLibrary()
 {
-    // handle method call org.antigravity.WallpaperEngine.getLibrary
+    // handle method call org.plasmawallpaperengine.Daemon.getLibrary
     QVariantList out0;
     QMetaObject::invokeMethod(parent(), "getLibrary", Q_RETURN_ARG(QVariantList, out0));
     return out0;
@@ -95,7 +95,7 @@ QVariantList WallpaperServiceAdaptor::getLibrary()
 
 QStringList WallpaperServiceAdaptor::getOutputs()
 {
-    // handle method call org.antigravity.WallpaperEngine.getOutputs
+    // handle method call org.plasmawallpaperengine.Daemon.getOutputs
     QStringList out0;
     QMetaObject::invokeMethod(parent(), "getOutputs", Q_RETURN_ARG(QStringList, out0));
     return out0;
@@ -103,7 +103,7 @@ QStringList WallpaperServiceAdaptor::getOutputs()
 
 QVariantList WallpaperServiceAdaptor::getPauseState()
 {
-    // handle method call org.antigravity.WallpaperEngine.getPauseState
+    // handle method call org.plasmawallpaperengine.Daemon.getPauseState
     QVariantList out0;
     QMetaObject::invokeMethod(parent(), "getPauseState", Q_RETURN_ARG(QVariantList, out0));
     return out0;
@@ -111,7 +111,7 @@ QVariantList WallpaperServiceAdaptor::getPauseState()
 
 QDBusVariant WallpaperServiceAdaptor::getProperty(const QString &in0)
 {
-    // handle method call org.antigravity.WallpaperEngine.getProperty
+    // handle method call org.plasmawallpaperengine.Daemon.getProperty
     QDBusVariant out0;
     QMetaObject::invokeMethod(parent(), "getProperty", Q_RETURN_ARG(QDBusVariant, out0), Q_ARG(QString, in0));
     return out0;
@@ -119,7 +119,7 @@ QDBusVariant WallpaperServiceAdaptor::getProperty(const QString &in0)
 
 QStringList WallpaperServiceAdaptor::getTrustedDirectories()
 {
-    // handle method call org.antigravity.WallpaperEngine.getTrustedDirectories
+    // handle method call org.plasmawallpaperengine.Daemon.getTrustedDirectories
     QStringList out0;
     QMetaObject::invokeMethod(parent(), "getTrustedDirectories", Q_RETURN_ARG(QStringList, out0));
     return out0;
@@ -127,7 +127,7 @@ QStringList WallpaperServiceAdaptor::getTrustedDirectories()
 
 QVariantMap WallpaperServiceAdaptor::getWallpaperProperties(const QString &in0)
 {
-    // handle method call org.antigravity.WallpaperEngine.getWallpaperProperties
+    // handle method call org.plasmawallpaperengine.Daemon.getWallpaperProperties
     QVariantMap out0;
     QMetaObject::invokeMethod(parent(), "getWallpaperProperties", Q_RETURN_ARG(QVariantMap, out0), Q_ARG(QString, in0));
     return out0;
@@ -135,7 +135,7 @@ QVariantMap WallpaperServiceAdaptor::getWallpaperProperties(const QString &in0)
 
 bool WallpaperServiceAdaptor::isOutputCovered(const QString &in0)
 {
-    // handle method call org.antigravity.WallpaperEngine.isOutputCovered
+    // handle method call org.plasmawallpaperengine.Daemon.isOutputCovered
     bool out0;
     QMetaObject::invokeMethod(parent(), "isOutputCovered", Q_RETURN_ARG(bool, out0), Q_ARG(QString, in0));
     return out0;
@@ -143,7 +143,7 @@ bool WallpaperServiceAdaptor::isOutputCovered(const QString &in0)
 
 bool WallpaperServiceAdaptor::isPauseAllOutputs()
 {
-    // handle method call org.antigravity.WallpaperEngine.isPauseAllOutputs
+    // handle method call org.plasmawallpaperengine.Daemon.isPauseAllOutputs
     bool out0;
     QMetaObject::invokeMethod(parent(), "isPauseAllOutputs", Q_RETURN_ARG(bool, out0));
     return out0;
@@ -151,7 +151,7 @@ bool WallpaperServiceAdaptor::isPauseAllOutputs()
 
 bool WallpaperServiceAdaptor::isPauseEnabled()
 {
-    // handle method call org.antigravity.WallpaperEngine.isPauseEnabled
+    // handle method call org.plasmawallpaperengine.Daemon.isPauseEnabled
     bool out0;
     QMetaObject::invokeMethod(parent(), "isPauseEnabled", Q_RETURN_ARG(bool, out0));
     return out0;
@@ -159,7 +159,7 @@ bool WallpaperServiceAdaptor::isPauseEnabled()
 
 bool WallpaperServiceAdaptor::isPauseMuteAudio()
 {
-    // handle method call org.antigravity.WallpaperEngine.isPauseMuteAudio
+    // handle method call org.plasmawallpaperengine.Daemon.isPauseMuteAudio
     bool out0;
     QMetaObject::invokeMethod(parent(), "isPauseMuteAudio", Q_RETURN_ARG(bool, out0));
     return out0;
@@ -167,7 +167,7 @@ bool WallpaperServiceAdaptor::isPauseMuteAudio()
 
 bool WallpaperServiceAdaptor::loadWallpaper(const QString &in0)
 {
-    // handle method call org.antigravity.WallpaperEngine.loadWallpaper
+    // handle method call org.plasmawallpaperengine.Daemon.loadWallpaper
     bool out0;
     QMetaObject::invokeMethod(parent(), "loadWallpaper", Q_RETURN_ARG(bool, out0), Q_ARG(QString, in0));
     return out0;
@@ -175,13 +175,13 @@ bool WallpaperServiceAdaptor::loadWallpaper(const QString &in0)
 
 void WallpaperServiceAdaptor::pause()
 {
-    // handle method call org.antigravity.WallpaperEngine.pause
+    // handle method call org.plasmawallpaperengine.Daemon.pause
     QMetaObject::invokeMethod(parent(), "pause");
 }
 
 double WallpaperServiceAdaptor::pauseCoverageThreshold()
 {
-    // handle method call org.antigravity.WallpaperEngine.pauseCoverageThreshold
+    // handle method call org.plasmawallpaperengine.Daemon.pauseCoverageThreshold
     double out0;
     QMetaObject::invokeMethod(parent(), "pauseCoverageThreshold", Q_RETURN_ARG(double, out0));
     return out0;
@@ -189,7 +189,7 @@ double WallpaperServiceAdaptor::pauseCoverageThreshold()
 
 bool WallpaperServiceAdaptor::registerTrustedDirectory(const QString &in0)
 {
-    // handle method call org.antigravity.WallpaperEngine.registerTrustedDirectory
+    // handle method call org.plasmawallpaperengine.Daemon.registerTrustedDirectory
     bool out0;
     QMetaObject::invokeMethod(parent(), "registerTrustedDirectory", Q_RETURN_ARG(bool, out0), Q_ARG(QString, in0));
     return out0;
@@ -197,85 +197,85 @@ bool WallpaperServiceAdaptor::registerTrustedDirectory(const QString &in0)
 
 void WallpaperServiceAdaptor::requestFrame()
 {
-    // handle method call org.antigravity.WallpaperEngine.requestFrame
+    // handle method call org.plasmawallpaperengine.Daemon.requestFrame
     QMetaObject::invokeMethod(parent(), "requestFrame");
 }
 
 void WallpaperServiceAdaptor::resume()
 {
-    // handle method call org.antigravity.WallpaperEngine.resume
+    // handle method call org.plasmawallpaperengine.Daemon.resume
     QMetaObject::invokeMethod(parent(), "resume");
 }
 
 void WallpaperServiceAdaptor::scanLibrary()
 {
-    // handle method call org.antigravity.WallpaperEngine.scanLibrary
+    // handle method call org.plasmawallpaperengine.Daemon.scanLibrary
     QMetaObject::invokeMethod(parent(), "scanLibrary");
 }
 
 void WallpaperServiceAdaptor::setAudioMuted(bool in0)
 {
-    // handle method call org.antigravity.WallpaperEngine.setAudioMuted
+    // handle method call org.plasmawallpaperengine.Daemon.setAudioMuted
     QMetaObject::invokeMethod(parent(), "setAudioMuted", Q_ARG(bool, in0));
 }
 
 void WallpaperServiceAdaptor::setAudioVolume(int in0)
 {
-    // handle method call org.antigravity.WallpaperEngine.setAudioVolume
+    // handle method call org.plasmawallpaperengine.Daemon.setAudioVolume
     QMetaObject::invokeMethod(parent(), "setAudioVolume", Q_ARG(int, in0));
 }
 
 void WallpaperServiceAdaptor::setMousePosition(double in0, double in1)
 {
-    // handle method call org.antigravity.WallpaperEngine.setMousePosition
+    // handle method call org.plasmawallpaperengine.Daemon.setMousePosition
     QMetaObject::invokeMethod(parent(), "setMousePosition", Q_ARG(double, in0), Q_ARG(double, in1));
 }
 
 void WallpaperServiceAdaptor::setMuteOnFullscreen(bool in0)
 {
-    // handle method call org.antigravity.WallpaperEngine.setMuteOnFullscreen
+    // handle method call org.plasmawallpaperengine.Daemon.setMuteOnFullscreen
     QMetaObject::invokeMethod(parent(), "setMuteOnFullscreen", Q_ARG(bool, in0));
 }
 
 void WallpaperServiceAdaptor::setMuteOnOtherAudio(bool in0)
 {
-    // handle method call org.antigravity.WallpaperEngine.setMuteOnOtherAudio
+    // handle method call org.plasmawallpaperengine.Daemon.setMuteOnOtherAudio
     QMetaObject::invokeMethod(parent(), "setMuteOnOtherAudio", Q_ARG(bool, in0));
 }
 
 void WallpaperServiceAdaptor::setPauseAllOutputs(bool in0)
 {
-    // handle method call org.antigravity.WallpaperEngine.setPauseAllOutputs
+    // handle method call org.plasmawallpaperengine.Daemon.setPauseAllOutputs
     QMetaObject::invokeMethod(parent(), "setPauseAllOutputs", Q_ARG(bool, in0));
 }
 
 void WallpaperServiceAdaptor::setPauseCoverageThreshold(double in0)
 {
-    // handle method call org.antigravity.WallpaperEngine.setPauseCoverageThreshold
+    // handle method call org.plasmawallpaperengine.Daemon.setPauseCoverageThreshold
     QMetaObject::invokeMethod(parent(), "setPauseCoverageThreshold", Q_ARG(double, in0));
 }
 
 void WallpaperServiceAdaptor::setPauseEnabled(bool in0)
 {
-    // handle method call org.antigravity.WallpaperEngine.setPauseEnabled
+    // handle method call org.plasmawallpaperengine.Daemon.setPauseEnabled
     QMetaObject::invokeMethod(parent(), "setPauseEnabled", Q_ARG(bool, in0));
 }
 
 void WallpaperServiceAdaptor::setPauseMuteAudio(bool in0)
 {
-    // handle method call org.antigravity.WallpaperEngine.setPauseMuteAudio
+    // handle method call org.plasmawallpaperengine.Daemon.setPauseMuteAudio
     QMetaObject::invokeMethod(parent(), "setPauseMuteAudio", Q_ARG(bool, in0));
 }
 
 void WallpaperServiceAdaptor::setProperty(const QString &in0, const QDBusVariant &in1)
 {
-    // handle method call org.antigravity.WallpaperEngine.setProperty
+    // handle method call org.plasmawallpaperengine.Daemon.setProperty
     QMetaObject::invokeMethod(parent(), "setProperty", Q_ARG(QString, in0), Q_ARG(QDBusVariant, in1));
 }
 
 bool WallpaperServiceAdaptor::setResolution(uint in0, uint in1)
 {
-    // handle method call org.antigravity.WallpaperEngine.setResolution
+    // handle method call org.plasmawallpaperengine.Daemon.setResolution
     bool out0;
     QMetaObject::invokeMethod(parent(), "setResolution", Q_RETURN_ARG(bool, out0), Q_ARG(uint, in0), Q_ARG(uint, in1));
     return out0;
@@ -283,7 +283,7 @@ bool WallpaperServiceAdaptor::setResolution(uint in0, uint in1)
 
 bool WallpaperServiceAdaptor::setResolutionForOutput(const QString &in0, uint in1, uint in2)
 {
-    // handle method call org.antigravity.WallpaperEngine.setResolutionForOutput
+    // handle method call org.plasmawallpaperengine.Daemon.setResolutionForOutput
     bool out0;
     QMetaObject::invokeMethod(parent(), "setResolutionForOutput", Q_RETURN_ARG(bool, out0), Q_ARG(QString, in0), Q_ARG(uint, in1), Q_ARG(uint, in2));
     return out0;
@@ -291,7 +291,7 @@ bool WallpaperServiceAdaptor::setResolutionForOutput(const QString &in0, uint in
 
 bool WallpaperServiceAdaptor::startAudioCapture()
 {
-    // handle method call org.antigravity.WallpaperEngine.startAudioCapture
+    // handle method call org.plasmawallpaperengine.Daemon.startAudioCapture
     bool out0;
     QMetaObject::invokeMethod(parent(), "startAudioCapture", Q_RETURN_ARG(bool, out0));
     return out0;
@@ -299,13 +299,13 @@ bool WallpaperServiceAdaptor::startAudioCapture()
 
 void WallpaperServiceAdaptor::stop()
 {
-    // handle method call org.antigravity.WallpaperEngine.stop
+    // handle method call org.plasmawallpaperengine.Daemon.stop
     QMetaObject::invokeMethod(parent(), "stop");
 }
 
 void WallpaperServiceAdaptor::stopAudioCapture()
 {
-    // handle method call org.antigravity.WallpaperEngine.stopAudioCapture
+    // handle method call org.plasmawallpaperengine.Daemon.stopAudioCapture
     QMetaObject::invokeMethod(parent(), "stopAudioCapture");
 }
 

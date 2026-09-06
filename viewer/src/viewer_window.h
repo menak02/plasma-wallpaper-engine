@@ -55,6 +55,7 @@ private:
     QLabel* m_fpsLabel = nullptr;
     int m_frameCount = 0;
     int m_activeFd = -1;
+    QString m_activeOutput;
     QString m_pendingPath;
     QProcess* m_daemonProc = nullptr;
 };

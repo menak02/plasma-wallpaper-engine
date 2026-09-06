@@ -13,9 +13,9 @@
 
 static QDBusInterface* serviceInterface() {
     auto* iface = new QDBusInterface(
-        QStringLiteral("org.antigravity.WallpaperEngine"),
+        QStringLiteral("org.plasmawallpaperengine.Daemon"),
         QStringLiteral("/WallpaperEngine"),
-        QStringLiteral("org.antigravity.WallpaperEngine"),
+        QStringLiteral("org.plasmawallpaperengine.Daemon"),
         QDBusConnection::sessionBus());
     if (!iface->isValid()) {
         delete iface;
@@ -49,7 +49,7 @@ static QVariant parsePropertyValue(const QString& raw) {
 static int runListProperties(const QString& id) {
     QDBusInterface* iface = serviceInterface();
     if (!iface) {
-        std::cerr << "Error: daemon not reachable on DBus (org.antigravity.WallpaperEngine)." << std::endl;
+        std::cerr << "Error: daemon not reachable on DBus (org.plasmawallpaperengine.Daemon)." << std::endl;
         return 1;
     }
     QDBusReply<QVariantMap> reply = iface->call(QStringLiteral("getWallpaperProperties"), id);
@@ -89,7 +89,7 @@ static int runSetProperty(const QString& keyValue, const QString& optionalPath) 
 
     QDBusInterface* iface = serviceInterface();
     if (!iface) {
-        std::cerr << "Error: daemon not reachable on DBus (org.antigravity.WallpaperEngine)." << std::endl;
+        std::cerr << "Error: daemon not reachable on DBus (org.plasmawallpaperengine.Daemon)." << std::endl;
         return 1;
     }
 

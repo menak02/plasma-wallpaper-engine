@@ -6,7 +6,7 @@
         "Name": "Wallpaper Engine (Native AGY)",
         "Description": "Native Wayland Wallpaper Engine for Plasma 6",
         "Icon": "preferences-desktop-wallpaper",
-        "Id": "org.antigravity.plasma.wallpaperengine",
+        "Id": "org.plasmawallpaperengine",
         "Version": "0.1",
         "Category": "Wallpaper",
         "License": "GPL-3.0+",
