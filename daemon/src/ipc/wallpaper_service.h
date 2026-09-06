@@ -65,6 +65,7 @@ public Q_SLOTS:
     // Pause state queries for UI/diagnostics
     bool isOutputCovered(const QString& outputName) const;
     QVariantList getPauseState() const;
+};
 
     // Audio & playback control
     bool startAudioCapture();
