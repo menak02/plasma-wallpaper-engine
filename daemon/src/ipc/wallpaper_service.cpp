@@ -86,11 +86,11 @@ bool WallpaperService::shouldRenderThisFrame() const {
     return Scene::shouldRender(*m_backend, config);
 }
 
-bool WallpaperService::isOutputCovered(const std::string& outputName) const {
+bool WallpaperService::isOutputCovered(const QString& outputName) const {
     if (!m_backend) {
         return false;
     }
-    return m_backend->isOutputCovered(outputName);
+    return m_backend->isOutputCovered(outputName.toStdString());
 }
 
 QVariantList WallpaperService::getPauseState() const {
@@ -127,17 +127,6 @@ void WallpaperService::setPauseCoverageThreshold(double threshold) {
 void WallpaperService::setPauseMuteAudio(bool muted) {
     m_pauseMuteAudio.store(muted);
     updatePauseGate();
-}
-
-QDBusUnixFileDescriptor WallpaperService::getBufferFd() {
-    QDBusUnixFileDescriptor desc;
-    if (m_vulkanCtx) {
-        int fd = m_vulkanCtx->getCurrentBuffer().fd;
-        if (fd >= 0) {
-            desc.setFileDescriptor(fd);
-        }
-    }
-    return desc;
 }
 
 QVariantMap WallpaperService::getBufferInfo() {
