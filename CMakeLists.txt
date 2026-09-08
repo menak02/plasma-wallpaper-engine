@@ -50,6 +50,8 @@ endif()
 # ---------- Build targets ----------
 add_subdirectory(daemon)
 add_subdirectory(viewer)
+# Optional wlroots layer-shell wallpaper client (needs LayerShellQt).
+add_subdirectory(layerclient)
 
 if(HAVE_PLASMA)
     add_subdirectory(plugin)
