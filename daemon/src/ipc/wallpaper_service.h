@@ -109,6 +109,14 @@ Q_SIGNALS:
     void propertyChanged(const QString& key, const QDBusVariant& value);
 
 private:
+    // Session persistence: remember the active wallpaper across daemon
+    // restarts (T5 autostart). Stored as a plain path file under
+    // ~/.config/plasma-wallpaper-engine/; restore re-runs the trust gate.
+    QString lastWallpaperStatePath() const;
+    void persistActiveWallpaperState();
+    void restoreLastWallpaper();
+    bool loadWallpaperInternal(const QString& path);
+
     Render::VulkanContext* m_vulkanCtx = nullptr;
     Assets::PkgReader m_pkgReader;
     Assets::LibraryScanner m_libraryScanner;

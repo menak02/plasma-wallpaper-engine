@@ -59,8 +59,8 @@ Beyond parallax: forward cursor position + click events to (a) JS engine (`wallp
 ### T4 — G2 Pause on fullscreen/maximized — P2
 Extend existing `AudioPlayer` fullscreen detection to a render gate: stop compositor ticking (or drop to 1 fps) when a fullscreen window is focused. Big battery/perf win, cheap to implement.
 
-### T5 — G3 Autostart + install polish — P2
-systemd user unit (`plasma-wallpaper-engine-daemon.service`) + autostart .desktop; `install()` rules for verifier + viewer; restore last wallpaper on daemon start (persist D-Bus state).
+### T5 — G3 Autostart + install polish — P2 ✅ DONE (2026-09-08)
+systemd user unit (`plasma-wallpaper-engine-daemon.service`) installed to `systemduserunitdir` when found; restore last wallpaper on daemon start — active path persisted to `~/.config/plasma-wallpaper-engine-daemon/last-wallpaper` on every successful load, restored through the ordinary load path at startup so trust rules still apply. Verified A/B: state present → auto-restore; absent → empty start.
 
 ### T6 — G4 Workshop UX loop — P2
 In plugin QML: "Open in Steam" deep link per search result (`steam://url/CommunityFilePage/<fileid>`) + auto rescan via `LibraryScanner` after return. No download code needed.

@@ -9,6 +9,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QStandardPaths>
 
 #include <algorithm>
 
@@ -36,6 +37,10 @@ WallpaperService::WallpaperService(Render::VulkanContext* vulkanCtx,
     // backend is Hyprland IPC. If none is available the pause gate simply
     // does not trip (daemon keeps rendering), which is the safe fallback.
     m_backend = Scene::makeHyprlandBackend();
+
+    // T5 autostart: bring back the last active wallpaper. Runs through the
+    // ordinary load path, so trust rules and video/web detection all apply.
+    restoreLastWallpaper();
 }
 
 QString WallpaperService::canonicalizePath(const QString& path) const {
@@ -496,8 +501,43 @@ bool WallpaperService::loadWallpaper(const QString& path) {
     }
 
     qInfo() << "WallpaperService: Successfully loaded wallpaper:" << title;
+    persistActiveWallpaperState();
     Q_EMIT wallpaperLoaded(title);
     return true;
+}
+
+// Session state lives in a small file under the user's config directory so
+// the daemon can restore the last wallpaper after login (T5 autostart).
+QString WallpaperService::lastWallpaperStatePath() const {
+    return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation)
+        + QStringLiteral("/last-wallpaper");
+}
+
+void WallpaperService::persistActiveWallpaperState() {
+    const QString statePath = lastWallpaperStatePath();
+    if (QDir().mkpath(QFileInfo(statePath).absolutePath())) {
+        QFile f(statePath);
+        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+            f.write(m_activeWallpaperId.toUtf8());
+        }
+    }
+}
+
+void WallpaperService::restoreLastWallpaper() {
+    QFile f(lastWallpaperStatePath());
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return;
+    }
+    const QString saved = QString::fromUtf8(f.readAll()).trimmed();
+    if (saved.isEmpty()) {
+        return;
+    }
+    qInfo() << "WallpaperService: restoring last wallpaper from session state:" << saved;
+    // loadWallpaper re-runs the full trust gate, so a stale path pointing
+    // outside the allowlist (or deleted from disk) is simply rejected.
+    if (!loadWallpaper(saved)) {
+        qWarning() << "WallpaperService: could not restore last wallpaper; starting empty";
+    }
 }
 
 void WallpaperService::requestFrame() {

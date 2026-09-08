@@ -190,6 +190,24 @@ target_compile_options(plasma-wallpaper-engine-verifier PRIVATE -fexceptions)
 
 install(TARGETS plasma-wallpaper-engine-daemon DESTINATION ${KDE_INSTALL_LIBEXECDIR})
 
+# ---------- Autostart (T5) ----------
+# systemd user unit + XDG autostart fallback so the daemon comes back after
+# login and restores the last active wallpaper from session state.
+set(PWE_LIBEXEC_DIR "${KDE_INSTALL_LIBEXECDIR}")
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../packaging/plasma-wallpaper-engine-daemon.service.in
+               ${CMAKE_CURRENT_BINARY_DIR}/plasma-wallpaper-engine-daemon.service @ONLY)
+
+include(GNUInstallDirs)
+find_package(Systemd QUIET)
+pkg_get_variable(SYSTEMD_USER_UNIT_DIR systemd systemduserunitdir)
+if(SYSTEMD_USER_UNIT_DIR)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/plasma-wallpaper-engine-daemon.service
+            DESTINATION ${SYSTEMD_USER_UNIT_DIR})
+    message(STATUS "systemd user unit: ${SYSTEMD_USER_UNIT_DIR}")
+else()
+    message(STATUS "systemd user unit dir not found; install unit manually or use XDG autostart")
+endif()
+
 # ---------- Headless pause gate test ----------
 # Registered at this scope so ctest sees it directly. The test binary is
 # built in the daemon build tree and linked to Qt6::Core plus the pause gate
