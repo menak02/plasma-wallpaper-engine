@@ -337,7 +337,7 @@ public:
             return false;
         }
 
-        std::string testResponse = sendHyprlandCommandViaHyprctl("VERSION");
+        std::string testResponse = sendHyprlandCommandViaHyprctl("version");
         if (testResponse.empty()) {
             std::cerr << "HyprlandBackend: Failed to connect to Hyprland" << std::endl;
             return false;
@@ -464,7 +464,7 @@ private:
     std::vector<ClientInfo> m_clientInfos;
 
     std::vector<std::string> liveOutputNames() const {
-        std::string response = sendHyprlandCommandViaHyprctl("MONITORS");
+        std::string response = sendHyprlandCommandViaHyprctl("monitors");
         if (response.empty()) return {};
 
         JsonValue json = parseJson(response);
@@ -482,7 +482,7 @@ private:
 
     std::vector<MonitorInfo> parseMonitors() const {
         std::vector<MonitorInfo> monitors;
-        std::string response = sendHyprlandCommandViaHyprctl("MONITORS");
+        std::string response = sendHyprlandCommandViaHyprctl("monitors");
         if (response.empty()) return monitors;
 
         JsonValue json = parseJson(response);
@@ -505,7 +505,7 @@ private:
 
     std::vector<WorkspaceInfo> parseWorkspaces() const {
         std::vector<WorkspaceInfo> workspaces;
-        std::string response = sendHyprlandCommandViaHyprctl("WORKSPACES");
+        std::string response = sendHyprlandCommandViaHyprctl("workspaces");
         if (response.empty()) return workspaces;
 
         JsonValue json = parseJson(response);
