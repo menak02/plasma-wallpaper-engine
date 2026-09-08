@@ -122,6 +122,22 @@ Rectangle {
                 source: ""
             }
 
+            // Feeds normalized cursor position to the daemon so scene mouse
+            // parallax and hover effects respond like on a real desktop.
+            // Scoped to the preview rectangle on purpose: as a ColumnLayout
+            // child with anchors.fill it ballooned over the whole window,
+            // swallowed the toolbar clicks and squeezed this box to a sliver.
+            MouseArea {
+                id: pointerTracker
+                anchors.fill: parent
+                hoverEnabled: true
+                acceptedButtons: Qt.NoButton
+                onPositionChanged: (mouse) => {
+                    viewerWindow.sendMousePosition(mouse.x / width, mouse.y / height)
+                }
+                onExited: viewerWindow.sendMousePosition(0.5, 0.5)
+            }
+
             Text {
                 id: infoText
                 objectName: "infoText"
@@ -134,18 +150,6 @@ Rectangle {
                 style: Text.Outline
                 styleColor: "#000000"
             }
-        }
-
-        // Feeds normalized cursor position to the daemon so scene mouse
-        // parallax and hover effects respond like on a real desktop.
-        MouseArea {
-            id: pointerTracker
-            anchors.fill: parent
-            hoverEnabled: true
-            onPositionChanged: (mouse) => {
-                viewerWindow.sendMousePosition(mouse.x / width, mouse.y / height)
-            }
-            onExited: viewerWindow.sendMousePosition(0.5, 0.5)
         }
     }
 }
