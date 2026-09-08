@@ -64,7 +64,18 @@ QStringList LibraryScanner::findSteamLibraryPaths() const {
 
 void LibraryScanner::scanSteamLibraries() {
     QStringList paths = findSteamLibraryPaths();
-    for (const auto& path : paths) {
+    // Canonicalize before dedupe: ~/.steam/steam and ~/.steam/root are
+    // symlinks to ~/.local/share/Steam, so string-level dedupe alone counts
+    // the same physical workshop three times ("Found 303 wallpapers" with
+    // only 101 actual items).
+    QStringList canonical;
+    for (const QString& path : paths) {
+        const QString real = QFileInfo(path).canonicalFilePath();
+        if (!real.isEmpty() && !canonical.contains(real)) {
+            canonical.append(real);
+        }
+    }
+    for (const auto& path : canonical) {
         scanDirectory(path.toStdString(), false);
     }
 }

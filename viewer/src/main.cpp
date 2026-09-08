@@ -1,4 +1,4 @@
-#include <QGuiApplication>
+#include <QApplication>
 #include <QCommandLineParser>
 #include <QDBusInterface>
 #include <QDBusReply>
@@ -116,7 +116,9 @@ static int runSetProperty(const QString& keyValue, const QString& optionalPath) 
 }
 
 int main(int argc, char* argv[]) {
-    QGuiApplication app(argc, argv);
+    // Widgets application so QFileDialog can open native dialogs; QQuickView
+    // runs fine under QApplication as well.
+    QApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("plasma-wallpaper-engine-viewer"));
     app.setApplicationVersion(QStringLiteral("1.0.0"));
 
