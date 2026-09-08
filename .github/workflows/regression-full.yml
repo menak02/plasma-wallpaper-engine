@@ -42,7 +42,10 @@ jobs:
         gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
           --pattern 'regression-corpus.tar.part-*' --pattern 'SHA256SUMS' --dir corpus
         cd corpus
-        sha256sum -c SHA256SUMS
+        # The manifest lists both the parts and the reassembled tar, which
+        # only exists after concatenation — verify parts first, tar second.
+        grep 'regression-corpus.tar.part-' SHA256SUMS > parts.sums
+        sha256sum -c parts.sums
         cat regression-corpus.tar.part-* > regression-corpus.tar
         sha256sum -c SHA256SUMS
         mkdir -p "$HOME/corpus"
