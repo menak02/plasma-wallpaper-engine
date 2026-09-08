@@ -76,6 +76,29 @@ Bones render in rest pose (`mesh_renderer.h:35` `animatedPos/animatedAngle` neve
 ### T9 — G6 GPU composition path — P3 (medium-term)
 Evaluate QRhi vs pure-Vulkan swapchain to move composition off QPainter raster. Big change; schedule after T1–T7 stabilize.
 
+#### T9 addendum — layer/dirty-region caching decision (2026-09-08)
+How Wallpaper Engine (Windows) actually works, per help.wallpaperengine.io and community findings:
+scene wallpapers are GPU-composited every frame — WE redraws the full scene at the configured
+FPS and relies on the compositor (DWM) for occlusion/pausing, NOT on caching static layers.
+Their perf guidance is frame-rate limits + fullscreen pause, which we already have (pause gate,
+per-output buffers). linux-wallpaperengine (Almamu, OpenGL 3.3) likewise re-renders the whole
+scene graph each frame on GPU. **Nobody caches static-layer rasters**; the industry answer to
+"162 layers is slow" is "compose on GPU so 162 textured quads are trivially cheap."
+
+Decision: skip static-layer raster caching as a primary optimization — invalidation is
+error-prone (per-layer effects, audio pulse, parallax offsets, puppet bones, video/web layers
+all change per frame) and it only helps CPU-heavy scenes we plan to move to GPU anyway
+(T9). The cheap, robust wins already landed instead: persistent staging buffer (no per-frame
+allocation), no-op-scale fast path in uploadSceneImage, log-spam removal.
+
+Cache lifetime rules (for the staging buffer, the only persistent render-side cache we keep):
+- freed/reallocated only when buffer geometry changes (ensureStagingBuffer size check)
+- daemon shutdown destroys it via existing cleanup paths; no cross-session, no on-disk state
+- contains only the CURRENT frame's pixels — nothing survives a wallpaper switch
+
+Shaders are compile-once-at-load SPIR-V embedded in the binary (shaders_spv.h); no shader
+cache on disk exists or is needed — pipeline objects live for the daemon's lifetime only.
+
 ### T10 — 17 ⚠️ wallpapers — P3
 All script-dependent (clock/date visibility). Feed user-property values (from the T-landed `setProperty` path) through `JSEngine` re-eval and re-measure how many convert to ✅.
 
