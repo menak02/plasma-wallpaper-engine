@@ -132,6 +132,18 @@ def load_image(path):
     return decode_png(path)
 
 
+def drop_alpha(data, n):
+    """RGBA -> RGB (alpha discarded). Used when the two compared PNGs
+    disagree on channel layout — one side carries alpha, the other doesn't."""
+    if np is not None:
+        arr = np.frombuffer(data, dtype=np.uint8).reshape(n, 4)
+        return np.ascontiguousarray(arr[:, :3]).tobytes(), 3
+    rgb = bytearray(n * 3)
+    for i in range(n):
+        rgb[i*3:i*3+3] = data[i*4:i*4+3]
+    return bytes(rgb), 3
+
+
 def image_diff(a_path, b_path):
     """Return (mae, changed_ratio). Raises on structural mismatch."""
     w1, h1, c1, d1 = load_image(a_path)
@@ -139,7 +151,15 @@ def image_diff(a_path, b_path):
     if (w1, h1) != (w2, h2):
         raise ValueError(f"dimension mismatch: {w1}x{h1} vs {w2}x{h2}")
     if c1 != c2:
-        raise ValueError(f"channel mismatch: {c1} vs {c2}")
+        # RGB vs RGBA: drop alpha from the RGBA side and compare color.
+        if {c1, c2} == {3, 4}:
+            n_fix = w1 * h1
+            if c1 == 4:
+                d1, c1 = drop_alpha(d1, n_fix)
+            else:
+                d2, c2 = drop_alpha(d2, n_fix)
+        else:
+            raise ValueError(f"channel mismatch: {c1} vs {c2}")
 
     n = w1 * h1
     if np is not None:

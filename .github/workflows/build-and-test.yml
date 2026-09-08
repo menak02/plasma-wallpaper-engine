@@ -33,6 +33,28 @@ jobs:
     - name: Test
       run: ctest --test-dir build --output-on-failure
 
+  fixture-regression:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake qt6-base-dev qt6-declarative-dev qt6-tools-dev-tools \
+          qt6-image-formats-plugins vulkan-tools libvulkan-dev \
+          liblz4-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
+          libpulse-dev python3-pil python3-numpy
+
+    - name: Configure
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build verifier
+      run: cmake --build build -j$(nproc) --target plasma-wallpaper-engine-verifier
+
+    - name: Run fixture regression
+      run: ctest --test-dir build -R fixture_regression --output-on-failure
+
   dbus-interface:
     runs-on: ubuntu-latest
     steps:

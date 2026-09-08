@@ -96,6 +96,34 @@ if(ENABLE_REGRESSION_TESTS)
              COMMAND ${CMAKE_CURRENT_BINARY_DIR}/daemon/pause_gate_test)
     set_tests_properties(pause_gate_headless PROPERTIES TIMEOUT 60)
 
+    # Self-contained fixture regression: renders a committed deterministic
+    # scene.pkg through the verifier and PNG-diffs it against a committed
+    # baseline. Runs everywhere (no Steam library, no GPU required) so CI
+    # exercises the verifier + render + compare pipeline on every push.
+    if(TARGET plasma-wallpaper-engine-verifier AND
+       EXISTS "${REGRESSION_DIR}/fixture_test_scene/scene.pkg" AND
+       EXISTS "${REGRESSION_DIR}/fixture_baseline/fixture_test_scene.png")
+        set(FIXTURE_OUT "${CMAKE_BINARY_DIR}/tests/fixture-output")
+        add_test(
+            NAME fixture_regression
+            COMMAND ${CMAKE_COMMAND}
+                    -DFIXTURE_PKG_DIR=${REGRESSION_DIR}/fixture_test_scene
+                    -DBASELINE_DIR=${REGRESSION_DIR}/fixture_baseline
+                    -DVERIFIER_BIN=$<TARGET_FILE:plasma-wallpaper-engine-verifier>
+                    -DOUT_DIR=${FIXTURE_OUT}
+                    -DPYTHON=${PYTHON3_EXECUTABLE}
+                    -DCOMPARE_SCRIPT=${REGRESSION_DIR}/compare_images.py
+                    -P ${CMAKE_SOURCE_DIR}/tests/regression/run_fixture_test.cmake
+        )
+        set_tests_properties(fixture_regression PROPERTIES
+            TIMEOUT 120
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PYTHONUNBUFFERED=1"
+        )
+        message(STATUS "Fixture regression test: ENABLED")
+    else()
+        message(STATUS "Fixture regression test: SKIPPED (missing fixture or verifier)")
+    endif()
+
     # Hyprland IPC backend connection test
     add_executable(hyprland_backend_test tests/hyprland_backend_test.cpp)
     target_compile_features(hyprland_backend_test PRIVATE cxx_std_17)

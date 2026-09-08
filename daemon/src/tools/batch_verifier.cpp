@@ -74,17 +74,26 @@ int main(int argc, char* argv[]) {
             std::cout << "Usage: plasma-wallpaper-engine-verifier [options] [workshopPath]\n"
                       << "Options:\n"
                       << "  --id <wallpaper_id>   Only process the specified wallpaper ID\n"
+                      << "  --output <dir>        Snapshot output directory\n"
+                      << "                        (default: ~/.wallpaper-engine-verifier-output)\n"
                       << "  --help                Show this help message\n"
                       << "Arguments:\n"
                       << "  workshopPath          Path to the workshop content directory (default: Steam workshop)\n"
                       << std::endl;
             return 0;
-        } else if (arg == "--id") {
+        } else        if (arg == "--id") {
             if (argIndex + 1 >= argc) {
                 std::cerr << "Error: --id requires an argument\n";
                 return 1;
             }
             filterId = argv[argIndex+1];
+            argIndex += 2;
+        } else if (arg == "--output") {
+            if (argIndex + 1 >= argc) {
+                std::cerr << "Error: --output requires an argument\n";
+                return 1;
+            }
+            outputDir = argv[argIndex+1];
             argIndex += 2;
         } else {
             // Non-option argument: workshopPath
@@ -97,17 +106,30 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Starting Strict Automated Wallpaper Batch Diagnostic Engine..." << std::endl;
 
+    // The batch verifier paints with QPainter only; the Vulkan context just
+    // mirrors the daemon environment. A GPU-less runner (CI) skips it so the
+    // snapshot pipeline still works.
     WallpaperEngine::Render::VulkanContext vulkanCtx;
-    vulkanCtx.init();
-    WallpaperEngine::Render::DmaBufBuffer dummyBuf;
-    vulkanCtx.setResolution(1920, 1080, dummyBuf);
+    if (vulkanCtx.init()) {
+        WallpaperEngine::Render::DmaBufBuffer dummyBuf;
+        vulkanCtx.setResolution(1920, 1080, dummyBuf);
+        std::cout << "Vulkan context initialized (" << vulkanCtx.getAvailableGpus().size() << " GPU(s) visible)" << std::endl;
+    } else {
+        std::cout << "No usable Vulkan device — continuing CPU-only (snapshot mode)" << std::endl;
+    }
 
     std::vector<std::string> itemDirs;
-    for (const auto& entry : fs::directory_iterator(workshopBase)) {
-        if (entry.is_directory()) {
-            std::string pkgPath = entry.path().string() + "/scene.pkg";
-            if (fs::exists(pkgPath)) {
-                itemDirs.push_back(entry.path().string());
+    // Either a steam workshop root containing per-item directories, or a
+    // single item directory itself (handy for --id runs and CI fixtures).
+    if (fs::exists(workshopBase + "/scene.pkg")) {
+        itemDirs.push_back(workshopBase);
+    } else {
+        for (const auto& entry : fs::directory_iterator(workshopBase)) {
+            if (entry.is_directory()) {
+                std::string pkgPath = entry.path().string() + "/scene.pkg";
+                if (fs::exists(pkgPath)) {
+                    itemDirs.push_back(entry.path().string());
+                }
             }
         }
     }
