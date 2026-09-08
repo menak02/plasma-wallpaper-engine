@@ -64,6 +64,14 @@ bool WallpaperService::isPathAllowed(const QString& canonicalPath) const {
 }
 
 void WallpaperService::updateAndRender(float dt, float time) {
+    // Refresh compositor coverage state once per frame. Without this the
+    // Hyprland backend's monitor/workspace/client snapshots are taken once
+    // at construction and never again, so the pause gate can never see a
+    // fullscreen window arrive or leave.
+    if (m_backend) {
+        m_backend->update();
+    }
+
     if (!shouldRenderThisFrame()) {
         return;
     }
@@ -317,7 +325,73 @@ bool WallpaperService::loadWallpaper(const QString& path) {
         return file.endsWith(QStringLiteral(".html")) || type == QStringLiteral("web") || type == QStringLiteral("webwallpaper");
     };
 
-    if (info.suffix().toLower() == QStringLiteral("pkg") || info.isDir()) {
+    // Standalone video wallpaper detection: project.json with "type":"video"
+    // and a loose media file next to it (no scene.pkg archive).
+    auto isVideoProject = [&](const std::string& projJsonStr) -> bool {
+        if (projJsonStr.empty()) return false;
+        QJsonDocument d = QJsonDocument::fromJson(QByteArray::fromStdString(projJsonStr));
+        if (!d.isObject()) return false;
+        const QString type = d.object().value(QStringLiteral("type")).toString().toLower();
+        return type == QStringLiteral("video");
+    };
+
+    // A bare media file (mp4/webm/...) passed directly is also a video
+    // wallpaper without any project.json wrapper.
+    const QStringList videoSuffixes = {QStringLiteral("mp4"), QStringLiteral("webm"),
+                                       QStringLiteral("mkv"), QStringLiteral("mov"),
+                                       QStringLiteral("avi")};
+    const bool bareMediaFile = info.isFile() && videoSuffixes.contains(info.suffix().toLower());
+
+    // Standalone video wallpaper: either a bare media file or a directory /
+    // project.json whose project.json declares type=video. The media file
+    // sits next to project.json inside the workshop item directory.
+    QString videoProjectFile;
+    if (bareMediaFile) {
+        videoProjectFile = canonical;
+    } else if (info.suffix().toLower() == QStringLiteral("json")) {
+        const QString fileRef = [&]() {
+            QFile f(canonical);
+            if (!f.open(QIODevice::ReadOnly)) return QString();
+            const QJsonObject obj = QJsonDocument::fromJson(f.readAll()).object();
+            return obj.value(QStringLiteral("file")).toString();
+        }();
+        if (!fileRef.isEmpty() && videoSuffixes.contains(QFileInfo(fileRef).suffix().toLower())) {
+            videoProjectFile = QFileInfo(canonical).dir().filePath(fileRef);
+        }
+    } else if (info.isDir()) {
+        const QString projPath = canonical + QStringLiteral("/project.json");
+        QFile f(projPath);
+        if (f.open(QIODevice::ReadOnly)) {
+            const QJsonObject obj = QJsonDocument::fromJson(f.readAll()).object();
+            const QString fileRef = obj.value(QStringLiteral("file")).toString();
+            const QString type = obj.value(QStringLiteral("type")).toString().toLower();
+            if (type == QStringLiteral("video") && !fileRef.isEmpty()) {
+                videoProjectFile = QFileInfo(projPath).dir().filePath(fileRef);
+            }
+        }
+    }
+
+    if (!videoProjectFile.isEmpty() && QFile::exists(videoProjectFile)) {
+        // Pull general.properties from the wrapping project.json when present
+        // so getWallpaperProperties keeps working for video wallpapers.
+        const QString projPath = info.suffix().toLower() == QStringLiteral("json")
+                                     ? canonical
+                                     : QFileInfo(videoProjectFile).dir().filePath(QStringLiteral("project.json"));
+        QFile pf(projPath);
+        if (pf.open(QIODevice::ReadOnly)) {
+            const QJsonObject obj = QJsonDocument::fromJson(pf.readAll()).object();
+            title = obj.value(QStringLiteral("title")).toString();
+            m_activeProperties = obj.value(QStringLiteral("general")).toObject()
+                                     .value(QStringLiteral("properties")).toObject().toVariantMap();
+        }
+
+        if (m_compositor.loadVideo(videoProjectFile.toStdString())) {
+            qInfo() << "WallpaperService: video wallpaper active:" << videoProjectFile;
+        } else {
+            qWarning() << "WallpaperService: failed to open video wallpaper:" << videoProjectFile;
+            return false;
+        }
+    } else if (info.suffix().toLower() == QStringLiteral("pkg") || info.isDir()) {
         QString pkgFile = info.isDir() ? (canonical + QStringLiteral("/scene.pkg")) : canonical;
         
         if (QFile::exists(pkgFile) && m_pkgReader.open(pkgFile.toStdString())) {
