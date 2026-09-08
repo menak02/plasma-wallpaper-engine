@@ -7,11 +7,15 @@
 #include <QDBusReply>
 #include <QDBusConnection>
 #include <QDBusUnixFileDescriptor>
-#include <QProcess>
+#include <QQuickImageProvider>
 #include <QTimer>
 #include <QDir>
 #include <QFileInfo>
 
+// Streams the daemon's exported DmaBuf frames into the QML scene. The
+// mmap'ed pixels are copied into a QImage and published through an
+// QQuickImageProvider; the QML Image element requests "frame://<n>" each
+// time a new frame lands so the scene graph re-uploads the texture.
 class ViewerWindow : public QObject {
     Q_OBJECT
 
@@ -28,11 +32,12 @@ public Q_SLOTS:
     void onWallpaperLoaded(const QString& title);
 
 private:
+    class FrameProvider;
+
+    void onSceneReady();
     void setStatus(const QString& text, const QString& color);
     void setInfo(const QString& text);
-    void ensureDaemonRunning();
     void connectDbusSignals();
-    void pollRootItem();
 
     QQuickView* m_view = nullptr;
     QObject* m_rootItem = nullptr;
@@ -40,5 +45,10 @@ private:
     QString m_activeOutput;
     QString m_pendingPath;
 
-    QImage m_currentFrame;
+    // Provider + monotonically increasing request id. The id is appended to
+    // the Image source URL so every frame is a cache-busting new request.
+    FrameProvider* m_provider = nullptr;
+    qint64 m_frameSerial = 0;
+
+    qint64 m_lastPollMs = 0;
 };

@@ -3,16 +3,50 @@
 #include <QGuiApplication>
 #include <QQuickView>
 #include <QQuickItem>
-#include <QImage>
-#include <QFileInfo>
-#include <QDir>
+#include <QQuickWindow>
+#include <QQmlEngine>
+#include <QQmlContext>
 #include <QDebug>
 #include <QStandardPaths>
 #include <QFile>
-#include <QDBusConnection>
+#include <QDateTime>
+#include <QDir>
+#include <QFileInfo>
+#include <QFileDialog>
+#include <QMutex>
+#include <cerrno>
+#include <cstring>
 #include <sys/mman.h>
 #include <unistd.h>
 #include <cstdio>
+
+// Publishes the most recent mmap'ed frame to QML. QQuickImageProvider hands
+// the Image element a QImage per request; the viewer bumps a serial number
+// in the source URL on every frameReady so the request always re-runs.
+class ViewerWindow::FrameProvider final : public QQuickImageProvider {
+public:
+    explicit FrameProvider()
+        : QQuickImageProvider(QQuickImageProvider::Image) {}
+
+    QImage requestImage(const QString& id, QSize* size, const QSize& requestedSize) override {
+        Q_UNUSED(id);
+        Q_UNUSED(requestedSize);
+        QMutexLocker locker(&m_mutex);
+        if (size && !m_frame.isNull()) {
+            *size = m_frame.size();
+        }
+        return m_frame;
+    }
+
+    void publish(const QImage& frame) {
+        QMutexLocker locker(&m_mutex);
+        m_frame = frame;
+    }
+
+private:
+    QMutex m_mutex;
+    QImage m_frame;
+};
 
 ViewerWindow::ViewerWindow(QObject* parent)
     : QObject(parent)
@@ -20,78 +54,90 @@ ViewerWindow::ViewerWindow(QObject* parent)
               QStringLiteral("/WallpaperEngine"),
               QStringLiteral("org.plasmawallpaperengine.Daemon"),
               QDBusConnection::sessionBus())
+    , m_provider(new FrameProvider())
 {
-    FILE* vwlog = fopen("/tmp/vw_build.log", "w");
-    if (vwlog) { fprintf(vwlog, "Viewer: constructor starting\n"); fflush(vwlog); }
-
     m_view = new QQuickView();
     m_view->setResizeMode(QQuickView::SizeRootObjectToView);
     m_view->setTitle(QStringLiteral("Plasma Wallpaper Engine - Native Viewer"));
-    m_view->resize(960, 540);
+    m_view->resize(1280, 800);
+
+    // Provider must be registered before the QML source loads so the first
+    // Image request can already resolve the "frame" scheme.
+    m_view->engine()->addImageProvider(QStringLiteral("frame"), m_provider);
 
     QString qmlPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) +
                       QStringLiteral("/plasma_wallpaper_viewer.qml");
     QFile qmlFile(qmlPath);
-    const QString qml = R"(
+    const QString qml = QStringLiteral(R"(
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 
 Rectangle {
     id: root
     color: "#111"
-    width: 960; height: 540
+    width: 1280; height: 800
 
-    Column {
+    ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 12; spacing: 8
+        anchors.margins: 12
+        spacing: 8
 
-        Text {
-            id: statusText
-            text: "Status: Connecting..."
-            font.pixelSize: 14; color: "#3498db"
-            anchors.horizontalCenter: parent.horizontalCenter
-        }
-
-        Text {
-            id: infoText
-            text: "Buffer: Querying..."
-            font.pixelSize: 12; color: "#888"
-            anchors.horizontalCenter: parent.horizontalCenter
-        }
-
-        Item {
-            width: 640; height: 360
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.margins: 4
-
-            Rectangle {
-                anchors.fill: parent
-                color: "#000"
-                Image {
-                    id: viewport
-                    anchors.fill: parent
-                    fillMode: Image.PreserveAspectFit
-                    asynchronous: true
-                    source: ""
-                }
-            }
-        }
-
-        Row {
-            anchors.horizontalCenter: parent.horizontalCenter
+        RowLayout {
+            Layout.fillWidth: true
             spacing: 12
+
             Button {
                 text: "Reconnect"
                 onClicked: viewerWindow.checkConnection()
             }
             Button {
-                text: "Open .pkg"
+                text: "Load wallpaper"
                 onClicked: viewerWindow.openPkgFile()
+            }
+
+            Text {
+                id: statusText
+                objectName: "statusText"
+                text: "Status: Connecting..."
+                font.pixelSize: 14
+                color: "#3498db"
+                Layout.alignment: Qt.AlignVCenter
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            color: "#000"
+            clip: true
+
+            Image {
+                id: viewport
+                objectName: "viewport"
+                anchors.fill: parent
+                fillMode: Image.PreserveAspectFit
+                asynchronous: false
+                cache: false
+                source: ""
+            }
+
+            Text {
+                id: infoText
+                objectName: "infoText"
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.margins: 6
+                text: "Buffer: Querying..."
+                font.pixelSize: 12
+                color: "#aaaaaa"
+                style: Text.Outline
+                styleColor: "#000000"
             }
         }
     }
 }
-)";
+)");
     if (qmlFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
         qmlFile.write(qml.toUtf8());
         qmlFile.close();
@@ -99,85 +145,98 @@ Rectangle {
 
     m_view->setSource(QUrl::fromLocalFile(qmlPath));
 
-    if (vwlog) { fprintf(vwlog, "Viewer: setSource done\n"); fflush(vwlog); }
-
-    m_view->show();
-
-    if (vwlog) { fprintf(vwlog, "Viewer: window shown\n"); fflush(vwlog); }
-
-    // Wait for the QML to load and find the root item
-    QObject* root = m_view->rootObject();
-    if (root) {
-        m_rootItem = root;
-        if (vwlog) { fprintf(vwlog, "Viewer: root object found\n"); fflush(vwlog); }
-    } else {
-        // Root object might not be available immediately; poll for it
-        if (vwlog) { fprintf(vwlog, "Viewer: root object not yet available, polling\n"); fflush(vwlog); }
-        QTimer::singleShot(100, this, &ViewerWindow::pollRootItem);
+    // QML from a local file usually loads synchronously inside setSource,
+    // so the Ready signal can fire before the connect() below is made.
+    // Handle both orders: connect first, then also probe the current status.
+    connect(m_view, &QQuickView::statusChanged, this, [this](QQuickView::Status status) {
+        if (status == QQuickView::Status::Ready && !m_rootItem) {
+            onSceneReady();
+        }
+    });
+    if (m_view->status() == QQuickView::Status::Ready) {
+        onSceneReady();
     }
 
-    connectDbusSignals();
-    if (vwlog) { fprintf(vwlog, "Viewer: connectDbusSignals returned\n"); fflush(vwlog); }
-    ensureDaemonRunning();
-    if (vwlog) { fprintf(vwlog, "Viewer: ensureDaemonRunning returned\n"); fflush(vwlog); }
-    checkConnection();
-    if (vwlog) { fprintf(vwlog, "Viewer: checkConnection returned\n"); fflush(vwlog); }
-    if (vwlog) { fprintf(vwlog, "Viewer: constructor fully done\n"); fflush(vwlog); }
+    // Expose this controller to QML under the name the buttons call. The
+    // context property must be set before the source loads so the QML
+    // onClicked handlers resolve viewerWindow at compile time.
+    m_view->engine()->rootContext()->setContextProperty(QStringLiteral("viewerWindow"), this);
+
+    m_view->show();
 }
 
-void ViewerWindow::pollRootItem()
+// First point where the full QML item tree exists. D-Bus subscriptions and
+// the first frame pump both start here.
+void ViewerWindow::onSceneReady()
 {
-    QObject* root = m_view->rootObject();
-    if (root && !m_rootItem) {
-        m_rootItem = root;
-        FILE* vwlog = fopen("/tmp/vw_build.log", "a");
-        if (vwlog) { fprintf(vwlog, "Viewer: root item found via poll\n"); fflush(vwlog); }
+    if (m_rootItem) return;
+    m_rootItem = m_view->rootObject();
+    qDebug() << "Viewer: QML scene ready, root item captured";
+    connectDbusSignals();
+    checkConnection();
+}
+
+// QML ids are not discoverable via QObject::findChild; walk QQuickItem
+// children recursively matching objectName instead.
+static QQuickItem* findItem(QObject* root, const QString& objectName) {
+    if (!root) return nullptr;
+    for (QObject* child : root->findChildren<QObject*>()) {
+        if (auto* item = qobject_cast<QQuickItem*>(child)) {
+            if (item->objectName() == objectName) {
+                return item;
+            }
+        }
+    }
+    return nullptr;
+}
+
+void ViewerWindow::setStatus(const QString& text, const QString& color) {
+    if (QQuickItem* item = findItem(m_rootItem, QStringLiteral("statusText"))) {
+        item->setProperty("text", text);
+        item->setProperty("color", color);
+    }
+}
+
+void ViewerWindow::setInfo(const QString& text) {
+    if (QQuickItem* item = findItem(m_rootItem, QStringLiteral("infoText"))) {
+        item->setProperty("text", text);
     }
 }
 
 void ViewerWindow::connectDbusSignals()
 {
-    FILE* vwlog = fopen("/tmp/vw_build.log", "a");
-    if (vwlog) { fprintf(vwlog, "Viewer: connectDbusSignals start\n"); fflush(vwlog); }
+    const auto connectSignal = [this](const QString& signal, const char* slot) {
+        return QDBusConnection::sessionBus().connect(
+            QStringLiteral("org.plasmawallpaperengine.Daemon"),
+            QStringLiteral("/WallpaperEngine"),
+            QStringLiteral("org.plasmawallpaperengine.Daemon"),
+            signal,
+            this,
+            slot);
+    };
 
-    bool ok1 = QDBusConnection::sessionBus().connect(
-        QStringLiteral("org.plasmawallpaperengine.Daemon"),
-        QStringLiteral("/WallpaperEngine"),
-        QStringLiteral("org.plasmawallpaperengine.Daemon"),
-        QStringLiteral("frameReady"),
-        this,
-        SLOT(onFrameReady()));
-    if (vwlog) { fprintf(vwlog, "Viewer: frameReady connect ok=%d\n", ok1 ? 1 : 0); fflush(vwlog); }
-
-    bool ok2 = QDBusConnection::sessionBus().connect(
-        QStringLiteral("org.plasmawallpaperengine.Daemon"),
-        QStringLiteral("/WallpaperEngine"),
-        QStringLiteral("org.plasmawallpaperengine.Daemon"),
-        QStringLiteral("wallpaperLoaded"),
-        this,
-        SLOT(onWallpaperLoaded(QString)));
-    if (vwlog) { fprintf(vwlog, "Viewer: wallpaperLoaded connect ok=%d\n", ok2 ? 1 : 0); fflush(vwlog); }
-}
-
-void ViewerWindow::ensureDaemonRunning()
-{
-    if (m_iface.isValid()) return;
-    QTimer::singleShot(1500, this, &ViewerWindow::checkConnection);
+    const bool okFrame = connectSignal(QStringLiteral("frameReady"), SLOT(onFrameReady()));
+    const bool okLoaded = connectSignal(QStringLiteral("wallpaperLoaded"), SLOT(onWallpaperLoaded(QString)));
+    qDebug() << "Viewer: D-Bus signal subscriptions frameReady=" << okFrame
+             << "wallpaperLoaded=" << okLoaded;
 }
 
 void ViewerWindow::checkConnection()
 {
-    FILE* vwlog = fopen("/tmp/vw_build.log", "a");
-    if (vwlog) { fprintf(vwlog, "Viewer: checkConnection start\n"); fflush(vwlog); }
-
     if (!m_iface.isValid()) {
-        setStatus("Status: Daemon not reachable, waiting...", "#e74c3c");
+        setStatus(QStringLiteral("Status: Daemon not reachable, waiting..."), QStringLiteral("#e74c3c"));
         QTimer::singleShot(1500, this, &ViewerWindow::checkConnection);
         return;
     }
 
+    // A load was requested before the daemon came up; replay it now.
+    if (!m_pendingPath.isEmpty()) {
+        const QString pending = m_pendingPath;
+        m_pendingPath.clear();
+        loadPath(pending);
+    }
+
     QDBusReply<QStringList> outReply = m_iface.call(QStringLiteral("getOutputs"));
-    if (vwlog) { fprintf(vwlog, "Viewer: getOutputs reply valid=%d\n", outReply.isValid() ? 1 : 0); fflush(vwlog); }
     QString outputName;
     if (outReply.isValid() && !outReply.value().isEmpty()) {
         outputName = outReply.value().first();
@@ -185,63 +244,92 @@ void ViewerWindow::checkConnection()
     }
 
     if (outputName.isEmpty()) {
-        setStatus("Status: No outputs from daemon", "#e67e22");
-        setInfo("No DmaBuf outputs available");
+        setStatus(QStringLiteral("Status: No outputs from daemon"), QStringLiteral("#e67e22"));
+        setInfo(QStringLiteral("No DmaBuf outputs available"));
         return;
     }
 
     QDBusReply<QVariantMap> infoReply =
         m_iface.call(QStringLiteral("getBufferInfoForOutput"), outputName);
     if (!infoReply.isValid()) {
-        setStatus("Status: getBufferInfoForOutput failed", "#e74c3c");
-        setInfo(QString("Error: %1").arg(infoReply.error().message()));
+        setStatus(QStringLiteral("Status: getBufferInfoForOutput failed"), QStringLiteral("#e74c3c"));
+        setInfo(infoReply.error().message());
         return;
     }
 
-    auto info = infoReply.value();
-    uint32_t width = info.value(QStringLiteral("width")).toUInt();
-    uint32_t height = info.value(QStringLiteral("height")).toUInt();
-    uint32_t stride = info.value(QStringLiteral("stride")).toUInt();
-    size_t size = info.value(QStringLiteral("size")).toULongLong();
+    const QVariantMap info = infoReply.value();
+    const uint32_t width = info.value(QStringLiteral("width")).toUInt();
+    const uint32_t height = info.value(QStringLiteral("height")).toUInt();
+    const uint32_t stride = info.value(QStringLiteral("stride")).toUInt();
+    const size_t size = info.value(QStringLiteral("size")).toULongLong();
+
+    if (width == 0 || height == 0 || size == 0) {
+        setStatus(QStringLiteral("Status: Connected — output empty"), QStringLiteral("#e67e22"));
+        setInfo(QStringLiteral("Output: %1").arg(outputName));
+        return;
+    }
 
     QDBusReply<QDBusUnixFileDescriptor> fdReply =
         m_iface.call(QStringLiteral("getBufferFdForOutput"), outputName);
-    int fd = fdReply.isValid() ? fdReply.value().fileDescriptor() : -1;
+    const int fd = fdReply.isValid() ? fdReply.value().fileDescriptor() : -1;
+    if (fd < 0) {
+        setStatus(QStringLiteral("Status: Connected — no FD exported"), QStringLiteral("#e74c3c"));
+        setInfo(QStringLiteral("Output: %1 | %2x%3 | no DMA-BUF FD").arg(outputName).arg(width).arg(height));
+        return;
+    }
 
-    setStatus(QString("Status: Connected — DmaBuf %1x%2, FD %3")
-                  .arg(width).arg(height).arg(fd),
-              "#2ecc71");
-    setInfo(QString("Output: %1 | %2x%3 | Stride: %4 | Size: %5 bytes")
+    void* ptr = mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0);
+    if (ptr == MAP_FAILED) {
+        setStatus(QStringLiteral("Status: mmap failed"), QStringLiteral("#e74c3c"));
+        setInfo(QString("FD %1 (%2 bytes): %3").arg(fd).arg(size).arg(QString::fromUtf8(strerror(errno))));
+        close(fd);
+        return;
+    }
+
+    // The daemon exports DRM_FORMAT_ARGB8888 (little-endian BGRA in memory),
+    // which is byte-identical to QImage::Format_ARGB32_Premultiplied.
+    const QImage frame(static_cast<const uchar*>(ptr), static_cast<int>(width),
+                       static_cast<int>(height), static_cast<qsizetype>(stride),
+                       QImage::Format_ARGB32_Premultiplied);
+
+    if (frame.isNull()) {
+        setStatus(QStringLiteral("Status: frame decode failed"), QStringLiteral("#e74c3c"));
+        munmap(ptr, size);
+        close(fd);
+        return;
+    }
+
+    m_provider->publish(frame.copy());
+    munmap(ptr, size);
+    close(fd);
+
+    setStatus(QStringLiteral("Status: Connected — live"), QStringLiteral("#2ecc71"));
+    setInfo(QStringLiteral("Output: %1 | %2x%3 | Stride: %4 | Size: %5 bytes")
                 .arg(outputName).arg(width).arg(height).arg(stride).arg(size));
 
-    if (fd >= 0 && width > 0 && height > 0) {
-        void* ptr = mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0);
-        if (ptr != MAP_FAILED) {
-            m_currentFrame = QImage(static_cast<const uchar*>(ptr), width, height,
-                                    stride, QImage::Format_ARGB32_Premultiplied);
-            m_currentFrame = m_currentFrame.copy();
-            munmap(ptr, size);
-            close(fd);
-
-            QObject* viewport = m_rootItem->findChild<QObject*>("viewport");
-            if (viewport) {
-                viewport->setProperty("source", QVariant());
-            }
-        } else {
-            setInfo(QString("mmap failed for FD %1").arg(fd));
-        }
+    // Bump the serial so the Image element treats this as a brand-new URL
+    // and re-requests the frame from the provider.
+    if (QQuickItem* viewport = findItem(m_rootItem, QStringLiteral("viewport"))) {
+        viewport->setProperty("source",
+            QUrl(QStringLiteral("image://frame/%1").arg(++m_frameSerial)));
     }
 }
 
 void ViewerWindow::onFrameReady()
 {
+    // Frame events arrive at 60 Hz; repaint at a sane rate.
+    const qint64 now = QDateTime::currentDateTime().toMSecsSinceEpoch();
+    if (now - m_lastPollMs < 33) {
+        return;
+    }
+    m_lastPollMs = now;
     checkConnection();
 }
 
 void ViewerWindow::onWallpaperLoaded(const QString& title)
 {
-    QString display = title.isEmpty() ? QStringLiteral("Scene Package") : title;
-    setStatus(QString("Status: Loaded '%1'!").arg(display), "#9b59b6");
+    const QString display = title.isEmpty() ? QStringLiteral("Scene Package") : title;
+    setStatus(QStringLiteral("Status: Loaded '%1'!").arg(display), QStringLiteral("#9b59b6"));
     checkConnection();
 }
 
@@ -264,45 +352,42 @@ void ViewerWindow::loadPath(const QString& path)
 
     if (!m_iface.isValid()) {
         m_pendingPath = path;
-        ensureDaemonRunning();
+        QTimer::singleShot(1500, this, &ViewerWindow::checkConnection);
         return;
     }
 
     qDebug() << "Viewer: Loading" << path;
     QDBusReply<bool> reply = m_iface.call(QStringLiteral("loadWallpaper"), path);
     if (reply.isValid() && reply.value()) {
-        setStatus(QString("Status: Loading %1...").arg(QFileInfo(path).fileName()),
-                  "#3498db");
+        setStatus(QStringLiteral("Status: Loading %1...").arg(QFileInfo(path).fileName()),
+                  QStringLiteral("#3498db"));
     } else {
-        setStatus("Status: Daemon rejected load", "#e74c3c");
-        qWarning() << "Viewer: loadWallpaper failed for" << path;
-    }
-}
-
-void ViewerWindow::setStatus(const QString& text, const QString& color)
-{
-    if (!m_rootItem) return;
-    QObject* statusText = m_rootItem->findChild<QObject*>("statusText");
-    if (statusText) {
-        statusText->setProperty("text", text);
-        statusText->setProperty("color", color);
-    }
-}
-
-void ViewerWindow::setInfo(const QString& text)
-{
-    if (!m_rootItem) return;
-    QObject* infoText = m_rootItem->findChild<QObject*>("infoText");
-    if (infoText) {
-        infoText->setProperty("text", text);
+        setStatus(QStringLiteral("Status: Daemon rejected load"), QStringLiteral("#e74c3c"));
+        qWarning() << "Viewer: loadWallpaper failed for" << path
+                   << (reply.isValid() ? QString() : reply.error().message());
     }
 }
 
 void ViewerWindow::openPkgFile()
 {
-    QDir startDir(QStringLiteral("/home/mena/.steam/debian-installation/steamapps/workshop/content/431960"));
-    if (!startDir.exists()) {
-        startDir = QDir::homePath();
+    // Start in the Steam Workshop library when it exists so the common case
+    // is two clicks away; the dialog can reach anything else on disk.
+    const QString workshopDir = QDir::homePath() +
+        QStringLiteral("/.steam/debian-installation/steamapps/workshop/content/431960");
+    const QString startDir = QDir(workshopDir).exists() ? workshopDir : QDir::homePath();
+
+    // Scene wallpapers ship as scene.pkg inside per-item workshop
+    // subdirectories; standalone video wallpapers are selected via their
+    // project.json. Both are accepted by the daemon's loadWallpaper.
+    const QString pkgPath = QFileDialog::getOpenFileName(
+        nullptr,
+        QStringLiteral("Open Wallpaper Package"),
+        startDir,
+        QStringLiteral("Wallpaper packages (*.pkg *.json);;Scene packages (*.pkg);;All files (*)"));
+    if (pkgPath.isEmpty()) {
+        return;
     }
-    qDebug() << "Viewer: Open Pkg clicked (file dialog requires QtWidgets)";
+
+    qDebug() << "Viewer: Open Pkg clicked, loading" << pkgPath;
+    loadPath(pkgPath);
 }
