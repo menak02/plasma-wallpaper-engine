@@ -430,6 +430,11 @@ TextureItem                    │
 
 - **Trusted directories:** Only paths in `m_trustedDirs` can be loaded via D-Bus `loadWallpaper()`
 - **CLI seeding:** `--trusted-directory=` args extend allowlist at startup
+- **Ephemeral loads:** `loadWallpaperEphemeral(path)` grants one-shot trust for the wallpaper's
+  effective load root (the directory itself, or a file's parent) and the grant is consumed by
+  that load attempt — success *or* failure. Preview clients (the viewer) use this variant so
+  previewing never permanently widens the allowlist; a crashed client cannot leak grants
+  because none ever outlive the load call.
 - **D-Bus registration:** Explicit adaptor class limits exposed interface
 - **No arbitrary path loading:** Prevents loading wallpapers from untrusted locations
 

@@ -289,6 +289,25 @@ QVariantList WallpaperService::getAvailableGpus() {
     return list;
 }
 
+bool WallpaperService::loadWallpaperEphemeral(const QString& path) {
+    // Grant one-shot trust for this wallpaper's effective load root — the
+    // directory itself for directory loads, the containing directory for
+    // file loads — then run the ordinary load path, which consumes the
+    // grant on its first gate check. Matching the effective root (not just
+    // the file's parent) keeps a directory load from broadening the grant
+    // to the whole workshop parent. Validated against the canonicalized
+    // path so symlink aliasing cannot smuggle in a different directory.
+    const QString canonical = canonicalizePath(path);
+    if (canonical.isEmpty()) {
+        qWarning() << "WallpaperService: loadWallpaperEphemeral: unresolvable path:" << path;
+        return false;
+    }
+    const QFileInfo info(canonical);
+    m_ephemeralGrant = info.isDir() ? canonical : info.absolutePath();
+    qInfo() << "WallpaperService: ephemeral load grant for:" << m_ephemeralGrant;
+    return loadWallpaper(path);
+}
+
 bool WallpaperService::loadWallpaper(const QString& path) {
     qInfo() << "WallpaperService: Loading wallpaper from:" << path;
 
@@ -296,7 +315,18 @@ bool WallpaperService::loadWallpaper(const QString& path) {
     // library root (Steam workshop roots, registered custom directories).
     // Canonicalizing first neutralizes symlink and '..' traversal tricks.
     const QString canonical = canonicalizePath(path);
-    if (!isPathAllowed(canonical)) {
+
+    // A one-shot grant from loadWallpaperEphemeral covers exactly this
+    // load's effective root (the wallpaper directory itself, or the parent
+    // of a loaded file); consume it here regardless of whether the load then
+    // succeeds, so a failed attempt can never leave trust behind for a
+    // later call to reuse.
+    const QFileInfo canonInfo(canonical);
+    const QString effectiveRoot = canonInfo.isDir() ? canonical : canonInfo.absolutePath();
+    const bool granted = !m_ephemeralGrant.isEmpty() && effectiveRoot == m_ephemeralGrant;
+    m_ephemeralGrant.clear();
+
+    if (!granted && !isPathAllowed(canonical)) {
         qWarning() << "WallpaperService: rejected untrusted load path:" << path
                    << "(canonical:" << canonical << ")"
                    << "— register its directory via registerTrustedDirectory first.";

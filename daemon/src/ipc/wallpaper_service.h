@@ -35,6 +35,10 @@ public:
 public Q_SLOTS:
     QVariantMap getBufferInfo();
     bool loadWallpaper(const QString& path);
+    // Ephemeral variant: grants one-shot trust for the wallpaper's directory
+    // for the duration of this load attempt only. Intended for preview
+    // clients (viewer) that must never widen the persistent allowlist.
+    bool loadWallpaperEphemeral(const QString& path);
     void requestFrame();
 
     // Dynamic Resolution and GPU discovery
@@ -114,6 +118,10 @@ private:
 
     // Allowlist of canonical library roots for D-Bus loadWallpaper
     QStringList m_trustedDirs;
+
+    // One-shot directory grant consumed by the next load attempt (set by
+    // loadWallpaperEphemeral, cleared by both load paths).
+    QString m_ephemeralGrant;
 
     // Pause gate state
     std::atomic<bool> m_pauseEnabled{false};

@@ -175,6 +175,14 @@ bool WallpaperServiceAdaptor::loadWallpaper(const QString &in0)
     return out0;
 }
 
+bool WallpaperServiceAdaptor::loadWallpaperEphemeral(const QString &in0)
+{
+    // handle method call org.plasmawallpaperengine.Daemon.loadWallpaperEphemeral
+    bool out0;
+    QMetaObject::invokeMethod(parent(), "loadWallpaperEphemeral", Q_RETURN_ARG(bool, out0), Q_ARG(QString, in0));
+    return out0;
+}
+
 void WallpaperServiceAdaptor::pause()
 {
     // handle method call org.plasmawallpaperengine.Daemon.pause

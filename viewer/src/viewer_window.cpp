@@ -439,27 +439,17 @@ void ViewerWindow::loadPath(const QString& path)
 {
     if (path.isEmpty()) return;
 
-    const QString dir = QFileInfo(path).absolutePath();
-    {
-        QDBusInterface iface(QStringLiteral("org.plasmawallpaperengine.Daemon"),
-                            QStringLiteral("/WallpaperEngine"),
-                            QStringLiteral("org.plasmawallpaperengine.Daemon"),
-                            QDBusConnection::sessionBus());
-        if (iface.isValid()) {
-            if (!dir.isEmpty()) {
-                iface.call(QStringLiteral("registerTrustedDirectory"), dir);
-            }
-        }
-    }
-
     if (!m_iface.isValid()) {
         m_pendingPath = path;
         QTimer::singleShot(1500, this, &ViewerWindow::checkConnection);
         return;
     }
 
+    // Preview loads use the ephemeral variant: the daemon grants one-shot
+    // trust for this wallpaper's directory and consumes it on this load, so
+    // previewing never permanently widens the load allowlist.
     qDebug() << "Viewer: Loading" << path;
-    QDBusReply<bool> reply = m_iface.call(QStringLiteral("loadWallpaper"), path);
+    QDBusReply<bool> reply = m_iface.call(QStringLiteral("loadWallpaperEphemeral"), path);
     if (reply.isValid() && reply.value()) {
         setStatus(QStringLiteral("Status: Loading %1...").arg(QFileInfo(path).fileName()),
                   QStringLiteral("#3498db"));

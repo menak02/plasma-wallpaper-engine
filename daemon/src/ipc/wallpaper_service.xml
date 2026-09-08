@@ -23,6 +23,14 @@
       <arg direction="out" type="b"/>
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::loadWallpaper"/>
     </method>
+    <!-- Ephemeral-load variant: grants one-shot trust for the wallpaper's
+         directory, consumed by this load. The grant never outlives the load
+         attempt — see WallpaperService::loadWallpaperEphemeral. -->
+    <method name="loadWallpaperEphemeral">
+      <arg direction="in" type="s"/>
+      <arg direction="out" type="b"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::loadWallpaperEphemeral"/>
+    </method>
     <method name="requestFrame">
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::requestFrame"/>
     </method>

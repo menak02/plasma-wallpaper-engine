@@ -35,6 +35,11 @@ class WallpaperServiceAdaptor: public QDBusAbstractAdaptor
 "      <arg direction=\"out\" type=\"b\"/>\n"
 "      <annotation value=\"WallpaperService::loadWallpaper\" name=\"org.qt.QtDBus.MethodAdaptor\"/>\n"
 "    </method>\n"
+"    <method name=\"loadWallpaperEphemeral\">\n"
+"      <arg direction=\"in\" type=\"s\"/>\n"
+"      <arg direction=\"out\" type=\"b\"/>\n"
+"      <annotation value=\"WallpaperService::loadWallpaperEphemeral\" name=\"org.qt.QtDBus.MethodAdaptor\"/>\n"
+"    </method>\n"
 "    <method name=\"requestFrame\">\n"
 "      <annotation value=\"WallpaperService::requestFrame\" name=\"org.qt.QtDBus.MethodAdaptor\"/>\n"
 "    </method>\n"
@@ -235,6 +240,7 @@ public Q_SLOTS: // METHODS
     bool isPauseEnabled();
     bool isPauseMuteAudio();
     bool loadWallpaper(const QString &in0);
+    bool loadWallpaperEphemeral(const QString &in0);
     void pause();
     double pauseCoverageThreshold();
     bool registerTrustedDirectory(const QString &in0);
