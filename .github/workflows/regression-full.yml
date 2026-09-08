@@ -1,0 +1,96 @@
+name: Full-library regression
+
+# Renders the private 72-wallpaper corpus (scene.pkgs published to a private
+# release by scripts/package_ci_regression.sh) and diffs every snapshot
+# against the committed baseline in tests/regression/baseline.
+#
+# Trigger manually after render-path changes (verifier, scene parser,
+# compositor, texture/video decode) or let the weekly schedule catch drift.
+
+on:
+  workflow_dispatch:
+    inputs:
+      corpus_tag:
+        description: "Release tag holding the regression corpus"
+        required: false
+        default: "ci-regression-data-v1"
+  schedule:
+    # Weekly drift check: Mondays 04:20 UTC
+    - cron: "20 4 * * 1"
+
+jobs:
+  full-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake qt6-base-dev qt6-declarative-dev qt6-tools-dev-tools \
+          qt6-image-formats-plugins vulkan-tools libvulkan-dev \
+          liblz4-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
+          libpulse-dev python3-pil python3-numpy ffmpeg
+
+    - name: Download regression corpus
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        TAG="${{ inputs.corpus_tag || 'ci-regression-data-v1' }}"
+        mkdir -p corpus
+        gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+          --pattern 'regression-corpus.tar.part-*' --pattern 'SHA256SUMS' --dir corpus
+        cd corpus
+        sha256sum -c SHA256SUMS
+        cat regression-corpus.tar.part-* > regression-corpus.tar
+        sha256sum -c SHA256SUMS
+        mkdir -p "$HOME/corpus"
+        tar -xf regression-corpus.tar -C "$HOME/corpus"
+        echo "corpus items: $(ls -1 "$HOME/corpus" | wc -l)"
+
+    - name: Configure
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build verifier
+      run: cmake --build build -j$(nproc) --target plasma-wallpaper-engine-verifier
+
+    - name: Render all baselined wallpapers
+      run: |
+        set -o pipefail
+        QT_QPA_PLATFORM=offscreen \
+          ./build/daemon/plasma-wallpaper-engine-verifier "$HOME/corpus" \
+          --output "$HOME/verifier-output" | tee render.log
+        echo "snapshots: $(ls -1 "$HOME/verifier-output"/*.png | wc -l)"
+
+    - name: Compare against baseline
+      run: |
+        set -o pipefail
+        python3 tests/regression/compare_images.py tests/regression/baseline \
+          "$HOME/verifier-output" | tee compare.log
+
+    - name: Collect failure report
+      if: failure()
+      run: |
+        mkdir -p failure-report
+        cp render.log failure-report/ 2>/dev/null || true
+        cp compare.log failure-report/ 2>/dev/null || true
+        cp "$HOME/verifier-output/analysis_results.md" failure-report/ 2>/dev/null || true
+        # Ship only the mismatched PNGs plus their expected baselines, so the
+        # artifact stays small enough to eyeball directly.
+        grep -h '^FAIL ' compare.log | awk '{print $2}' | sort -u > failure-list.txt || true
+        while read -r name; do
+          [ -n "$name" ] || continue
+          mkdir -p "failure-report/actual" "failure-report/expected"
+          cp "$HOME/verifier-output/$name" failure-report/actual/ 2>/dev/null || true
+          cp "tests/regression/baseline/$name" failure-report/expected/ 2>/dev/null || true
+        done < failure-list.txt
+        cp failure-list.txt failure-report/ 2>/dev/null || true
+
+    - name: Upload failure report
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: regression-failure-report
+        path: failure-report/
+        retention-days: 14
