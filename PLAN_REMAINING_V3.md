@@ -103,8 +103,7 @@ cache on disk exists or is needed — pipeline objects live for the daemon's lif
 All script-dependent (clock/date visibility). Feed user-property values (from the T-landed `setProperty` path) through `JSEngine` re-eval and re-measure how many convert to ✅.
 
 ### GitHub integrations (paired with this plan)
-1. `.github/workflows/build.yml` — matrix build + ctest (regression job needs wallpapers as private artifact/cache).
-2. `regression.yml` — verifier → compare_images.py → PR comment with diff PNGs (our unique gate). NOTE: pure-Python PNG diff took >10 min over 72×1080p (timed out twice locally); numpy-vectorized comparison with identical thresholds ran in seconds. Vectorize `compare_images.py` (numpy is available) before wiring CI, or CI burns 10+ min per run.
+1. ✅ CI regression (was: "needs wallpapers as private artifact/cache"): self-contained `fixture_regression` job runs on every push; the full 72-wallpaper library regression runs in `.github/workflows/regression-full.yml` (manual + weekly). The private corpus (scene.pkgs for every baselined ID) is published to the `ci-regression-data-v1` release by `scripts/package_ci_regression.sh` as split 1.9G volumes under the 2 GiB asset cap; CI reassembles + SHA256-verifies, renders offscreen and diffs against the committed baseline. Compare step is the numpy-vectorized path (11.5s for 72 pairs).
 3. Nightly ASan job (build-asan config exists).
 4. Issue templates: wallpaper-ID + log required. PR template: "55/17/0 unchanged?" checklist.
 5. Tag → release.yml: tarball with daemon+viewer+plugin header; AUR PKGBUILD update on tag.
