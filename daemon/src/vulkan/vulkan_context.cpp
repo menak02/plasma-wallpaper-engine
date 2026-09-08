@@ -394,9 +394,17 @@ bool VulkanContext::uploadSceneImage(uint32_t width, uint32_t height, std::span<
     clearSceneImage();
 
     // Scale + center-crop to target framebuffer dimensions.
+    // The exportable DmaBuf image is VK_FORMAT_B8G8R8A8_UNORM
+    // (DRM_FORMAT_ARGB8888): memory order B,G,R,X. Converting the RGBA
+    // canvas to Format_ARGB32 puts bytes in that exact order on
+    // little-endian (premultiplied 0xAARRGGBB -> B,G,R,A storage), so the
+    // staging memcpy below needs no per-pixel channel swizzle. Uploading
+    // the RGBA bytes directly would swap red and blue for every consumer
+    // of the buffer.
     QImage srcImg(rgbaPixels.data(), width, height, width * 4, QImage::Format_RGBA8888);
-    QImage scaledImg = srcImg.scaled(m_currentBuffer.width, m_currentBuffer.height, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
-    
+    QImage scaledImg = srcImg.scaled(m_currentBuffer.width, m_currentBuffer.height, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation)
+                             .convertToFormat(QImage::Format_ARGB32);
+
     int cropX = std::max(0, (scaledImg.width() - static_cast<int>(m_currentBuffer.width)) / 2);
     int cropY = std::max(0, (scaledImg.height() - static_cast<int>(m_currentBuffer.height)) / 2);
     QImage finalImg = scaledImg.copy(cropX, cropY, m_currentBuffer.width, m_currentBuffer.height);
