@@ -253,13 +253,11 @@ void ViewerWindow::checkConnection()
     }
 
     QDBusReply<QStringList> outReply = m_iface.call(QStringLiteral("getOutputs"));
-    QString outputName;
     if (outReply.isValid() && !outReply.value().isEmpty()) {
-        outputName = outReply.value().first();
-        m_activeOutput = outputName;
+        m_activeOutput = outReply.value().first();
     }
 
-    if (outputName.isEmpty()) {
+    if (m_activeOutput.isEmpty()) {
         setStatus(QStringLiteral("Status: No outputs from daemon"), QStringLiteral("#e67e22"));
         setInfo(QStringLiteral("No DmaBuf outputs available"));
         return;
@@ -274,70 +272,7 @@ void ViewerWindow::checkConnection()
         m_pumpTimer->start(0);
     }
 
-    QDBusReply<QVariantMap> infoReply =
-        m_iface.call(QStringLiteral("getBufferInfoForOutput"), outputName);
-    if (!infoReply.isValid()) {
-        setStatus(QStringLiteral("Status: getBufferInfoForOutput failed"), QStringLiteral("#e74c3c"));
-        setInfo(infoReply.error().message());
-        return;
-    }
-
-    const QVariantMap info = infoReply.value();
-    const uint32_t width = info.value(QStringLiteral("width")).toUInt();
-    const uint32_t height = info.value(QStringLiteral("height")).toUInt();
-    const uint32_t stride = info.value(QStringLiteral("stride")).toUInt();
-    const size_t size = info.value(QStringLiteral("size")).toULongLong();
-
-    if (width == 0 || height == 0 || size == 0) {
-        setStatus(QStringLiteral("Status: Connected — output empty"), QStringLiteral("#e67e22"));
-        setInfo(QStringLiteral("Output: %1").arg(outputName));
-        return;
-    }
-
-    QDBusReply<QDBusUnixFileDescriptor> fdReply =
-        m_iface.call(QStringLiteral("getBufferFdForOutput"), outputName);
-    const int fd = fdReply.isValid() ? fdReply.value().fileDescriptor() : -1;
-    if (fd < 0) {
-        setStatus(QStringLiteral("Status: Connected — no FD exported"), QStringLiteral("#e74c3c"));
-        setInfo(QStringLiteral("Output: %1 | %2x%3 | no DMA-BUF FD").arg(outputName).arg(width).arg(height));
-        return;
-    }
-
-    void* ptr = mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0);
-    if (ptr == MAP_FAILED) {
-        setStatus(QStringLiteral("Status: mmap failed"), QStringLiteral("#e74c3c"));
-        setInfo(QString("FD %1 (%2 bytes): %3").arg(fd).arg(size).arg(QString::fromUtf8(strerror(errno))));
-        close(fd);
-        return;
-    }
-
-    // The daemon exports DRM_FORMAT_ARGB8888 (little-endian BGRA in memory),
-    // which is byte-identical to QImage::Format_ARGB32_Premultiplied.
-    const QImage frame(static_cast<const uchar*>(ptr), static_cast<int>(width),
-                       static_cast<int>(height), static_cast<qsizetype>(stride),
-                       QImage::Format_ARGB32_Premultiplied);
-
-    if (frame.isNull()) {
-        setStatus(QStringLiteral("Status: frame decode failed"), QStringLiteral("#e74c3c"));
-        munmap(ptr, size);
-        close(fd);
-        return;
-    }
-
-    m_provider->publish(frame.copy());
-    munmap(ptr, size);
-    close(fd);
-
-    setStatus(QStringLiteral("Status: Connected — live"), QStringLiteral("#2ecc71"));
-    setInfo(QStringLiteral("Output: %1 | %2x%3 | Stride: %4 | Size: %5 bytes")
-                .arg(outputName).arg(width).arg(height).arg(stride).arg(size));
-
-    // Bump the serial so the Image element treats this as a brand-new URL
-    // and re-requests the frame from the provider.
-    if (QQuickItem* viewport = findItem(m_rootItem, QStringLiteral("viewport"))) {
-        viewport->setProperty("source",
-            QUrl(QStringLiteral("image://frame/%1").arg(++m_frameSerial)));
-    }
+    setStatus(QStringLiteral("Status: Connected"), QStringLiteral("#2ecc71"));
 }
 
 void ViewerWindow::pullFrame()
@@ -352,6 +287,8 @@ void ViewerWindow::pullFrame()
         return;
     }
 
+    // Buffer geometry can change on wallpaper switch; re-read it each pull
+    // (cheap: a map over D-Bus, no pixel data involved).
     QDBusReply<QVariantMap> infoReply =
         m_iface.call(QStringLiteral("getBufferInfoForOutput"), m_activeOutput);
     if (!infoReply.isValid()) {
@@ -405,10 +342,6 @@ void ViewerWindow::pullFrame()
     munmap(ptr, size);
     close(fd);
 
-    setStatus(QStringLiteral("Status: Connected — live"), QStringLiteral("#2ecc71"));
-    setInfo(QStringLiteral("Output: %1 | %2x%3 | Stride: %4 | Size: %5 bytes")
-                .arg(m_activeOutput).arg(width).arg(height).arg(stride).arg(size));
-
     // Bump the serial so the Image element treats this as a brand-new URL
     // and re-requests the frame from the provider.
     if (QQuickItem* viewport = findItem(m_rootItem, QStringLiteral("viewport"))) {
@@ -423,12 +356,12 @@ void ViewerWindow::pullFrame()
 
 void ViewerWindow::onFrameReady()
 {
-    // Daemon-side render heartbeat. The D-Bus ping only nudges the pump —
-    // actual buffer pulls happen on the timer, at ~20fps, with backoff when
-    // nothing renders. Without the nudge the pump wakes at the same cadence
-    // during long pauses and wastes cycles on identical frames.
+    // Daemon-side render heartbeat. The ping only *advances* the pump when
+    // it is waiting out a long backoff (the "nudge" guard below): with the
+    // pump already armed at its ~20fps cadence the ping does nothing, so a
+    // 60Hz signal storm can never push the viewer past its target rate.
     if (!m_pumpTimer) return;
-    if (m_pumpTimer->isActive() && m_pumpTimer->remainingTime() <= 200) return;
+    if (m_pumpTimer->isActive() && m_pumpTimer->remainingTime() <= 100) return;
     m_pumpTimer->start(0);
 }
 

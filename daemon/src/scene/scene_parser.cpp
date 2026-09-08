@@ -180,6 +180,7 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
     return parseScene(pkgReader, outScene, {});
 }
 bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& outScene, const std::unordered_map<std::string, QVariant>& overrideProperties) {
+    m_unresolvedParentWarnings = 0;
     std::string sceneJsonStr = pkgReader.readTextFile("scene.json");
     if (sceneJsonStr.empty()) {
         return false;
@@ -416,7 +417,16 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
                 layer.parent = it->second;
                 it->second->children.push_back(&layer);
             } else {
-                std::cout << "SceneParser: Layer '" << layer.name << "' references non-existent parent ID " << layer.parentId << std::endl;
+                // Known-dead parent references are common in real workshop
+                // scenes (disabled/removed ancestors) — not actionable, so
+                // log once per scene instead of once per layer.
+                if (m_unresolvedParentWarnings < kMaxUnresolvedParentWarnings) {
+                    ++m_unresolvedParentWarnings;
+                    std::cout << "SceneParser: Layer '" << layer.name << "' references non-existent parent ID " << layer.parentId << std::endl;
+                    if (m_unresolvedParentWarnings == kMaxUnresolvedParentWarnings) {
+                        std::cout << "SceneParser: further unresolved-parent warnings suppressed for this scene" << std::endl;
+                    }
+                }
             }
         }
     }

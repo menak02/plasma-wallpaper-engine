@@ -158,6 +158,11 @@ private:
     static bool resolveParticle(Assets::PkgReader& pkgReader, const std::string& particlePath, ParticleEmitterConfig& outEmitter);
     static bool resolveEffect(Assets::PkgReader& pkgReader, const QJsonObject& effObj, LayerEffect& outEffect);
     static void generateLiveTextImage(SceneLayer& layer);
+
+    // Per-parse-call warning budget for unresolved parent references; static
+    // because parseScene is static. Reset at the start of each parse.
+    static inline int m_unresolvedParentWarnings = 0;
+    static constexpr int kMaxUnresolvedParentWarnings = 3;
 };
 
 } // namespace WallpaperEngine::Scene

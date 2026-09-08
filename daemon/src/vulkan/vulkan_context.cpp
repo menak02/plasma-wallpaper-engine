@@ -381,41 +381,26 @@ void VulkanContext::clearSceneImage() {
         vkFreeMemory(m_device, m_stagingMemory, nullptr);
         m_stagingMemory = VK_NULL_HANDLE;
     }
+    m_stagingMapped = nullptr;
+    m_stagingSize = 0;
     m_hasSceneImage = false;
     m_texWidth = 0;
     m_texHeight = 0;
 }
 
-bool VulkanContext::uploadSceneImage(uint32_t width, uint32_t height, std::span<const uint8_t> rgbaPixels) {
-    if (width == 0 || height == 0 || rgbaPixels.empty()) {
-        return false;
+// (Re)allocate the staging buffer only when the frame size actually changes.
+// The buffer stays allocated and persistently mapped between frames, so the
+// steady-state upload path is: memcpy into mapped memory, one submit.
+bool VulkanContext::ensureStagingBuffer(VkDeviceSize size) {
+    if (m_stagingBuffer != VK_NULL_HANDLE && m_stagingSize >= size) {
+        return true;
     }
 
     clearSceneImage();
 
-    // Scale + center-crop to target framebuffer dimensions.
-    // The exportable DmaBuf image is VK_FORMAT_B8G8R8A8_UNORM
-    // (DRM_FORMAT_ARGB8888): memory order B,G,R,X. Converting the RGBA
-    // canvas to Format_ARGB32 puts bytes in that exact order on
-    // little-endian (premultiplied 0xAARRGGBB -> B,G,R,A storage), so the
-    // staging memcpy below needs no per-pixel channel swizzle. Uploading
-    // the RGBA bytes directly would swap red and blue for every consumer
-    // of the buffer.
-    QImage srcImg(rgbaPixels.data(), width, height, width * 4, QImage::Format_RGBA8888);
-    QImage scaledImg = srcImg.scaled(m_currentBuffer.width, m_currentBuffer.height, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation)
-                             .convertToFormat(QImage::Format_ARGB32);
-
-    int cropX = std::max(0, (scaledImg.width() - static_cast<int>(m_currentBuffer.width)) / 2);
-    int cropY = std::max(0, (scaledImg.height() - static_cast<int>(m_currentBuffer.height)) / 2);
-    QImage finalImg = scaledImg.copy(cropX, cropY, m_currentBuffer.width, m_currentBuffer.height);
-
-    uint32_t finalWidth = finalImg.width();
-    uint32_t finalHeight = finalImg.height();
-    VkDeviceSize imageSize = finalWidth * finalHeight * 4;
-
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = imageSize;
+    bufferInfo.size = size;
     bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -438,17 +423,82 @@ bool VulkanContext::uploadSceneImage(uint32_t width, uint32_t height, std::span<
 
     vkBindBufferMemory(m_device, m_stagingBuffer, m_stagingMemory, 0);
 
-    void* data = nullptr;
-    vkMapMemory(m_device, m_stagingMemory, 0, imageSize, 0, &data);
-    std::memcpy(data, finalImg.constBits(), imageSize);
-    vkUnmapMemory(m_device, m_stagingMemory);
+    if (vkMapMemory(m_device, m_stagingMemory, 0, size, 0, &m_stagingMapped) != VK_SUCCESS) {
+        m_stagingMapped = nullptr;
+        return false;
+    }
 
-    m_texWidth = finalWidth;
-    m_texHeight = finalHeight;
+    m_stagingSize = size;
+    return true;
+}
+
+bool VulkanContext::uploadSceneImage(uint32_t width, uint32_t height, std::span<const uint8_t> rgbaPixels) {
+    if (width == 0 || height == 0 || rgbaPixels.empty()) {
+        return false;
+    }
+
+    const uint32_t dstW = m_currentBuffer.width;
+    const uint32_t dstH = m_currentBuffer.height;
+    if (dstW == 0 || dstH == 0) {
+        return false;
+    }
+    const VkDeviceSize imageSize = static_cast<VkDeviceSize>(dstW) * dstH * 4;
+
+    if (!ensureStagingBuffer(imageSize)) {
+        return false;
+    }
+
+    // The exportable DmaBuf image is VK_FORMAT_B8G8R8A8_UNORM
+    // (DRM_FORMAT_ARGB8888): memory order B,G,R,X. Converting the RGBA
+    // canvas to Format_ARGB32 puts bytes in that exact order on
+    // little-endian (premultiplied 0xAARRGGBB -> B,G,R,A storage), so the
+    // staging memcpy below needs no per-pixel channel swizzle. Uploading
+    // the RGBA bytes directly would swap red and blue for every consumer
+    // of the buffer.
+    void* data = m_stagingMapped;
+
+    if (width == dstW && height == dstH) {
+        // Canvas already matches the DmaBuf target — no rescale, no crop.
+        // Copy row-wise: RGBA8888 canvases may carry padded strides.
+        const qsizetype srcBpl = static_cast<qsizetype>(width) * 4;
+        const qsizetype dstBpl = static_cast<qsizetype>(dstW) * 4;
+        const uint8_t* src = rgbaPixels.data();
+        uint8_t* dst = static_cast<uint8_t*>(data);
+        for (uint32_t row = 0; row < height; ++row) {
+            std::memcpy(dst + static_cast<qsizetype>(row) * dstBpl,
+                        src + static_cast<qsizetype>(row) * srcBpl,
+                        dstBpl);
+        }
+        m_hasSceneImage = true;
+        m_texWidth = dstW;
+        m_texHeight = dstH;
+        return true;
+    }
+
+    // Different size: scale + center-crop to target framebuffer dimensions.
+    QImage srcImg(rgbaPixels.data(), static_cast<qsizetype>(width), static_cast<int>(height),
+                  static_cast<qsizetype>(width) * 4, QImage::Format_RGBA8888);
+    QImage scaledImg = srcImg.scaled(static_cast<int>(dstW), static_cast<int>(dstH),
+                                     Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation)
+                             .convertToFormat(QImage::Format_ARGB32);
+
+    const int cropX = std::max(0, (scaledImg.width() - static_cast<int>(dstW)) / 2);
+    const int cropY = std::max(0, (scaledImg.height() - static_cast<int>(dstH)) / 2);
+    QImage finalImg = scaledImg.copy(cropX, cropY, static_cast<int>(dstW), static_cast<int>(dstH));
+
+    const qsizetype srcBpl = finalImg.bytesPerLine();
+    const qsizetype dstBpl = static_cast<qsizetype>(dstW) * 4;
+    const uint8_t* src = finalImg.constBits();
+    uint8_t* dst = static_cast<uint8_t*>(data);
+    for (uint32_t row = 0; row < dstH; ++row) {
+        std::memcpy(dst + static_cast<qsizetype>(row) * dstBpl,
+                    src + static_cast<qsizetype>(row) * srcBpl,
+                    std::min<qsizetype>(dstBpl, srcBpl));
+    }
+
+    m_texWidth = dstW;
+    m_texHeight = dstH;
     m_hasSceneImage = true;
-
-    std::cout << "Uploaded & Scaled Scene Texture: " << width << "x" << height << " -> " 
-              << finalWidth << "x" << finalHeight << " (" << imageSize << " bytes)" << std::endl;
     return true;
 }
 

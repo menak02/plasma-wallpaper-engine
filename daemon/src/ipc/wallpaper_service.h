@@ -51,8 +51,11 @@ public Q_SLOTS:
     QVariantMap getBufferInfoForOutput(const QString& outputName);
     QStringList getOutputs();
 
-    // Interactive mouse parallax
-    void setMousePosition(float normX, float normY);
+    // Interactive mouse parallax. Double (not float): the D-Bus XML and the
+    // generated adaptor pass doubles, and a float slot signature makes the
+    // adaptor's QMetaObject::invokeMethod fail with "No such method" on
+    // every single call.
+    void setMousePosition(double normX, double normY);
 
     // Pause gate control
     void setPauseEnabled(bool enabled);

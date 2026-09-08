@@ -80,12 +80,18 @@ private:
     };
     std::map<std::string, OutputTarget> m_outputTargets;
 
-    // Uploaded wallpaper texture staging buffer
+    // Uploaded wallpaper texture staging buffer. Persistently mapped and
+    // reused across frames: recreating buffer + allocation + map cycle 60x
+    // per second was a major CPU/GPU-driver cost in the frame loop.
     VkBuffer m_stagingBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_stagingMemory = VK_NULL_HANDLE;
+    void* m_stagingMapped = nullptr;
+    VkDeviceSize m_stagingSize = 0;
     uint32_t m_texWidth = 0;
     uint32_t m_texHeight = 0;
     bool m_hasSceneImage = false;
+
+    bool ensureStagingBuffer(VkDeviceSize size);
 
     bool initInstance();
     bool selectPhysicalDevice(int preferredGpuIndex);

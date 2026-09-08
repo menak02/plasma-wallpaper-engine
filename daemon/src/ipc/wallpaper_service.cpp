@@ -208,8 +208,8 @@ QStringList WallpaperService::getOutputs() {
     return list;
 }
 
-void WallpaperService::setMousePosition(float normX, float normY) {
-    m_compositor.setMouseParallax(normX, normY);
+void WallpaperService::setMousePosition(double normX, double normY) {
+    m_compositor.setMouseParallax(static_cast<float>(normX), static_cast<float>(normY));
 }
 
 bool WallpaperService::startAudioCapture() {
