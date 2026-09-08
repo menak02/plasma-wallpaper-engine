@@ -25,6 +25,9 @@ public:
 
     void loadPath(const QString& path);
 
+    // QML hover handler -> daemon setMousePosition (drives wallpaper parallax).
+    Q_INVOKABLE void sendMousePosition(double normX, double normY);
+
 public Q_SLOTS:
     void checkConnection();
     void openPkgFile();
@@ -38,6 +41,7 @@ private:
     void setStatus(const QString& text, const QString& color);
     void setInfo(const QString& text);
     void connectDbusSignals();
+    void pullFrame();
 
     QQuickView* m_view = nullptr;
     QObject* m_rootItem = nullptr;
@@ -50,5 +54,7 @@ private:
     FrameProvider* m_provider = nullptr;
     qint64 m_frameSerial = 0;
 
-    qint64 m_lastPollMs = 0;
+    // On-demand frame pump: single-shot timer rearmed after each pull, with
+    // backoff when the daemon isn't rendering. frameReady nudges it to 0ms.
+    QTimer* m_pumpTimer = nullptr;
 };

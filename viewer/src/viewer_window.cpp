@@ -135,6 +135,18 @@ Rectangle {
                 styleColor: "#000000"
             }
         }
+
+        // Feeds normalized cursor position to the daemon so scene mouse
+        // parallax and hover effects respond like on a real desktop.
+        MouseArea {
+            id: pointerTracker
+            anchors.fill: parent
+            hoverEnabled: true
+            onPositionChanged: (mouse) => {
+                viewerWindow.sendMousePosition(mouse.x / width, mouse.y / height)
+            }
+            onExited: viewerWindow.sendMousePosition(0.5, 0.5)
+        }
     }
 }
 )");
@@ -249,6 +261,15 @@ void ViewerWindow::checkConnection()
         return;
     }
 
+    // First successful handshake: start the frame pump. From here on frames
+    // are pulled on demand, never polled in a busy loop.
+    if (!m_pumpTimer) {
+        m_pumpTimer = new QTimer(this);
+        m_pumpTimer->setSingleShot(true);
+        connect(m_pumpTimer, &QTimer::timeout, this, &ViewerWindow::pullFrame);
+        m_pumpTimer->start(0);
+    }
+
     QDBusReply<QVariantMap> infoReply =
         m_iface.call(QStringLiteral("getBufferInfoForOutput"), outputName);
     if (!infoReply.isValid()) {
@@ -315,15 +336,96 @@ void ViewerWindow::checkConnection()
     }
 }
 
-void ViewerWindow::onFrameReady()
+void ViewerWindow::pullFrame()
 {
-    // Frame events arrive at 60 Hz; repaint at a sane rate.
-    const qint64 now = QDateTime::currentDateTime().toMSecsSinceEpoch();
-    if (now - m_lastPollMs < 33) {
+    if (!m_iface.isValid()) {
+        m_pumpTimer->start(1500);
         return;
     }
-    m_lastPollMs = now;
-    checkConnection();
+
+    if (m_activeOutput.isEmpty()) {
+        m_pumpTimer->start(500);
+        return;
+    }
+
+    QDBusReply<QVariantMap> infoReply =
+        m_iface.call(QStringLiteral("getBufferInfoForOutput"), m_activeOutput);
+    if (!infoReply.isValid()) {
+        m_pumpTimer->start(500);
+        return;
+    }
+
+    const QVariantMap info = infoReply.value();
+    const uint32_t width = info.value(QStringLiteral("width")).toUInt();
+    const uint32_t height = info.value(QStringLiteral("height")).toUInt();
+    const uint32_t stride = info.value(QStringLiteral("stride")).toUInt();
+    const size_t size = info.value(QStringLiteral("size")).toULongLong();
+
+    if (width == 0 || height == 0 || size == 0) {
+        m_pumpTimer->start(500);
+        return;
+    }
+
+    QDBusReply<QDBusUnixFileDescriptor> fdReply =
+        m_iface.call(QStringLiteral("getBufferFdForOutput"), m_activeOutput);
+    const int fd = fdReply.isValid() ? fdReply.value().fileDescriptor() : -1;
+    if (fd < 0) {
+        m_pumpTimer->start(500);
+        return;
+    }
+
+    void* ptr = mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0);
+    if (ptr == MAP_FAILED) {
+        setStatus(QStringLiteral("Status: mmap failed"), QStringLiteral("#e74c3c"));
+        setInfo(QString("FD %1 (%2 bytes): %3").arg(fd).arg(size).arg(QString::fromUtf8(strerror(errno))));
+        close(fd);
+        m_pumpTimer->start(500);
+        return;
+    }
+
+    // The daemon exports DRM_FORMAT_ARGB8888 (little-endian BGRA in memory),
+    // which is byte-identical to QImage::Format_ARGB32_Premultiplied.
+    const QImage frame(static_cast<const uchar*>(ptr), static_cast<int>(width),
+                       static_cast<int>(height), static_cast<qsizetype>(stride),
+                       QImage::Format_ARGB32_Premultiplied);
+
+    if (frame.isNull()) {
+        setStatus(QStringLiteral("Status: frame decode failed"), QStringLiteral("#e74c3c"));
+        munmap(ptr, size);
+        close(fd);
+        m_pumpTimer->start(500);
+        return;
+    }
+
+    m_provider->publish(frame.copy());
+    munmap(ptr, size);
+    close(fd);
+
+    setStatus(QStringLiteral("Status: Connected — live"), QStringLiteral("#2ecc71"));
+    setInfo(QStringLiteral("Output: %1 | %2x%3 | Stride: %4 | Size: %5 bytes")
+                .arg(m_activeOutput).arg(width).arg(height).arg(stride).arg(size));
+
+    // Bump the serial so the Image element treats this as a brand-new URL
+    // and re-requests the frame from the provider.
+    if (QQuickItem* viewport = findItem(m_rootItem, QStringLiteral("viewport"))) {
+        viewport->setProperty("source",
+            QUrl(QStringLiteral("image://frame/%1").arg(++m_frameSerial)));
+    }
+
+    // The daemon renders at 60fps; re-pull at ~20fps for preview. The CPU
+    // cost here is a full-frame mmap copy + QML texture upload per pull.
+    m_pumpTimer->start(50);
+}
+
+void ViewerWindow::onFrameReady()
+{
+    // Daemon-side render heartbeat. The D-Bus ping only nudges the pump —
+    // actual buffer pulls happen on the timer, at ~20fps, with backoff when
+    // nothing renders. Without the nudge the pump wakes at the same cadence
+    // during long pauses and wastes cycles on identical frames.
+    if (!m_pumpTimer) return;
+    if (m_pumpTimer->isActive() && m_pumpTimer->remainingTime() <= 200) return;
+    m_pumpTimer->start(0);
 }
 
 void ViewerWindow::onWallpaperLoaded(const QString& title)
@@ -337,13 +439,13 @@ void ViewerWindow::loadPath(const QString& path)
 {
     if (path.isEmpty()) return;
 
+    const QString dir = QFileInfo(path).absolutePath();
     {
         QDBusInterface iface(QStringLiteral("org.plasmawallpaperengine.Daemon"),
                             QStringLiteral("/WallpaperEngine"),
                             QStringLiteral("org.plasmawallpaperengine.Daemon"),
                             QDBusConnection::sessionBus());
         if (iface.isValid()) {
-            const QString dir = QFileInfo(path).absolutePath();
             if (!dir.isEmpty()) {
                 iface.call(QStringLiteral("registerTrustedDirectory"), dir);
             }
@@ -366,6 +468,12 @@ void ViewerWindow::loadPath(const QString& path)
         qWarning() << "Viewer: loadWallpaper failed for" << path
                    << (reply.isValid() ? QString() : reply.error().message());
     }
+}
+
+void ViewerWindow::sendMousePosition(double normX, double normY)
+{
+    if (!m_iface.isValid()) return;
+    m_iface.call(QStringLiteral("setMousePosition"), normX, normY);
 }
 
 void ViewerWindow::openPkgFile()
