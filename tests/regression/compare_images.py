@@ -7,11 +7,25 @@ Compares two images (or two directories of PNGs) using:
 
 Exit codes: 0 = pass, 1 = fail (differences exceed thresholds), 2 = error
 (missing files etc.).
+
+Performance: Pillow (C-speed decode) + numpy (vectorized diff) do the heavy
+lifting when available; the pure-python decoder below stays as a fallback so
+the suite works on bare CI images. Vectorization matters — a per-pixel python
+loop over 72x 1080p pairs takes minutes, the vectorized path takes seconds.
 """
 import sys
 import os
 import struct
 import zlib
+
+try:
+    import numpy as np
+except ImportError:
+    np = None
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
 
 PIXEL_TOLERANCE = 8     # max channel delta considered "equal" (0-255)
 MAE_THRESHOLD = 2.0     # mean absolute error per pixel per channel
@@ -102,35 +116,54 @@ def decode_png(path):
     return width, height, channels, bytes(out)
 
 
+def load_image(path):
+    """Return (width, height, channels, bytes) for an 8-bit RGB(A) PNG.
+
+    Prefers Pillow (single C call); falls back to decode_png. A grayscale
+    source is expanded to RGB so both paths agree on channel counts.
+    """
+    if Image is not None:
+        img = Image.open(path)
+        if img.mode in ("L", "LA", "P"):
+            img = img.convert("RGB")
+        img.load()
+        channels = len(img.getbands())
+        return img.width, img.height, channels, img.tobytes()
+    return decode_png(path)
+
+
 def image_diff(a_path, b_path):
     """Return (mae, changed_ratio). Raises on structural mismatch."""
-    w1, h1, c1, d1 = decode_png(a_path)
-    w2, h2, c2, d2 = decode_png(b_path)
+    w1, h1, c1, d1 = load_image(a_path)
+    w2, h2, c2, d2 = load_image(b_path)
     if (w1, h1) != (w2, h2):
         raise ValueError(f"dimension mismatch: {w1}x{h1} vs {w2}x{h2}")
     if c1 != c2:
         raise ValueError(f"channel mismatch: {c1} vs {c2}")
 
     n = w1 * h1
-    total = 0
-    changed = 0
-    for i in range(n * c1):
-        d = abs(d1[i] - d2[i])
-        total += d
-        if d > PIXEL_TOLERANCE:
-            changed += 1
-            break_out = False
-    # changed pixels counted per-pixel (any channel over tolerance)
-    # recompute per-pixel to avoid overcounting channels
-    changed = 0
-    for px in range(n):
-        base = px * c1
-        for ch in range(c1):
-            if abs(d1[base + ch] - d2[base + ch]) > PIXEL_TOLERANCE:
-                changed += 1
-                break
-
-    mae = total / (n * c1)
+    if np is not None:
+        # Vectorized: abs-diff over every channel, then a channel-max reduction
+        # for the changed-pixel count. Identical math to the scalar loops.
+        a = np.frombuffer(d1, dtype=np.uint8).reshape(n, c1).astype(np.int16)
+        b = np.frombuffer(d2, dtype=np.uint8).reshape(n, c1).astype(np.int16)
+        diff = np.abs(a - b)
+        mae = float(diff.mean())
+        changed = int(np.count_nonzero(diff.max(axis=1) > PIXEL_TOLERANCE))
+    else:
+        total = 0
+        changed = 0
+        for i in range(n * c1):
+            d = abs(d1[i] - d2[i])
+            total += d
+        # changed pixels counted per-pixel (any channel over tolerance)
+        for px in range(n):
+            base = px * c1
+            for ch in range(c1):
+                if abs(d1[base + ch] - d2[base + ch]) > PIXEL_TOLERANCE:
+                    changed += 1
+                    break
+        mae = total / (n * c1)
     return mae, changed / n
 
 
