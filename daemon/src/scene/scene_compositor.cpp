@@ -205,6 +205,46 @@ bool SceneCompositor::loadWeb(const std::string& html) {
 }
 
 bool SceneCompositor::isWeb() const { return m_isWeb; }
+
+bool SceneCompositor::loadVideo(const std::string& videoFilePath) {
+    auto decoder = std::make_shared<Assets::VideoDecoder>();
+    if (!decoder->openFromFile(videoFilePath, 0, 0)) {
+        std::cerr << "SceneCompositor: failed to open video wallpaper " << videoFilePath << std::endl;
+        return false;
+    }
+
+    m_hasScene = true;
+    m_isWeb = false;
+    m_isVideo = true;
+    m_video = std::move(decoder);
+    m_videoAcc = 0.0f;
+
+    m_scene = SceneDescription{};
+    m_scene.title = "Video Wallpaper";
+    m_scene.sceneWidth = static_cast<float>(m_width);
+    m_scene.sceneHeight = static_cast<float>(m_height);
+
+    // First frame becomes the initial layer image; later frames replace it
+    // in the ~30fps video tick below.
+    QImage first = m_video->decodeNextFrame();
+    if (first.isNull()) {
+        first = QImage(static_cast<int>(m_width), static_cast<int>(m_height), QImage::Format_ARGB32);
+        first.fill(Qt::black);
+    }
+    SceneLayer layer;
+    layer.name = "Video";
+    layer.type = "video";
+    layer.image = std::move(first);
+    layer.visible = true;
+    layer.opacity = 1.0f;
+    layer.origin = QVector3D(m_scene.sceneWidth / 2.0f, m_scene.sceneHeight / 2.0f, 0);
+    layer.size = QVector2D(m_scene.sceneWidth, m_scene.sceneHeight);
+    m_scene.layers.push_back(std::move(layer));
+    m_scene.totalVisualObjectsDeclared = 1;
+
+    std::cout << "SceneCompositor: Loaded video wallpaper " << videoFilePath << std::endl;
+    return true;
+}
 void SceneCompositor::setWebProperty(const QString& key, const QVariant& value) {
     if (m_web) m_web->setProperty(key, value);
 }
@@ -221,6 +261,27 @@ void SceneCompositor::updateAndRender(float dt, float time) {
         QImage webImg = m_web->grabImage();
         if (!webImg.isNull() && !m_scene.layers.empty()) {
             m_scene.layers[0].image = std::move(webImg);
+        }
+    }
+
+    // Standalone video wallpaper: decode the next frame at ~30fps. Loop by
+    // seeking back to the start on EOF so the wallpaper plays forever.
+    if (m_isVideo && m_video) {
+        m_videoAcc += dt;
+        if (m_videoAcc > 1.0f / 30.0f) {
+            m_videoAcc = 0.0f;
+            if (!m_scene.layers.empty()) {
+                QImage next = m_video->decodeNextFrame();
+                if (!next.isNull()) {
+                    m_scene.layers[0].image = std::move(next);
+                } else {
+                    m_video->seekToStart();
+                    QImage retry = m_video->decodeNextFrame();
+                    if (!retry.isNull()) {
+                        m_scene.layers[0].image = std::move(retry);
+                    }
+                }
+            }
         }
     }
 

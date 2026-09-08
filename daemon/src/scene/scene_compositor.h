@@ -9,6 +9,7 @@
 #include "../render/render_graph.h"
 #include "../render/mesh_renderer.h"
 #include "../render/vulkan_compute.h"
+#include "../assets/video_decoder.h"
 
 namespace WallpaperEngine::Scene {
 
@@ -21,6 +22,9 @@ public:
     bool loadScene(Assets::PkgReader& pkgReader, const std::unordered_map<std::string, QVariant>& overrideProps);
     bool reloadWithProperties(const std::unordered_map<std::string, QVariant>& props);
     bool loadWeb(const std::string& html);
+    // Standalone video wallpaper (project.json "type":"video" with a loose
+    // media file — no scene.pkg archive involved).
+    bool loadVideo(const std::string& videoFilePath);
     void setWebProperty(const QString& key, const QVariant& value);
     void updateAndRender(float dt, float time);
     void setMouseParallax(float normX, float normY);
@@ -48,7 +52,10 @@ private:
     Audio::AudioVisualizer m_audioVisualizer;
     bool m_hasScene = false;
     bool m_isWeb = false;
+    bool m_isVideo = false;
     std::unique_ptr<class WebWallpaper> m_web;
+    std::shared_ptr<Assets::VideoDecoder> m_video;
+    float m_videoAcc = 0.0f;
     Assets::PkgReader* m_lastPkg = nullptr;
     std::unordered_map<std::string, QVariant> m_lastOverrideProps;
 
