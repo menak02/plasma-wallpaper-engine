@@ -324,8 +324,9 @@ void ViewerWindow::pullFrame()
         return;
     }
 
-    // The daemon exports DRM_FORMAT_ARGB8888 (little-endian BGRA in memory),
-    // which is byte-identical to QImage::Format_ARGB32_Premultiplied.
+    // DRM_FORMAT_ARGB8888 dmabuf: little-endian BGRA byte order matches
+    // QImage::Format_ARGB32_Premultiplied, so the wrap below needs no
+    // channel swizzle.
     const QImage frame(static_cast<const uchar*>(ptr), static_cast<int>(width),
                        static_cast<int>(height), static_cast<qsizetype>(stride),
                        QImage::Format_ARGB32_Premultiplied);
@@ -349,8 +350,9 @@ void ViewerWindow::pullFrame()
             QUrl(QStringLiteral("image://frame/%1").arg(++m_frameSerial)));
     }
 
-    // The daemon renders at 60fps; re-pull at ~20fps for preview. The CPU
-    // cost here is a full-frame mmap copy + QML texture upload per pull.
+    // Preview pulls re-arm at ~20fps (render daemon runs at 60fps): each
+    // pull costs a full-frame mmap copy plus a QML texture upload, so
+    // doubling the pull rate doubles viewer CPU for little preview benefit.
     m_pumpTimer->start(50);
 }
 

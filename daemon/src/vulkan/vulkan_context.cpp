@@ -389,7 +389,7 @@ void VulkanContext::clearSceneImage() {
 }
 
 // (Re)allocate the staging buffer only when the frame size actually changes.
-// The buffer stays allocated and persistently mapped between frames, so the
+// The staging buffer stays allocated and mapped between frames, so the
 // steady-state upload path is: memcpy into mapped memory, one submit.
 bool VulkanContext::ensureStagingBuffer(VkDeviceSize size) {
     if (m_stagingBuffer != VK_NULL_HANDLE && m_stagingSize >= size) {
@@ -448,7 +448,7 @@ bool VulkanContext::uploadSceneImage(uint32_t width, uint32_t height, std::span<
         return false;
     }
 
-    // The exportable DmaBuf image is VK_FORMAT_B8G8R8A8_UNORM
+    // The exportable dmabuf image is VK_FORMAT_B8G8R8A8_UNORM
     // (DRM_FORMAT_ARGB8888): memory order B,G,R,X. Converting the RGBA
     // canvas to Format_ARGB32 puts bytes in that exact order on
     // little-endian (premultiplied 0xAARRGGBB -> B,G,R,A storage), so the
