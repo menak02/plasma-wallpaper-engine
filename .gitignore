@@ -13,6 +13,7 @@ compile_commands.json
 
 # Claude session/cache artifacts
 .claude/
+.knowledge/
 
 # Verifier output
 *.png.out
