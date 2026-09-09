@@ -75,6 +75,8 @@ add_executable(plasma-wallpaper-engine-daemon
     src/ipc/wallpaper_service_adaptor.cpp
     src/plugin/wallpaper_plugin.h
     src/plugin/wallpaper_plugin.cpp
+    src/render/gpu_quad_compositor.h
+    src/render/gpu_quad_compositor.cpp
     src/render/vulkan_compute.h
     src/render/vulkan_compute.cpp
 )
@@ -149,6 +151,8 @@ add_executable(plasma-wallpaper-engine-verifier
     src/ipc/wallpaper_service_adaptor.cpp
     src/plugin/wallpaper_plugin.h
     src/plugin/wallpaper_plugin.cpp
+    src/render/gpu_quad_compositor.h
+    src/render/gpu_quad_compositor.cpp
     src/render/vulkan_compute.h
     src/render/vulkan_compute.cpp
 )

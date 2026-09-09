@@ -162,9 +162,160 @@ bool SceneCompositor::loadScene(Assets::PkgReader& pkgReader, const std::unorder
     m_renderGraph.clear();
     scanPostEffects();
     m_hasScene = true;
+    // GPU/CPU decision is per-scene at load time, never mid-frame.
+    m_gpuCompositing = tryInitGpuCompositing();
     std::cout << "SceneCompositor: Loaded scene '" << m_scene.title 
-              << "' with " << m_scene.layers.size() << " layers" << std::endl;
+              << "' with " << m_scene.layers.size() << " layers"
+              << " [renderer: " << (m_gpuCompositing ? "gpu" : "cpu") << "]" << std::endl;
     return true;
+}
+
+bool SceneCompositor::sceneSupportsGpuCompositing() const {
+    // Features the first GPU slice renders on CPU only: mesh deformation
+    // (waterwaves/waterripple/foliagesway/wind), puppet bones, and per-layer
+    // opacity masks that alter the parsed image (masks are already baked into
+    // layer images by the parser, so they are GPU-safe).
+    for (const auto& layer : m_scene.layers) {
+        if (!layer.bones.empty()) return false;
+        if (layer.image.isNull()) continue;
+        for (const auto& eff : layer.effects) {
+            if (!eff.visible) continue;
+            switch (eff.type) {
+                case EffectType::Wind:
+                case EffectType::WaterWaves:
+                case EffectType::WaterRipple:
+                case EffectType::FoliageSway:
+                    return false;
+                default:
+                    break;
+            }
+        }
+    }
+    return true;
+}
+
+bool SceneCompositor::tryInitGpuCompositing() {
+    m_gpuGrain = false;
+    if (!m_vulkanCtx || m_vulkanCtx->getDevice() == VK_NULL_HANDLE) return false;
+    if (!sceneSupportsGpuCompositing()) return false;
+
+    if (!m_gpuCompositor.isInitialized()) {
+        if (!m_gpuCompositor.init(m_vulkanCtx, m_width, m_height)) {
+            std::cerr << "SceneCompositor: GPU compositor init failed, staying on QPainter" << std::endl;
+            return false;
+        }
+    }
+    // Film grain moves to the GPU pass for scenes that have it.
+    m_gpuGrain = m_hasFilmGrain;
+    return true;
+}
+
+void SceneCompositor::buildGpuFrame(std::vector<Render::GpuLayer>& gpuLayers,
+                                    std::vector<Render::GpuParticle>& gpuParticles,
+                                    float time) {
+    gpuLayers.clear();
+    gpuParticles.clear();
+
+    float parallaxOffsetX = (m_mouseX - 0.5f) * 35.0f;
+    float parallaxOffsetY = (m_mouseY - 0.5f) * 35.0f;
+    float sceneW = m_scene.sceneWidth > 0.0f ? m_scene.sceneWidth : 3840.0f;
+    float sceneH = m_scene.sceneHeight > 0.0f ? m_scene.sceneHeight : 2160.0f;
+    float scaleX = static_cast<float>(m_width) / sceneW;
+    float scaleY = static_cast<float>(m_height) / sceneH;
+
+    auto mapBlend = [](BlendMode b) -> uint32_t {
+        switch (b) {
+            case BlendMode::Additive: return 1;
+            case BlendMode::Opaque: return 2;
+            default: return 0; // translucent + all unhandled modes (multiply,
+                               // screen, etc.) render as translucent — same
+                               // degradation the CPU path documents.
+        }
+    };
+
+    for (const auto& layer : m_scene.layers) {
+        if (!layer.visible || layer.image.isNull()) continue;
+        float effectiveOpacity = layer.opacity;
+        if (layer.isInteractive) {
+            float mouseDist = std::hypot(m_mouseX - 0.5f, m_mouseY - 0.5f);
+            if (layer.name.find("zombie") != std::string::npos || layer.name.find("mutated") != std::string::npos) {
+                effectiveOpacity *= std::clamp(1.0f - (mouseDist * 2.0f), 0.0f, 1.0f);
+            }
+        }
+        if (effectiveOpacity <= 0.0f) continue;
+
+        // Per-layer animation effects (breath/pulse/shake) — same math as the
+        // CPU painter path so both renderers animate identically.
+        float animOffsetX = 0.0f, animOffsetY = 0.0f, animScale = 1.0f;
+        for (const auto& eff : layer.effects) {
+            if (!eff.visible) continue;
+            switch (eff.type) {
+                case EffectType::Breath: {
+                    float breathPhase = time * eff.speed * 2.0f;
+                    animScale *= (1.0f + 0.02f * std::sin(breathPhase));
+                    animOffsetY += std::sin(breathPhase) * 4.0f;
+                    break;
+                }
+                case EffectType::Pulse: {
+                    const float band = m_audioVisualizer.isLive() ? m_audioVisualizer.getBand(0) : 0.0f;
+                    const float pulsePhase = time * eff.speed * 3.0f;
+                    animScale *= (1.0f + eff.strength * std::sin(pulsePhase) + eff.strength * 2.0f * band);
+                    break;
+                }
+                case EffectType::Shake: {
+                    float shakePhase = time * eff.speed * 10.0f;
+                    animOffsetX += std::sin(shakePhase * 1.3f) * eff.strength * 5.0f;
+                    animOffsetY += std::cos(shakePhase * 1.7f) * eff.strength * 5.0f;
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+
+        AccumulatedTransform acc = resolveParentTransform(layer, sceneW, sceneH);
+        float finalX = (acc.origin.x() / sceneW) * m_width + parallaxOffsetX * layer.parallaxDepth.x() + animOffsetX;
+        float finalY = ((sceneH - acc.origin.y()) / sceneH) * m_height + parallaxOffsetY * layer.parallaxDepth.y() + animOffsetY;
+
+        float spriteW, spriteH;
+        if (layer.size.x() > 0.0f && layer.size.y() > 0.0f) {
+            spriteW = (layer.size.x() / sceneW) * m_width * acc.scale.x() * animScale;
+            spriteH = (layer.size.y() / sceneH) * m_height * acc.scale.y() * animScale;
+        } else {
+            spriteW = layer.image.width() * scaleX * acc.scale.x() * animScale;
+            spriteH = layer.image.height() * scaleY * acc.scale.y() * animScale;
+        }
+
+        Render::GpuLayer gl;
+        gl.textureIndex = m_gpuCompositor.getOrCreateTexture(layer.image, layer.id);
+        if (gl.textureIndex == UINT32_MAX) continue;
+        gl.centerX = finalX;
+        gl.centerY = finalY;
+        gl.width = spriteW;
+        gl.height = spriteH;
+        gl.rotationRad = acc.angle * 3.14159265f / 180.0f;
+        gl.opacity = std::clamp(effectiveOpacity, 0.0f, 1.0f);
+        gl.blendMode = mapBlend(layer.blending);
+        gpuLayers.push_back(gl);
+    }
+
+    // Particles: the engine owns simulation; the GPU path only translates
+    // its particle list into billboard instances (glow sprite, never a
+    // per-particle texture — same as the CPU default sprite path).
+    const auto& particles = m_particleEngine.particles();
+    const auto& emitters = m_particleEngine.emitters();
+    gpuParticles.reserve(particles.size());
+    for (const auto& p : particles) {
+        if (p.emitterIndex < 0 || p.emitterIndex >= static_cast<int>(emitters.size())) continue;
+        Render::GpuParticle gp;
+        gp.centerX = p.x;
+        gp.centerY = p.y;
+        gp.size = p.size;
+        gp.rotationRad = p.rotation * 3.14159265f / 180.0f;
+        gp.r = p.color.redF(); gp.g = p.color.greenF(); gp.b = p.color.blueF(); gp.a = p.alpha;
+        gp.blendMode = emitters[p.emitterIndex].blending == BlendMode::Additive ? 1 : 0;
+        gpuParticles.push_back(gp);
+    }
 }
 bool SceneCompositor::reloadWithProperties(const std::unordered_map<std::string, QVariant>& props) {
     if (!m_lastPkg) return false;
@@ -322,6 +473,34 @@ void SceneCompositor::updateAndRender(float dt, float time) {
                 }
             }
         }
+    }
+
+    // GPU path: simulate particles, build instances, render on GPU, blit
+    // straight into the dmabuf. Skips the CPU canvas entirely (no QPainter
+    // composite, no 8MB staging upload per frame).
+    if (m_gpuCompositing && m_gpuCompositor.isInitialized()) {
+        m_particleEngine.update(dt, m_width, m_height);
+
+        std::vector<Render::GpuLayer> gpuLayers;
+        std::vector<Render::GpuParticle> gpuParticles;
+        buildGpuFrame(gpuLayers, gpuParticles, time);
+
+        const float clearColor[4] = {
+            m_scene.clearColor.redF(), m_scene.clearColor.greenF(),
+            m_scene.clearColor.blueF(), 1.0f
+        };
+        Render::GpuGrainParams grain;
+        grain.enabled = m_gpuGrain;
+        grain.power = m_grainPower;
+        grain.scale = m_grainScale;
+        grain.frame = std::floor(time);
+
+        if (m_gpuCompositor.renderFrame(gpuLayers, gpuParticles, clearColor, grain)
+            && m_gpuCompositor.blitIntoShared()) {
+            return; // dmabuf written; CPU canvas skipped this frame
+        }
+        std::cerr << "SceneCompositor: GPU frame failed, falling back to CPU composite" << std::endl;
+        m_gpuCompositing = false; // don't retry mid-scene; re-decided at next load
     }
 
     // 1. Clear background canvas

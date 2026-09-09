@@ -654,4 +654,93 @@ std::vector<std::string> VulkanContext::getOutputNames() const {
     return names;
 }
 
+bool VulkanContext::blitIntoSharedImage(VkImage srcImage, uint32_t srcWidth, uint32_t srcHeight) {
+    if (m_sharedImage == VK_NULL_HANDLE || srcImage == VK_NULL_HANDLE) return false;
+    if (m_currentBuffer.width == 0 || m_currentBuffer.height == 0) return false;
+
+    vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, UINT64_MAX);
+    vkResetFences(m_device, 1, &m_fence);
+    vkResetCommandBuffer(m_commandBuffer, 0);
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    vkBeginCommandBuffer(m_commandBuffer, &beginInfo);
+
+    std::vector<VkImage> targets;
+    targets.reserve(1 + m_outputTargets.size());
+    targets.push_back(m_sharedImage);
+    for (auto& [name, target] : m_outputTargets) {
+        if (target.image != VK_NULL_HANDLE && target.image != m_sharedImage) {
+            targets.push_back(target.image);
+        }
+    }
+
+    for (VkImage image : targets) {
+        // IMPORT: general (external reader layout) -> transfer dst
+        VkImageMemoryBarrier toDst{};
+        toDst.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        toDst.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+        toDst.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        toDst.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toDst.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toDst.image = image;
+        toDst.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        toDst.subresourceRange.levelCount = 1;
+        toDst.subresourceRange.layerCount = 1;
+        toDst.srcAccessMask = 0;
+        toDst.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        vkCmdPipelineBarrier(m_commandBuffer,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0, 0, nullptr, 0, nullptr, 1, &toDst);
+
+        // Src arrives in SHADER_READ_ONLY from the compositor's render pass
+        VkBlitImageInfo2 blit{};
+        blit.sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2;
+        blit.srcImage = srcImage;
+        blit.srcImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        blit.dstImage = image;
+        blit.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        blit.regionCount = 1;
+        VkImageBlit2 region{};
+        region.sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2;
+        region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.srcSubresource.layerCount = 1;
+        region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.dstSubresource.layerCount = 1;
+        region.srcOffsets[0] = {0, 0, 0};
+        region.srcOffsets[1] = {static_cast<int32_t>(srcWidth), static_cast<int32_t>(srcHeight), 1};
+        region.dstOffsets[0] = {0, 0, 0};
+        region.dstOffsets[1] = {static_cast<int32_t>(m_currentBuffer.width), static_cast<int32_t>(m_currentBuffer.height), 1};
+        blit.pRegions = &region;
+        blit.filter = VK_FILTER_LINEAR;
+        vkCmdBlitImage2(m_commandBuffer, &blit);
+
+        // EXPORT: back to GENERAL for zero-copy dmabuf consumers
+        VkImageMemoryBarrier toGeneral{};
+        toGeneral.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        toGeneral.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        toGeneral.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        toGeneral.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toGeneral.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toGeneral.image = image;
+        toGeneral.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        toGeneral.subresourceRange.levelCount = 1;
+        toGeneral.subresourceRange.layerCount = 1;
+        toGeneral.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        toGeneral.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        vkCmdPipelineBarrier(m_commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+            0, 0, nullptr, 0, nullptr, 1, &toGeneral);
+    }
+
+    vkEndCommandBuffer(m_commandBuffer);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &m_commandBuffer;
+    vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fence);
+    return true;
+}
+
 } // namespace WallpaperEngine::Render

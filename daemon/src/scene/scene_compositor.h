@@ -9,6 +9,7 @@
 #include "../render/render_graph.h"
 #include "../render/mesh_renderer.h"
 #include "../render/vulkan_compute.h"
+#include "../render/gpu_quad_compositor.h"
 #include "../assets/video_decoder.h"
 
 namespace WallpaperEngine::Scene {
@@ -41,6 +42,10 @@ public:
 
     // Post-composite post-processing info (scene-level effects like film grain).
     bool hasFilmGrain() const { return m_hasFilmGrain; }
+
+    // True while the GPU quad compositor owns the frame pipeline (dmabuf is
+    // written directly; updateAndRender skips the CPU composite + upload).
+    bool usingGpuCompositor() const { return m_gpuCompositing; }
 
 private:
     Render::VulkanContext* m_vulkanCtx = nullptr;
@@ -75,6 +80,21 @@ private:
     bool m_hasFilmGrain = false;
     float m_grainPower = 0.0f;
     float m_grainScale = 4.0f;
+
+    // ---- GPU compositing path ----
+    // Auto-selection: enabled when a Vulkan device exists and the scene has
+    // no features this slice renders on CPU (mesh deform effects, puppet
+    // bones, per-layer blur buffers, or film grain on scenes where the CPU
+    // grain path was the frozen reference). Falls back per-scene at load,
+    // never mid-frame.
+    bool tryInitGpuCompositing();
+    bool sceneSupportsGpuCompositing() const;
+    void buildGpuFrame(std::vector<Render::GpuLayer>& layers,
+                       std::vector<Render::GpuParticle>& particles,
+                       float time);
+    Render::GpuQuadCompositor m_gpuCompositor;
+    bool m_gpuCompositing = false;
+    bool m_gpuGrain = false; // grain handled on GPU for the current scene
 };
 
 } // namespace WallpaperEngine::Scene

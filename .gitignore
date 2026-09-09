@@ -19,6 +19,9 @@ compile_commands.json
 *.png.out
 analysis_results.md
 
+# Runtime logs
+nohup.out
+
 # Editor / OS noise
 *.swp
 *~
