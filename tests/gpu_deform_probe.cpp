@@ -25,8 +25,8 @@
 //    loops (packing and drawing) must skip the same layers;
 // 4. vertex shaders used GL-style Y flip, wrong for Vulkan's Y-down NDC.
 //
-// Skips (exit 77) when no Vulkan device is available so GPU-less CI still
-// passes. Run headless with QT_QPA_PLATFORM=offscreen (set here).
+// Probe exits with code 77 when no Vulkan device is available so GPU-less
+// CI still passes. Run headless with QT_QPA_PLATFORM=offscreen (set here).
 
 #include "../daemon/src/render/gpu_quad_compositor.h"
 #include "../daemon/src/render/mesh_renderer.h"

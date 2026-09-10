@@ -70,12 +70,37 @@ jobs:
 
   repo-quality:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     steps:
     - uses: actions/checkout@v4
 
     - name: Check for common AI-telltale patterns (fail on scaffolding)
       run: |
-        bash scripts/check_repo_quality.sh
+        bash scripts/check_repo_quality.sh 2>&1 | tee repo-quality-report.txt
+        exit ${PIPESTATUS[0]}
+
+    # Sticky PR comment: one per PR, found via the hidden marker in its
+    # first line and edited in place. Failures refresh the findings; later
+    # passing runs flip the same comment to a clean status so stale findings
+    # never linger on a merged PR.
+    - name: Report findings as PR comment
+      if: failure() && github.event_name == 'pull_request'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: bash scripts/update_repo_quality_comment.sh report repo-quality-report.txt
+
+    - name: Clear PR comment on pass
+      if: success() && github.event_name == 'pull_request'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: bash scripts/update_repo_quality_comment.sh clean
 
   security-scan:
     runs-on: ubuntu-latest

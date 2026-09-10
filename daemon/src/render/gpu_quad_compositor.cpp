@@ -180,7 +180,7 @@ bool GpuQuadCompositor::createRenderPasses() {
     dep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     dep.srcAccessMask = 0;
     dep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    // The finalLayout SHADER_READ_ONLY transition needs a downstream-aware
+    // Vulkan finalLayout SHADER_READ_ONLY transition needs a downstream-aware
     // dependency so the blit/readback never races the pass.
     VkSubpassDependency outDep{};
     outDep.srcSubpass = 0;
@@ -202,7 +202,7 @@ bool GpuQuadCompositor::createRenderPasses() {
     VkSubpassDependency deps[2] = {dep, outDep};
     info.pDependencies = deps;
 
-    // The grain render pass differs only in loadOp; reuse the same struct set.
+    // Grain render pass differs only in loadOp; reuse the same struct set.
     VkRenderPassCreateInfo grainInfo = info;
     grainInfo.pAttachments = &grainColor;
 
@@ -579,7 +579,7 @@ bool GpuQuadCompositor::ensureTexturePool(uint32_t neededSets) {
     m_textureSets.assign(sets.begin(), sets.end() - 1);
     m_grainSet = sets.back();
 
-    // The grain set always samples the quad target; write it once here.
+    // Grain set always samples the quad target; write it once here.
     VkDescriptorImageInfo grainImg{};
     grainImg.imageView = m_quadView;
     grainImg.sampler = m_sampler;
@@ -769,7 +769,7 @@ bool GpuQuadCompositor::ensureVertexCapacity(VkDeviceSize bytes) {
     if (m_vertexMemory) vkFreeMemory(m_device, m_vertexMemory, nullptr);
     m_vertexBuffer = VK_NULL_HANDLE; m_vertexMemory = VK_NULL_HANDLE; m_vertexMapped = nullptr;
     m_vertexCapacity = VkDeviceSize(alignedUp(uint32_t(bytes) * 2, 4096));
-    // The corner strip at bytes 0..31 was destroyed with the old allocation;
+    // Corner strip at bytes 0..31 was destroyed with the old allocation;
     // it must be rewritten before the next frame's draws read binding 0.
     m_needsStripUpload = true;
 
@@ -885,7 +885,7 @@ bool GpuQuadCompositor::renderFrame(const std::vector<GpuLayer>& layers,
     const VkDeviceSize totalBytes = m_partInstOffset + VkDeviceSize(particles.size()) * sizeof(ParticleInstance);
     if (!ensureVertexCapacity(totalBytes)) return false;
 
-    // The corner strip occupies bytes 0..31 of the vertex buffer and persists
+    // Corner strip occupies bytes 0..31 of the vertex buffer and persists
     // across frames, but the buffer is (re)allocated uninitialized — the strip
     // was never written, so binding 0 fed all-quad draws a zero strip and every
     // quad collapsed to a point: nothing rasterized, and the GPU path silently
@@ -901,7 +901,7 @@ bool GpuQuadCompositor::renderFrame(const std::vector<GpuLayer>& layers,
     size_t deformSlot = 0;
     // Order-preserving split: plain layers pack the quad stream; deform layers
     // expand to kDeformGridCells cell instances each (see deform_quad.vert).
-    // The texture-index guard mirrors the draw loop below exactly — both loops
+    // Texture-index guard mirrors the draw loop below exactly — both loops
     // skip the same layers so the per-stream cursors stay in lockstep.
     for (const GpuLayer& L : layers) {
         if (L.textureIndex >= m_textures.size()) continue;

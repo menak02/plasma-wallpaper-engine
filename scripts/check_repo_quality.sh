@@ -19,6 +19,7 @@ while IFS=: read -r file line text; do
     continue
   fi
   echo "$file:$line: $text"
+  echo "::error file=$file,line=$line::scaffolding-style comment: $text"
   BAD_COMMENTS=1
 done < <(git ls-files -- "*.cpp" "*.h" "*.hpp" | xargs grep -HnE "^\s*// (This |The |Simple |Implementation |Forward |Main |Get |Discover |Build |Send |Connect |Parse |Skip|For |Determine|Disable|Note|In a real|Fallback|Effect-specific)" 2>/dev/null || true)
 
@@ -28,6 +29,7 @@ while IFS=: read -r file _; do
   name="${base%.*}"
   if echo "$name" | grep -EqE "^(helper|util|manager|wrapper|base|common|impl)([._-]|$)"; then
     echo "$file"
+    echo "::error file=$file::generic top-level file/class name: $base"
     BAD_NAMES=1
   fi
 done < <(git ls-files -- "*.cpp" "*.h" "*.hpp" || true)
