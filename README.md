@@ -30,7 +30,7 @@ Workshop .pkg ──► daemon (Vulkan compute, QPainter scene composite)
 - Audio-reactive effects (PipeWire/Pulse monitor capture → FFT bands → pulse effects)
 - Vulkan compute post-processing (film grain today; descriptor stack ready for more)
 - Live property manipulation, library scanning across Steam library roots, mouse parallax
-- Session restore: last wallpaper comes back on daemon start (systemd user unit included)
+- Session restore: last wallpaper comes back on daemon start (auto-disabled at install: no autostart unit — run the daemon by hand for now)
 - Security: D-Bus load-path allowlist with canonicalization, one-shot ephemeral preview grants, `--trusted-directory` seeding
 
 ## Build
@@ -55,8 +55,8 @@ Artifacts:
 ## Run
 
 ```sh
-# daemon (systemd user unit installed; or run by hand)
-systemctl --user enable --now plasma-wallpaper-engine-daemon.service
+# daemon (no autostart unit for now — idle power draw; run by hand)
+./build/daemon/plasma-wallpaper-engine-daemon
 
 # desktop background on Hyprland
 plasma-wallpaper-engine-layerclient

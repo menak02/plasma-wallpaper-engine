@@ -26,7 +26,8 @@ void main() {
                         local.x * s + local.y * c);
 
     vec2 px = inPosSize.xy + rotated;
+    // Vulkan NDC is Y-down: no flip (see quad.vert).
     vec2 ndc = vec2(px.x / frame.viewport.x * 2.0 - 1.0,
-                    1.0 - px.y / frame.viewport.y * 2.0);
+                    px.y / frame.viewport.y * 2.0 - 1.0);
     gl_Position = vec4(ndc, 0.0, 1.0);
 }

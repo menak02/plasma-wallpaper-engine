@@ -6,6 +6,7 @@
 
 using WallpaperEngine::Render::Shaders::fullscreen_vert;
 using WallpaperEngine::Render::Shaders::quad_vert;
+using WallpaperEngine::Render::Shaders::deform_quad_vert;
 using WallpaperEngine::Render::Shaders::quad_frag;
 using WallpaperEngine::Render::Shaders::gpu_grain_frag;
 using WallpaperEngine::Render::Shaders::particle_vert;
@@ -58,7 +59,9 @@ bool GpuQuadCompositor::init(VulkanContext* ctx, uint32_t width, uint32_t height
     }
 
     VkFenceCreateInfo fenceInfo{};
-    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    // Pre-signaled: beginFrame() waits on this fence before the first submit;
+    // an unsignaled initial state would deadlock there forever.
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
     if (vkCreateFence(m_device, &fenceInfo, nullptr, &m_fence) != VK_SUCCESS) {
         m_lastError = "fence";
         return false;
@@ -117,6 +120,7 @@ void GpuQuadCompositor::cleanup() {
     auto destroyPipeline = [&](VkPipeline& p) { if (p) vkDestroyPipeline(m_device, p, nullptr); p = VK_NULL_HANDLE; };
     auto destroyLayout = [&](VkPipelineLayout& l) { if (l) vkDestroyPipelineLayout(m_device, l, nullptr); l = VK_NULL_HANDLE; };
     destroyPipeline(m_quadTranslucent); destroyPipeline(m_quadAdditive); destroyPipeline(m_quadOpaque);
+    destroyPipeline(m_deformQuadTranslucent); destroyPipeline(m_deformQuadAdditive);
     destroyPipeline(m_particleTranslucent); destroyPipeline(m_particleAdditive); destroyPipeline(m_grainPipeline);
     destroyLayout(m_quadLayout); destroyLayout(m_particleLayout); destroyLayout(m_grainLayout);
     if (m_renderPass) vkDestroyRenderPass(m_device, m_renderPass, nullptr);
@@ -351,11 +355,13 @@ bool GpuQuadCompositor::createPipelines() {
         return false;
     }
 
-    // Push constant block: vec4 (viewport.xy, parallax.xy) = 16 bytes.
+    // Push constant block: vec4 (viewport.xy, parallax.xy) = 16 bytes, plus
+    // 8 bytes (time, pad) read only by the deform pipeline — one shared
+    // layout sized for the largest consumer.
     VkPushConstantRange pc{};
     pc.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pc.offset = 0;
-    pc.size = 16;
+    pc.size = 24;
 
     auto makeLayout = [&](VkPipelineLayout* out) {
         VkPipelineLayoutCreateInfo info{};
@@ -403,6 +409,17 @@ bool GpuQuadCompositor::createPipelines() {
     partAttrs[1] = {1, 1, VK_FORMAT_R32G32B32A32_SFLOAT, 0};               // pos/size/rot
     partAttrs[2] = {2, 1, VK_FORMAT_R32G32B32A32_SFLOAT, 16};              // rgba
 
+    // Deform instances are the 32B quad instance plus a trailing vec4 of
+    // deform parameters (speed/strength/direction/pad) = 48 bytes.
+    std::vector<VkVertexInputBindingDescription> deformBindings(2);
+    deformBindings[0] = {0, sizeof(float) * 2, VK_VERTEX_INPUT_RATE_VERTEX};
+    deformBindings[1] = {1, sizeof(QuadInstance) + sizeof(float) * 4, VK_VERTEX_INPUT_RATE_INSTANCE};
+    std::vector<VkVertexInputAttributeDescription> deformAttrs(4);
+    deformAttrs[0] = {0, 0, VK_FORMAT_R32G32_SFLOAT, 0};                   // corner -> loc 0
+    deformAttrs[1] = {1, 1, VK_FORMAT_R32G32B32A32_SFLOAT, 0};             // posSize -> loc 1
+    deformAttrs[2] = {2, 1, VK_FORMAT_R32G32B32A32_SFLOAT, 16};            // rot/op -> loc 2
+    deformAttrs[3] = {3, 1, VK_FORMAT_R32G32B32A32_SFLOAT, 32};            // deform -> loc 3
+
     if (!createGraphicsPipelineImpl(m_device, m_renderPass, quad_vert, quad_frag,
                                     quadBindings, quadAttrs, m_quadLayout, false, &m_quadTranslucent, m_lastError))
         return false;
@@ -417,6 +434,15 @@ bool GpuQuadCompositor::createPipelines() {
         return false;
     if (!createGraphicsPipelineImpl(m_device, m_renderPass, particle_vert, particle_frag,
                                     partBindings, partAttrs, m_particleLayout, true, &m_particleAdditive, m_lastError))
+        return false;
+    // Deform variant of the quad pipelines. Same fragment shader and layout;
+    // vertex stage deforms a per-layer grid from extra per-instance params
+    // (see deform_quad.vert). GRID_SIZE specialization constant.
+    if (!createGraphicsPipelineImpl(m_device, m_renderPass, deform_quad_vert, quad_frag,
+                                    deformBindings, deformAttrs, m_quadLayout, false, &m_deformQuadTranslucent, m_lastError))
+        return false;
+    if (!createGraphicsPipelineImpl(m_device, m_renderPass, deform_quad_vert, quad_frag,
+                                    deformBindings, deformAttrs, m_quadLayout, true, &m_deformQuadAdditive, m_lastError))
         return false;
     if (!createGraphicsPipelineImpl(m_device, m_grainRenderPass, fullscreen_vert, gpu_grain_frag,
                                     {}, {}, m_grainLayout, false, &m_grainPipeline, m_lastError))
@@ -570,7 +596,10 @@ bool GpuQuadCompositor::ensureTexturePool(uint32_t neededSets) {
 
 uint32_t GpuQuadCompositor::getOrCreateTexture(const QImage& image, int slotId) {
     if (image.isNull()) return UINT32_MAX;
-    if (slotId < 0) return UINT32_MAX; // reserved
+    // Negative slot ids are reserved for internal textures (-2 = the particle
+    // glow white texture) and are cached exactly like caller-supplied ids.
+    // Rejecting them here made init()'s white texture always fail, which
+    // silently forced every scene onto the CPU painter path.
 
     // Slot reuse: layers keep one texture slot for their lifetime. A changed
     // QImage cacheKey (video frame advance, web repaint) re-uploads in place
@@ -740,6 +769,9 @@ bool GpuQuadCompositor::ensureVertexCapacity(VkDeviceSize bytes) {
     if (m_vertexMemory) vkFreeMemory(m_device, m_vertexMemory, nullptr);
     m_vertexBuffer = VK_NULL_HANDLE; m_vertexMemory = VK_NULL_HANDLE; m_vertexMapped = nullptr;
     m_vertexCapacity = VkDeviceSize(alignedUp(uint32_t(bytes) * 2, 4096));
+    // The corner strip at bytes 0..31 was destroyed with the old allocation;
+    // it must be rewritten before the next frame's draws read binding 0.
+    m_needsStripUpload = true;
 
     VkBufferCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -821,25 +853,72 @@ void GpuQuadCompositor::endFrame() {
     vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, UINT64_MAX);
 }
 
+// Instance stream built by renderFrame:
+// [strip][plain quad insts][deform grid insts (48B)][particle insts].
+struct DeformInstance {
+    QuadInstance base;
+    float deformSpeed, deformStrength, deformDirection, pad;
+};
+static_assert(sizeof(DeformInstance) == 48, "DeformInstance must match deform_quad.vert stride");
+
+// Grid resolution per deformed layer: 16x16 = 256 cells per deform layer.
+constexpr uint32_t kDeformGrid = 16;
+constexpr uint32_t kDeformGridCells = kDeformGrid * kDeformGrid;
+
 bool GpuQuadCompositor::renderFrame(const std::vector<GpuLayer>& layers,
                                     const std::vector<GpuParticle>& particles,
                                     const float clearColor[4],
-                                    const GpuGrainParams& grain) {
+                                    const GpuGrainParams& grain,
+                                    float timeSeconds) {
     if (!isInitialized()) return false;
 
     m_hasGrainThisFrame = false;
 
-    // ---- Vertex payload: [strip][quad instances][particle instances] ----
+    // ---- Vertex payload: [strip][plain quad insts][deform grid insts][particle insts] ----
     const VkDeviceSize stripBytes = sizeof(CORNER_STRIP);
     m_quadInstOffset = alignedUp(uint32_t(stripBytes), 16);
-    m_partInstOffset = m_quadInstOffset + VkDeviceSize(layers.size()) * sizeof(QuadInstance);
+    size_t deformLayerCount = 0;
+    for (const GpuLayer& L : layers) if (L.deformed) ++deformLayerCount;
+    const size_t plainLayerCount = layers.size() - deformLayerCount;
+    m_deformInstOffset = m_quadInstOffset + VkDeviceSize(plainLayerCount) * sizeof(QuadInstance);
+    m_partInstOffset = m_deformInstOffset + VkDeviceSize(deformLayerCount * kDeformGridCells) * sizeof(DeformInstance);
     const VkDeviceSize totalBytes = m_partInstOffset + VkDeviceSize(particles.size()) * sizeof(ParticleInstance);
     if (!ensureVertexCapacity(totalBytes)) return false;
 
+    // The corner strip occupies bytes 0..31 of the vertex buffer and persists
+    // across frames, but the buffer is (re)allocated uninitialized — the strip
+    // was never written, so binding 0 fed all-quad draws a zero strip and every
+    // quad collapsed to a point: nothing rasterized, and the GPU path silently
+    // fell back to the CPU painter forever. Write it after every allocation.
+    if (m_needsStripUpload) {
+        std::memcpy(m_vertexMapped, CORNER_STRIP, sizeof(CORNER_STRIP));
+        m_needsStripUpload = false;
+    }
+
     auto* quadInst = reinterpret_cast<QuadInstance*>(static_cast<uint8_t*>(m_vertexMapped) + m_quadInstOffset);
-    for (size_t i = 0; i < layers.size(); ++i) {
-        quadInst[i] = {layers[i].centerX, layers[i].centerY, layers[i].width, layers[i].height,
-                       layers[i].rotationRad, layers[i].opacity, 0.f, 0.f};
+    auto* deformInst = reinterpret_cast<DeformInstance*>(static_cast<uint8_t*>(m_vertexMapped) + m_deformInstOffset);
+    size_t quadSlot = 0;
+    size_t deformSlot = 0;
+    // Order-preserving split: plain layers pack the quad stream; deform layers
+    // expand to kDeformGridCells cell instances each (see deform_quad.vert).
+    // The texture-index guard mirrors the draw loop below exactly — both loops
+    // skip the same layers so the per-stream cursors stay in lockstep.
+    for (const GpuLayer& L : layers) {
+        if (L.textureIndex >= m_textures.size()) continue;
+        if (L.deformed) {
+            for (uint32_t cell = 0; cell < kDeformGridCells; ++cell) {
+                DeformInstance& di = deformInst[deformSlot++];
+                di.base = {L.centerX, L.centerY, L.width, L.height,
+                           L.rotationRad, L.opacity, 0.f, 0.f};
+                di.deformSpeed = L.deformSpeed;
+                di.deformStrength = L.deformStrength;
+                di.deformDirection = L.deformDirection;
+                di.pad = 0.f;
+            }
+        } else {
+            quadInst[quadSlot++] = {L.centerX, L.centerY, L.width, L.height,
+                                    L.rotationRad, L.opacity, 0.f, 0.f};
+        }
     }
     auto* partInst = reinterpret_cast<ParticleInstance*>(static_cast<uint8_t*>(m_vertexMapped) + m_partInstOffset);
     for (size_t i = 0; i < particles.size(); ++i) {
@@ -866,20 +945,38 @@ bool GpuQuadCompositor::renderFrame(const std::vector<GpuLayer>& layers,
     vkCmdSetViewport(m_cmd, 0, 1, &viewport);
     vkCmdSetScissor(m_cmd, 0, 1, &scissor);
 
-    struct QuadPC { float vx, vy, px, py; } pc{float(m_width), float(m_height), 0.f, 0.f};
+    // Push constant block shared by quad.vert / deform_quad.vert / quad.frag:
+    // [viewport.xy, parallax.xy, time, pad]. Plain pipelines read the first
+    // 16 bytes; the deform pipeline additionally reads time at byte 16.
+    struct QuadPC { float vx, vy, px, py, time, pad; }
+        pc{float(m_width), float(m_height), 0.f, 0.f, timeSeconds, 0.f};
 
-    VkBuffer vbuf = m_vertexBuffer;
+    // vkCmdBindVertexBuffers reads `bindingCount` buffers from pBuffers —
+    // passing &vbuf for a 2-binding bind made binding 1 (the instance
+    // stream) read adjacent STACK GARBAGE as a VkBuffer handle. The GPU
+    // fetched instances from a bogus buffer -> zeros -> every quad collapsed
+    // to an invisible point. This one line killed the entire GPU quad path.
+    VkBuffer vbufs[2] = {m_vertexBuffer, m_vertexBuffer};
     VkDeviceSize quadOffsets[2] = {0, m_quadInstOffset};
-    vkCmdBindVertexBuffers(m_cmd, 0, 2, &vbuf, quadOffsets);
+    vkCmdBindVertexBuffers(m_cmd, 0, 2, vbufs, quadOffsets);
 
     VkPipeline currentPipeline = VK_NULL_HANDLE;
     uint32_t currentTex = UINT32_MAX;
+    // Running instance cursors: plain layers consume 1 quad-stream slot each;
+    // deform layers consume kDeformGridCells consecutive deform-stream slots.
+    uint32_t nextQuadInst = 0;
+    uint32_t nextDeformInst = 0;
+    // Which instance stream binding 1 currently points at. Deform instances
+    // are packed at m_deformInstOffset, plain quads at m_quadInstOffset; the
+    // binding must be switched whenever the drawn stream changes.
+    bool boundDeformStream = false;
     for (size_t i = 0; i < layers.size(); ++i) {
         const GpuLayer& L = layers[i];
         if (L.textureIndex >= m_textures.size()) continue;
-        VkPipeline wanted = (L.blendMode == 1) ? m_quadAdditive
-                          : (L.blendMode == 2) ? m_quadTranslucent // alpha=1: identical to opaque
-                          : m_quadTranslucent;
+        VkPipeline wanted = L.deformed
+            ? (L.blendMode == 1 ? m_deformQuadAdditive : m_deformQuadTranslucent)
+            : (L.blendMode == 1 ? m_quadAdditive
+                                : m_quadTranslucent); // alpha=1: identical to opaque
         if (wanted != currentPipeline) {
             vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, wanted);
             currentPipeline = wanted;
@@ -889,16 +986,26 @@ bool GpuQuadCompositor::renderFrame(const std::vector<GpuLayer>& layers,
                                     0, 1, &m_textureSets[L.textureIndex], 0, nullptr);
             currentTex = L.textureIndex;
         }
+        if (L.deformed != boundDeformStream) {
+            VkDeviceSize streamOffsets[2] = {0, L.deformed ? m_deformInstOffset : m_quadInstOffset};
+            vkCmdBindVertexBuffers(m_cmd, 0, 2, vbufs, streamOffsets);
+            boundDeformStream = L.deformed;
+        }
         vkCmdPushConstants(m_cmd, m_quadLayout,
                            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                            0, sizeof(QuadPC), &pc);
-        vkCmdDraw(m_cmd, 4, 1, 0, uint32_t(i));
+        if (L.deformed) {
+            vkCmdDraw(m_cmd, 4, kDeformGridCells, 0, nextDeformInst);
+            nextDeformInst += kDeformGridCells;
+        } else {
+            vkCmdDraw(m_cmd, 4, 1, 0, nextQuadInst++);
+        }
     }
 
     // ---- Particles (one draw per particle; pipeline switches on blend runs) ----
     if (!particles.empty()) {
         VkDeviceSize partOffsets[2] = {0, m_partInstOffset};
-        vkCmdBindVertexBuffers(m_cmd, 0, 2, &vbuf, partOffsets);
+        vkCmdBindVertexBuffers(m_cmd, 0, 2, vbufs, partOffsets);
         vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_particleLayout,
                                 0, 1, &m_textureSets[m_whiteTexture], 0, nullptr);
         currentPipeline = VK_NULL_HANDLE;

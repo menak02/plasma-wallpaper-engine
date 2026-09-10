@@ -31,6 +31,12 @@ struct GpuLayer {
     // 0 = translucent (srcAlpha blend), 1 = additive (premultiplied Plus),
     // 2 = opaque (no blend)
     uint32_t blendMode = 0;
+    // Mesh-deform layer (waterwaves/waterripple/wind/foliagesway): drawn with
+    // the deform_quad.vert grid-strip pipeline instead of the plain
+    // billboard. deformation math mirrors MeshDeformer::deformVertices;
+    // deformStrength == 0 collapses to the plain quad path.
+    bool deformed = false;
+    float deformSpeed = 0, deformStrength = 0, deformDirection = 0;
 };
 
 struct GpuParticle {
@@ -69,6 +75,8 @@ public:
     bool init(VulkanContext* ctx, uint32_t width, uint32_t height);
     void cleanup();
     bool isInitialized() const { return m_ctx != nullptr && m_quadImage != VK_NULL_HANDLE; }
+    // Diagnostic detail for the last init/render failure.
+    const std::string& lastError() const { return m_lastError; }
 
     void setResolution(uint32_t width, uint32_t height);
 
@@ -84,10 +92,13 @@ public:
     // Record + execute a full frame. Layers must be sorted back-to-front;
     // particles draw after layers. Synchronous (submits and waits) so the
     // subsequent dmabuf blit and CPU readback see complete data.
+    // timeSeconds drives the vertex-stage mesh deformation clock and must be
+    // the same engine time value the CPU painter path would use.
     bool renderFrame(const std::vector<GpuLayer>& layers,
                      const std::vector<GpuParticle>& particles,
                      const float clearColor[4],
-                     const GpuGrainParams& grain = {});
+                     const GpuGrainParams& grain = {},
+                     float timeSeconds = 0.0f);
 
     // Copy the composited frame into the exportable dmabuf image(s).
     bool blitIntoShared();
@@ -114,6 +125,9 @@ private:
     bool createTextureImage(const QImage& image, GpuTexture& tex);
     bool uploadTexturePixels(const QImage& image, uint32_t textureIndex);
     bool ensureVertexCapacity(VkDeviceSize bytes);
+    // True after (re)allocation of m_vertexBuffer: bytes 0..31 (corner strip)
+    // must be re-initialized before the first draw reads binding 0.
+    bool m_needsStripUpload = true;
     bool ensureReadbackCapacity(VkDeviceSize bytes);
 
     void beginFrame();
@@ -156,16 +170,22 @@ private:
     VkPipeline m_quadTranslucent = VK_NULL_HANDLE;
     VkPipeline m_quadAdditive = VK_NULL_HANDLE;
     VkPipeline m_quadOpaque = VK_NULL_HANDLE;
+    // Same fragment shader as the plain quad pipelines; vertex stage deforms
+    // the grid per-instance (see deform_quad.vert).
+    VkPipeline m_deformQuadTranslucent = VK_NULL_HANDLE;
+    VkPipeline m_deformQuadAdditive = VK_NULL_HANDLE;
     VkPipeline m_particleTranslucent = VK_NULL_HANDLE;
     VkPipeline m_particleAdditive = VK_NULL_HANDLE;
     VkPipeline m_grainPipeline = VK_NULL_HANDLE;
 
-    // Persistent host-visible buffer: [corner strip][quad insts][part insts].
+    // Persistent host-visible buffer: [corner strip][quad insts][deform insts
+    // (48B, quad base + deform params)][part insts].
     VkBuffer m_vertexBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_vertexMemory = VK_NULL_HANDLE;
     void* m_vertexMapped = nullptr;
     VkDeviceSize m_vertexCapacity = 0;
     VkDeviceSize m_quadInstOffset = 0;
+    VkDeviceSize m_deformInstOffset = 0;
     VkDeviceSize m_partInstOffset = 0;
 
     std::vector<GpuTexture> m_textures;

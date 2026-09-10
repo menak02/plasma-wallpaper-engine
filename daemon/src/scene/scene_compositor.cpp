@@ -171,25 +171,13 @@ bool SceneCompositor::loadScene(Assets::PkgReader& pkgReader, const std::unorder
 }
 
 bool SceneCompositor::sceneSupportsGpuCompositing() const {
-    // Features the first GPU slice renders on CPU only: mesh deformation
-    // (waterwaves/waterripple/foliagesway/wind), puppet bones, and per-layer
-    // opacity masks that alter the parsed image (masks are already baked into
-    // layer images by the parser, so they are GPU-safe).
+    // Mesh-deformation effects (waterwaves/waterripple/wind/foliagesway)
+    // render on the GPU via the deform_quad.vert grid pipeline, matching the
+    // CPU MeshDeformer::deformVertices math. Puppet bones still force the
+    // CPU path; per-layer opacity masks are baked into layer images by the
+    // parser, so they are GPU-safe.
     for (const auto& layer : m_scene.layers) {
         if (!layer.bones.empty()) return false;
-        if (layer.image.isNull()) continue;
-        for (const auto& eff : layer.effects) {
-            if (!eff.visible) continue;
-            switch (eff.type) {
-                case EffectType::Wind:
-                case EffectType::WaterWaves:
-                case EffectType::WaterRipple:
-                case EffectType::FoliageSway:
-                    return false;
-                default:
-                    break;
-            }
-        }
     }
     return true;
 }
@@ -201,7 +189,8 @@ bool SceneCompositor::tryInitGpuCompositing() {
 
     if (!m_gpuCompositor.isInitialized()) {
         if (!m_gpuCompositor.init(m_vulkanCtx, m_width, m_height)) {
-            std::cerr << "SceneCompositor: GPU compositor init failed, staying on QPainter" << std::endl;
+            std::cerr << "SceneCompositor: GPU compositor init failed (" << m_gpuCompositor.lastError()
+                      << "), staying on QPainter" << std::endl;
             return false;
         }
     }
@@ -247,6 +236,10 @@ void SceneCompositor::buildGpuFrame(std::vector<Render::GpuLayer>& gpuLayers,
         // Per-layer animation effects (breath/pulse/shake) — same math as the
         // CPU painter path so both renderers animate identically.
         float animOffsetX = 0.0f, animOffsetY = 0.0f, animScale = 1.0f;
+        // Mesh-deform params: the CPU painter applies the LAST visible deform
+        // effect (each one overwrites the flags), so mirror that here.
+        bool hasMeshDeform = false;
+        float deformSpeed = 1.0f, deformStrength = 0.0f, deformDirection = 0.0f;
         for (const auto& eff : layer.effects) {
             if (!eff.visible) continue;
             switch (eff.type) {
@@ -262,6 +255,15 @@ void SceneCompositor::buildGpuFrame(std::vector<Render::GpuLayer>& gpuLayers,
                     animScale *= (1.0f + eff.strength * std::sin(pulsePhase) + eff.strength * 2.0f * band);
                     break;
                 }
+                case EffectType::Wind:
+                case EffectType::WaterWaves:
+                case EffectType::WaterRipple:
+                case EffectType::FoliageSway:
+                    hasMeshDeform = true;
+                    deformSpeed = eff.speed;
+                    deformStrength = eff.strength;
+                    deformDirection = eff.direction;
+                    break;
                 case EffectType::Shake: {
                     float shakePhase = time * eff.speed * 10.0f;
                     animOffsetX += std::sin(shakePhase * 1.3f) * eff.strength * 5.0f;
@@ -296,6 +298,10 @@ void SceneCompositor::buildGpuFrame(std::vector<Render::GpuLayer>& gpuLayers,
         gl.rotationRad = acc.angle * 3.14159265f / 180.0f;
         gl.opacity = std::clamp(effectiveOpacity, 0.0f, 1.0f);
         gl.blendMode = mapBlend(layer.blending);
+        gl.deformed = hasMeshDeform;
+        gl.deformSpeed = deformSpeed;
+        gl.deformStrength = deformStrength;
+        gl.deformDirection = deformDirection;
         gpuLayers.push_back(gl);
     }
 
@@ -495,7 +501,7 @@ void SceneCompositor::updateAndRender(float dt, float time) {
         grain.scale = m_grainScale;
         grain.frame = std::floor(time);
 
-        if (m_gpuCompositor.renderFrame(gpuLayers, gpuParticles, clearColor, grain)
+        if (m_gpuCompositor.renderFrame(gpuLayers, gpuParticles, clearColor, grain, time)
             && m_gpuCompositor.blitIntoShared()) {
             return; // dmabuf written; CPU canvas skipped this frame
         }

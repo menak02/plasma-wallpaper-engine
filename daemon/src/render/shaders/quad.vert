@@ -26,12 +26,13 @@ void main() {
 
     float c = cos(inRotOpacity.x);
     float s = sin(inRotOpacity.x);
-    // Y flipped: scene/screen space is top-left origin, Y down
+    // Vulkan NDC is Y-down (+1 = bottom), scene/screen space is top-left
+    // origin Y-down: no flip needed, px.y/h maps row 0 to NDC -1 (top).
     vec2 rotated = vec2(local.x * c - local.y * s,
                         local.x * s + local.y * c);
 
     vec2 px = inPosSize.xy + frame.parallax + rotated;
     vec2 ndc = vec2(px.x / frame.viewport.x * 2.0 - 1.0,
-                    1.0 - px.y / frame.viewport.y * 2.0);
+                    px.y / frame.viewport.y * 2.0 - 1.0);
     gl_Position = vec4(ndc, 0.0, 1.0);
 }

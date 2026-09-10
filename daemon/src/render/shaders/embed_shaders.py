@@ -17,7 +17,7 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.normpath(os.path.join(HERE, "..", "graphics_shaders_spv.h"))
 
-SHADERS = ["fullscreen.vert", "quad.vert", "quad.frag", "gpu_grain.frag", "particle.vert", "particle.frag"]
+SHADERS = ["fullscreen.vert", "quad.vert", "deform_quad.vert", "quad.frag", "gpu_grain.frag", "particle.vert", "particle.frag"]
 
 
 def compile_shader(src: str) -> list:

@@ -96,6 +96,17 @@ if(ENABLE_REGRESSION_TESTS)
              COMMAND ${CMAKE_CURRENT_BINARY_DIR}/daemon/pause_gate_test)
     set_tests_properties(pause_gate_headless PROPERTIES TIMEOUT 60)
 
+    # GPU deform probe: offscreen Vulkan render of a mixed plain+deform
+    # scene, boundary compared against CPU deform math. Skips (exit 77) on
+    # GPU-less machines; SKIP_RETURN_CODE keeps ctest green there.
+    add_test(NAME gpu_deform_probe
+             COMMAND ${CMAKE_CURRENT_BINARY_DIR}/daemon/gpu_deform_probe)
+    set_tests_properties(gpu_deform_probe PROPERTIES
+        TIMEOUT 60
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        SKIP_RETURN_CODE 77
+    )
+
     # Self-contained fixture regression: renders a committed deterministic
     # scene.pkg through the verifier and PNG-diffs it against a committed
     # baseline. Runs everywhere (no Steam library, no GPU required) so CI
