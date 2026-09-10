@@ -1,6 +1,6 @@
-# Remaining V3 — Competitive Analysis + Plan (post c271566, updated 2026-09-04)
+# Remaining V3 — Competitive Analysis + Plan (post c271566, updated 2026-09-09)
 
-Batch 55✅/17⚠️/0❌. Verifier 72/72 baseline match (mae=0.000). C1–C9 from PLAN_REMAINING(_V2) all landed. Landed since: D-Bus path allowlist (S0.5), audio-reactive wiring (S1), FilmGrain GPU post-process (S2, first wired Vulkan compute pass). **Next up: S3 = T4 fullscreen pause.**
+Batch 55✅/17⚠️/0❌. Verifier 72/72 baseline match (mae=0.000). C1–C9 from PLAN_REMAINING(_V2) all landed. Landed since: D-Bus path allowlist (S0.5), audio-reactive wiring (S1), FilmGrain GPU post-process (S2, first wired Vulkan compute pass), pause gate (S3), GPU quad composition revival + mesh-deform pipeline (S7, 2026-09-09). **Next up: S4 = T3 mouse click forwarding.**
 
 ## Competitive landscape (researched 2026-09-03)
 
@@ -21,11 +21,11 @@ Batch 55✅/17⚠️/0❌. Verifier 72/72 baseline match (mae=0.000). C1–C9 fr
 
 ### What they have that we lack (the gaps)
 - G1 **Mouse forwarding / click interaction** — Almamu + AzPepoze. We only do parallax (`scene_compositor.cpp:106`). Interactive wallpapers are a visible class in the workshop.
-- G2 **Pause on fullscreen / maximized window** — Almamu + Hidamari. We have `setMuteOnFullscreen` for audio only; render still burns GPU. Perf + battery differentiator.
-- G3 **Autostart after login** — Hidamari's basic UX. Our daemon needs a systemd user unit / autostart .desktop.
+- G2 ~~**Pause on fullscreen / maximized window**~~ — ✅ DONE (S3): Hyprland IPC coverage gate (fullscreen-family or ≥90% tiled), per-output, auto-mute, headless decision tests.
+- G3 ~~**Autostart after login**~~ — implemented in T5 (systemd user unit) but **intentionally reverted on 2026-09-09**: idle power draw (16-17W, issue #29) made always-on unjustifiable. Session restore remains; users run the daemon by hand until GPU composition makes idle cheap again. Re-add the unit once power is acceptable.
 - G4 **Workshop browse → subscribe flow** — waywallen is a full manager. Our plugin QML already queries Steam Web API (`WorkshopView.qml`) but has no "open in Steam"/rescan loop. LibraryScanner already auto-discovers workshop paths, so this is a small UX loop.
 - G5 **Packaging: AUR + README + site** — every competitor is on AUR/Flathub with a README. We have zero user-facing surface.
-- G6 **Rendering depth** — composition is still QPainter raster with Vulkan compute for effects; Almamu/AzPepoze render scene natively on GPU. Medium-term: QRhi or full-Vulkan swapchain path.
+- G6 **Rendering depth** — the GPU scene path is now ALIVE (2026-09-09): plain + mesh-deform layers composite on Vulkan (textured-quad + deform grid pipelines); film grain stays a compute post-process. Remaining CPU-only: puppet-bone scenes (T8), god rays/shine overlays, blur. CPU painter remains the fallback path.
 - G7 **Streaming URLs (yt-dlp)** — Hidamari-only niche; optional.
 
 ---
@@ -59,8 +59,10 @@ Beyond parallax: forward cursor position + click events to (a) JS engine (`wallp
 ### T4 — G2 Pause on fullscreen/maximized — P2
 Extend existing `AudioPlayer` fullscreen detection to a render gate: stop compositor ticking (or drop to 1 fps) when a fullscreen window is focused. Big battery/perf win, cheap to implement.
 
-### T5 — G3 Autostart + install polish — P2 ✅ DONE (2026-09-08)
+### T5 — G3 Autostart + install polish — P2 ✅ DONE, then REVERTED (2026-09-09)
 systemd user unit (`plasma-wallpaper-engine-daemon.service`) installed to `systemduserunitdir` when found; restore last wallpaper on daemon start — active path persisted to `~/.config/plasma-wallpaper-engine-daemon/last-wallpaper` on every successful load, restored through the ordinary load path at startup so trust rules still apply. Verified A/B: state present → auto-restore; absent → empty start.
+
+**Reverted 2026-09-09:** measured idle draw with the daemon always-on was 16-17W (issue #29). Unit file deleted from the system, install wiring removed from daemon/CMakeLists.txt, unit template deleted from packaging/ (recoverable from git history). Session restore itself is untouched — only autostart wiring is gone.
 
 ### T6 — G4 Workshop UX loop — P2
 In plugin QML: "Open in Steam" deep link per search result (`steam://url/CommunityFilePage/<fileid>`) + auto rescan via `LibraryScanner` after return. No download code needed.
@@ -75,6 +77,17 @@ Bones render in rest pose (`mesh_renderer.h:35` `animatedPos/animatedAngle` neve
 
 ### T9 — G6 GPU composition path — P3 (medium-term)
 Evaluate QRhi vs pure-Vulkan swapchain to move composition off QPainter raster. Big change; schedule after T1–T7 stabilize.
+
+#### T9 progress — GPU quad + deform pipeline ALIVE (2026-09-09)
+The full-Vulkan scene composite landed (commit 4d26edc) and — the surprise — it had been **silently dead since d6c8ec3**, every scene falling back to the CPU painter. Root-cause chain, each found by bisection with an offscreen probe (`tests/gpu_deform_probe.cpp`, now permanent regression):
+1. `vkCmdBindVertexBuffers` was passed a pointer to ONE VkBuffer for a 2-binding bind → binding 1 (instance stream) read a garbage stack handle → all quads degenerated to points. (Instance-rate fetch is exactly what a standalone minimal repro validated; the app-specific diff was this call.)
+2. `CORNER_STRIP` was declared and measured but never memcpy'd into the persistent vertex buffer → binding 0 fed a zero strip even after (1) was fixed.
+3. Strip re-upload wasn't re-armed after vertex-buffer realloc (large scenes triggered realloc → strip lost again).
+4. GL-style Y-flip (`1.0 - y/h*2`) in quad/particle/deform vertex shaders — Vulkan NDC is Y-down — made GPU output upside-down vs the CPU painter.
+
+New since: `deform_quad.vert` 16×16 grid pipeline for waterwaves/waterripple/wind/foliagesway (48B DeformInstance stream), deform params mirrored from the CPU painter's last-visible-effect semantics, shared 24B push-constant layout (time only consumed by deform), pre-signaled initial fence (first `beginFrame` would have deadlocked on an unsignaled fence), negative-slot texture caching fixed (rejection had forced init()'s white texture to fail → CPU path). Negative-slot + unsignaled-fence fixes were in the interrupted pre-4d26edc slice.
+
+Verified: `gpu_deform_probe` PASS (GPU deform boundary == CPU `MeshDeformer` math, 116.0 == 116.0; mixed plain+deform scene renders), ctest 5/5, verifier 72/72 byte-identical baseline. Still CPU-only: puppet bones (T8), god rays/shine, blur; see G6 above.
 
 #### T9 addendum — layer/dirty-region caching decision (2026-09-08)
 How Wallpaper Engine (Windows) actually works, per help.wallpaperengine.io and community findings:
@@ -114,10 +127,11 @@ All script-dependent (clock/date visibility). Feed user-property values (from th
 - S0.5: DBus path allowlist (T1b) — ✅ committed
 - S1: audio wire (T1) — ✅ committed
 - S2: FilmGrain (T2) — ✅ committed (c271566)
-- S3: fullscreen pause (T4) ← NEXT
-- S4: mouse click forwarding (T3)
-- S5: autostart + install (T5)
+- S3: fullscreen pause (T4) — ✅ committed (63a563c, 139306a)
+- S4: mouse click forwarding (T3) ← NEXT
+- S5: autostart + install (T5) — ✅ committed a8851fa, **install wiring reverted 2026-09-09**
 - S6: workshop UX (T6)
+- S7: GPU quad + deform composition (T9 slice) — ✅ committed 4d26edc
 - S7: README + AUR (T7)
 - S8: MDLA playback (T8)
 

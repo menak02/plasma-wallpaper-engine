@@ -9,7 +9,7 @@ A KDE/Qt6-native Wallpaper Engine for Linux: a headless Vulkan daemon composites
 ## How it works
 
 ```
-Workshop .pkg ──► daemon (Vulkan compute, QPainter scene composite)
+Workshop .pkg ──► daemon (Vulkan scene composite; CPU painter fallback)
                      │  60 fps render loop, pause-gated
                      ▼
               DMA-BUF per output ──► layerclient (Hyprland desktop)
@@ -76,8 +76,8 @@ The daemon restores the last active wallpaper on start. Workshop discovery cover
 
 ## Status & known gaps
 
-- Scene compositing is CPU (QPainter); Vulkan compute currently covers post-effects. GPU composition path is the next major milestone (see `PLAN_REMAINING_V3.md` T9).
-- Puppet bone animation renders in rest pose (T8).
+- Scene compositing is GPU (textured-quad + mesh-deform pipelines, matching CPU painter math); plain+deform scenes render fully on Vulkan, with the CPU painter as fallback for puppet-bone scenes and when no Vulkan device is present. Vulkan compute covers post-effects (film grain).
+- Puppet bone animation renders in rest pose (T8); puppet-bone scenes still composite on CPU.
 - Mouse parallax is wired; click forwarding to web/JS wallpapers is not yet (T3).
 
 ## Related projects

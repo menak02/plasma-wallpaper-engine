@@ -101,7 +101,7 @@ This is the **D-Bus service interface** (`org.antigravity.WallpaperEngine`). It'
 
 ## 4. Scene Compositor: `daemon/src/scene/scene_compositor.*`
 
-This is the **heart of the engine**. It loads Wallpaper Engine `.pkg` files and composites layers every frame.
+This is the **heart of the engine**. It loads Wallpaper Engine `.pkg` files and composites layers every frame. Two composite backends exist: a **GPU path** (`GpuQuadCompositor`, textured-quad + mesh-deform pipelines, output to the DMA-BUF directly) and a **CPU painter path** (QPainter raster, below) used as fallback for puppet-bone scenes and when no Vulkan device is present. Both implement the same math; the GPU deform pipeline is regression-checked against the CPU painter by `tests/gpu_deform_probe.cpp`.
 
 ### 4a. Scene Loading
 
@@ -145,13 +145,13 @@ This is the **heart of the engine**. It loads Wallpaper Engine `.pkg` files and 
   - Evaluates **effect chains**:
     - **Breath** — sine-based scale + vertical offset
     - **Pulse** — audio-reactive or time-based sine scale
-    - **Wind/WaterWaves/WaterRipple/FoliageSway** — sets mesh deformation flags
+    - **Wind/WaterWaves/WaterRipple/FoliageSway** — sets mesh deformation flags (GPU path: routes the layer to the deform pipeline)
     - **Shake** — sine-based XY jitter
     - **Blur/FilmGrain/ColorAdjust/Tint** — handled later
   - **Mesh deformation** (if wind/water effects or puppet bones):
-    - Generates 8×8 vertex grid
+    - CPU painter: generates an 8×8 vertex grid; GPU deform pipeline: 16×16 grid (same `MeshDeformer` math, finer tessellation)
     - Deforms vertices based on time/speed/strength/direction
-    - Renders deformed mesh with texture
+    - Renders deformed mesh with texture (CPU) or textured grid quads (GPU `deform_quad.vert`)
   - **Puppet bones** (if `layer.bones` present):
     - Converts scene bones to render bones
     - CPU skinning stub (identity transform currently)
