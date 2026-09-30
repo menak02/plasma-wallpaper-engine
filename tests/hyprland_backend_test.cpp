@@ -1,3 +1,22 @@
+// Hyprland IPC backend connection test.
+//
+// Connects to the running Hyprland compositor's IPC socket and issues a
+// `["hyprctl", "version"]` request, mirroring what CompositorBackend's
+// Hyprland implementation does at startup.
+//
+// Exit codes:
+//   0  - connected and Hyprland answered a non-error response
+//   77 - SKIP: not running Hyprland (no instance signature discoverable).
+//        The test is integration-only and not applicable on other WMs
+//        (XFCE, labwc, ...), so GPU-less/other-compositor machines stay
+//        green via SKIP_RETURN_CODE 77 in the top-level CMakeLists.txt.
+//        This mirrors tests/gpu_deform_probe.cpp, which skips the same way
+//        when no Vulkan device is present.
+//   1  - genuinely broken: Hyprland IS running (a signature was found) but
+//        the socket path could not be built, the connect/write failed, or
+//        the reply contained an error. Those are real regressions, not
+//        "test not applicable", so they must not be turned into skips.
+
 #include <iostream>
 #include <string>
 #include <cstdlib>
@@ -6,6 +25,10 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
+
+// CTest/autotools convention: 77 means "skipped, not applicable".
+// Registered as SKIP_RETURN_CODE 77 on hyprland_backend_connect.
+static const int kSkip = 77;
 
 static std::string getEnv(const char* name) {
     const char* value = getenv(name);
@@ -74,24 +97,33 @@ static int connectToSocket(const std::string& path) {
 int main() {
     std::string sig = discoverHyprlandSignature();
 
+    // No signature from either the env var or the XDG runtime dir means no
+    // Hyprland instance is serving this session: the test does not apply.
     if (sig.empty()) {
-        std::cerr << "ERROR: HYPRLAND_INSTANCE_SIGNATURE not set" << std::endl;
-        return 1;
+        std::cout << "SKIP: not running Hyprland "
+                     "(no HYPRLAND_INSTANCE_SIGNATURE and no $XDG_RUNTIME_DIR/hypr/<sig>)"
+                  << std::endl;
+        return kSkip;
     }
 
     std::cout << "Instance signature: " << sig << std::endl;
 
+    // From here on a live Hyprland instance is confirmed, so every failure is
+    // a real failure and must stay exit code 1.
     std::string socketPath = buildIpcSocketPath(sig);
     std::cout << "Socket path: " << socketPath << std::endl;
 
     if (socketPath.empty()) {
-        std::cerr << "ERROR: Cannot build socket path" << std::endl;
+        std::cerr << "ERROR: Cannot build socket path (signature " << sig
+                  << " present but XDG_RUNTIME_DIR missing or socket absent)"
+                  << std::endl;
         return 1;
     }
 
     int sock = connectToSocket(socketPath);
     if (sock < 0) {
-        std::cerr << "ERROR: Failed to connect to IPC socket" << std::endl;
+        std::cerr << "ERROR: Hyprland is running (signature " << sig
+                  << ") but failed to connect to IPC socket" << std::endl;
         return 1;
     }
 
@@ -121,5 +153,6 @@ int main() {
         return 0;
     }
 
+    std::cerr << "ERROR: Hyprland IPC version request returned an error" << std::endl;
     return 1;
 }

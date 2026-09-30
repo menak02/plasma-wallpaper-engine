@@ -4,6 +4,13 @@ project(plasma-wallpaper-engine VERSION 0.1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Emit compile_commands.json so editors and clangd can resolve the Qt6
+# headers. Qt6 headers are not on the default include path (they live under
+# /usr/include/qt6/QtGui and friends), so without this every #include <QImage>
+# and friends is reported as unresolved by the editor even though the
+# compiler is perfectly happy.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # ---------- Core deps (always required) ----------
 find_package(Qt6 QUIET COMPONENTS Core Gui Quick DBus Network Widgets QuickControls2)
 if(NOT Qt6_FOUND)
@@ -48,6 +55,15 @@ if(NOT HAVE_PLASMA)
 endif()
 
 # ---------- Build targets ----------
+# Detected here (not in the daemon subdirectory) so the test registration
+# below can see it. Directory-scoped set() inside daemon/CMakeLists.txt does
+# not reliably propagate up to this scope, and the x11_ewmh_coverage test
+# must only be registered when that backend was actually compiled in.
+find_package(PkgConfig QUIET)
+if(PKG_CONFIG_FOUND)
+    pkg_check_modules(TOPLEVEL_XCB QUIET xcb)
+endif()
+
 add_subdirectory(daemon)
 add_subdirectory(viewer)
 # Optional wlroots layer-shell wallpaper client (needs LayerShellQt).
@@ -96,6 +112,15 @@ if(ENABLE_REGRESSION_TESTS)
              COMMAND ${CMAKE_CURRENT_BINARY_DIR}/daemon/pause_gate_test)
     set_tests_properties(pause_gate_headless PROPERTIES TIMEOUT 60)
 
+    # X11 EWMH coverage math: union-area sweep, exercised headlessly. Built
+    # in the daemon tree and only registered when the X11 backend was
+    # actually detected, so it does not fail on a pure-Wayland build.
+    if(TOPLEVEL_XCB_FOUND AND TARGET x11_ewmh_coverage_test)
+        add_test(NAME x11_ewmh_coverage
+                 COMMAND ${CMAKE_CURRENT_BINARY_DIR}/daemon/x11_ewmh_coverage_test)
+        set_tests_properties(x11_ewmh_coverage PROPERTIES TIMEOUT 60)
+    endif()
+
     # GPU deform probe: offscreen Vulkan render of a mixed plain+deform
     # scene, boundary compared against CPU deform math. Skips (exit 77) on
     # GPU-less machines; SKIP_RETURN_CODE keeps ctest green there.
@@ -135,7 +160,9 @@ if(ENABLE_REGRESSION_TESTS)
         message(STATUS "Fixture regression test: SKIPPED (missing fixture or verifier)")
     endif()
 
-    # Hyprland IPC backend connection test
+    # Hyprland IPC backend connection test. Integration-only: the test binary
+    # exits 77 when no Hyprland instance is running, so non-Hyprland desktops
+    # (XFCE, labwc) report the test as skipped instead of failed.
     add_executable(hyprland_backend_test tests/hyprland_backend_test.cpp)
     target_compile_features(hyprland_backend_test PRIVATE cxx_std_17)
     if(EXISTS "${CMAKE_CURRENT_BINARY_DIR}/hyprland_backend_test")
@@ -144,6 +171,7 @@ if(ENABLE_REGRESSION_TESTS)
         set_tests_properties(hyprland_backend_connect PROPERTIES
             LABELS "hyprland;integration"
             TIMEOUT 30
+            SKIP_RETURN_CODE 77
         )
     endif()
 endif()

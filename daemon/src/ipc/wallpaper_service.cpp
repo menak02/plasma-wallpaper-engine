@@ -33,10 +33,14 @@ WallpaperService::WallpaperService(Render::VulkanContext* vulkanCtx,
         }
     }
 
-    // Try to attach a compositor backend. Right now the only implemented
-    // backend is Hyprland IPC. If none is available the pause gate simply
-    // does not trip (daemon keeps rendering), which is the safe fallback.
-    m_backend = Scene::makeHyprlandBackend();
+    // Attach a compositor backend for the pause gate. The backend is
+    // detected from the running session (Hyprland IPC, labwc wlr-IPC, X11
+    // EWMH) rather than hardcoded, so the daemon works unchanged on any of
+    // them. A backend that is present but fails to initialize is skipped in
+    // favour of the next candidate; if none is usable we get nullptr and the
+    // pause gate simply never trips (daemon keeps rendering), which is the
+    // safe fallback.
+    m_backend = Scene::makeCompositorBackend();
 
     // T5 autostart: bring back the last active wallpaper. Runs through the
     // ordinary load path, so trust rules and video/web detection all apply.

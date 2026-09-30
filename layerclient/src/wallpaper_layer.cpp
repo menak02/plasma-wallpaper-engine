@@ -1,4 +1,5 @@
 #include "wallpaper_layer.h"
+#include "x11_desktop_window.h"
 
 #include <QQuickItem>
 #include <QGuiApplication>
@@ -9,8 +10,17 @@
 #include <QDBusUnixFileDescriptor>
 #include <QDateTime>
 #include <QDebug>
+#include <QEvent>
+#include <QWindow>
 
+// LayerShellQt ships into a system include directory on most distros, so
+// __has_include alone cannot decide whether the library is linkable. CMake
+// defines PWE_HAVE_LAYERSHELL only when it actually resolved the package, so
+// require both: the header is reachable *and* the library is there.
+#if defined(PWE_HAVE_LAYERSHELL) && __has_include(<LayerShellQt/Window>)
+#define PWE_WITH_LAYERSHELL 1
 #include <LayerShellQt/Window>
+#endif
 
 #include <cerrno>
 #include <cstring>
@@ -69,6 +79,43 @@ Rectangle {
 }
 )";
 
+WallpaperLayer::Backend WallpaperLayer::detectBackend()
+{
+    // Environment first, Qt platform second. A Wayland session started from
+    // inside an X session (labwc launched by hand, a nested compositor) has
+    // both WAYLAND_DISPLAY and the inherited DISPLAY set, and only layer-shell
+    // actually works there, so Wayland must be tested first. The Qt platform
+    // name is only a fallback for a session that exports neither.
+    if (!qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY")) {
+        return Backend::LayerShell;
+    }
+    if (!qEnvironmentVariableIsEmpty("DISPLAY")) {
+        return Backend::X11Desktop;
+    }
+
+    const QString platform = QGuiApplication::platformName();
+    if (platform.startsWith(QStringLiteral("wayland"), Qt::CaseInsensitive)) {
+        return Backend::LayerShell;
+    }
+    if (platform == QLatin1String("xcb")) {
+        return Backend::X11Desktop;
+    }
+    return Backend::Unknown;
+}
+
+const char* WallpaperLayer::backendName(Backend backend)
+{
+    switch (backend) {
+    case Backend::LayerShell:
+        return "wlr-layer-shell";
+    case Backend::X11Desktop:
+        return "X11 EWMH desktop window";
+    case Backend::Unknown:
+        break;
+    }
+    return "unknown";
+}
+
 WallpaperLayer::WallpaperLayer(const QString& outputName, QScreen* screen, QObject* parent)
     : QObject(parent)
     , m_outputName(outputName)
@@ -83,9 +130,64 @@ WallpaperLayer::WallpaperLayer(const QString& outputName, QScreen* screen, QObje
                    << "daemon not reachable on D-Bus; layer will stay black";
     }
 
+    m_backend = detectBackend();
+    if (m_backend == Backend::Unknown) {
+        // Qt is running, so it is on some platform plugin; with neither
+        // environment variable set, X11 is the only thing left to try.
+        qWarning() << "LayerClient:" << m_outputName
+                   << "neither WAYLAND_DISPLAY nor DISPLAY is set (Qt platform:"
+                   << QGuiApplication::platformName() << "); assuming X11";
+        m_backend = Backend::X11Desktop;
+    }
+    qInfo() << "LayerClient:" << m_outputName << "using the"
+            << backendName(m_backend) << "path (Qt platform:"
+            << QGuiApplication::platformName() << ")";
+
+    m_screen = screen ? screen : QGuiApplication::primaryScreen();
+
     m_view = new QQuickView();
     m_view->setResizeMode(QQuickView::SizeRootObjectToView);
 
+    m_view->engine()->addImageProvider(QStringLiteral("frame"), m_provider);
+    m_view->setSource(QUrl::fromLocalFile(QStringLiteral(LAYER_QML_SOURCE_DIR) + QStringLiteral("/wallpaper_layer.qml")));
+    m_view->engine()->rootContext()->setContextProperty(QStringLiteral("layerOutput"), m_outputName);
+
+    if (m_backend == Backend::X11Desktop) {
+        configureX11();
+    } else {
+        configureLayerShell();
+        // Layer-shell surfaces are configured and sized by the compositor
+        // from the anchors and exclusive zone, so the window only has to be
+        // made visible.
+        m_view->showFullScreen();
+    }
+
+    if (m_screen) {
+        m_screenGeometryConn = connect(m_screen, &QScreen::geometryChanged,
+                                       this, &WallpaperLayer::onScreenGeometryChanged);
+    }
+
+    connectDbusSignals();
+
+    m_valid = refreshBufferInfo();
+    if (m_valid) {
+        qDebug() << "LayerClient: layer for" << m_outputName << "ready at"
+                 << m_width << "x" << m_height;
+    }
+}
+
+WallpaperLayer::~WallpaperLayer()
+{
+    // The view has to go first: X11DesktopWindow talks to the window that
+    // lives inside it.
+    delete m_view;
+    m_view = nullptr;
+    m_x11.reset();
+}
+
+void WallpaperLayer::configureLayerShell()
+{
+#if PWE_WITH_LAYERSHELL
     // Layer-shell configuration must happen before the window is shown /
     // exposed: once the surface is created the compositor has already
     // assigned it a shell role. QQuickView is-a QWindow, so it goes straight
@@ -104,33 +206,130 @@ WallpaperLayer::WallpaperLayer(const QString& outputName, QScreen* screen, QObje
         shell->setAnchors(anchors);
         shell->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
         shell->setScope(QStringLiteral("wallpaper"));
-        if (screen) {
-            shell->setScreen(screen);
+        if (m_screen) {
+            shell->setScreen(m_screen);
         }
     } else {
+        // Reachable when the session is Wayland but the compositor does not
+        // implement wlr-layer-shell. Showing the window anyway would put a
+        // fullscreen toplevel on top of the user's desktop, so do not.
         qWarning() << "LayerClient:" << m_outputName
-                   << "LayerShellQt::Window::get returned null (not a Wayland"
-                   << "layer-shell platform?) — window will behave like a normal toplevel";
+                   << "LayerShellQt::Window::get returned null — this compositor"
+                   << "does not support wlr-layer-shell; leaving the window unmapped"
+                   << "rather than covering the desktop with a normal toplevel";
+    }
+#else
+    qWarning() << "LayerClient:" << m_outputName
+               << "running on Wayland but this binary was built without"
+               << "LayerShellQt, so no background surface can be requested;"
+               << "leaving the window unmapped";
+#endif
+}
+
+void WallpaperLayer::configureX11()
+{
+    if (!m_screen) {
+        qWarning() << "LayerClient:" << m_outputName
+                   << "no QScreen to pin the X11 desktop window to";
     }
 
-    m_view->engine()->addImageProvider(QStringLiteral("frame"), m_provider);
-    m_view->setSource(QUrl::fromLocalFile(QStringLiteral(LAYER_QML_SOURCE_DIR) + QStringLiteral("/wallpaper_layer.qml")));
-    m_view->engine()->rootContext()->setContextProperty(QStringLiteral("layerOutput"), m_outputName);
+    // Qt-side hints, set before the platform window is created so Qt makes
+    // the window honour them from the start:
+    //   FramelessWindowHint     - no title bar or resize frame around the
+    //                             wallpaper,
+    //   WindowStaysOnBottomHint - Qt maps this to _NET_WM_STATE_BELOW itself
+    //                             and, more importantly, stops Qt from
+    //                             raising the window when it takes focus,
+    //   Tool                    - Qt classifies it as a transient utility
+    //                             window, so it never lands in the taskbar.
+    // The EWMH properties set below remain authoritative; they are written
+    // after create(), which is when Qt has already stamped its own
+    // _NET_WM_WINDOW_TYPE_UTILITY onto the window.
+    m_view->setFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnBottomHint | Qt::Tool);
+    if (m_screen) {
+        m_view->setScreen(m_screen);
+        m_view->setGeometry(m_screen->geometry());
+    }
 
-    m_view->showFullScreen();
+    m_x11 = std::make_unique<X11DesktopWindow>();
+    if (!m_x11->isUsable()) {
+        qWarning() << "LayerClient:" << m_outputName
+                   << "no X11 connection available; cannot request a desktop-level"
+                   << "window. Check that DISPLAY is set and the xcb platform"
+                   << "plugin is installed.";
+        m_x11.reset();
+        return;
+    }
 
-    connectDbusSignals();
+    // Pre-map pass: _NET_WM_WINDOW_TYPE, _NET_WM_STATE and _NET_WM_DESKTOP
+    // must exist before the window manager handles the MapRequest, otherwise
+    // it places the window as an ordinary toplevel and never reconsiders.
+    m_x11->configureBeforeMap(m_view);
 
-    m_valid = refreshBufferInfo();
-    if (m_valid) {
-        qDebug() << "LayerClient: layer for" << m_outputName << "ready at"
-                 << m_width << "x" << m_height;
+    m_view->show();
+
+    // Post-map pass, twice over, because the two requests are not
+    // interchangeable:
+    //  - The 0 ms post lands in the next event-loop iteration, by which point
+    //    XMapWindow has been written to the connection. Because the state
+    //    message goes out on the same connection, the server forwards it to
+    //    the window manager after the MapRequest, so the state can never be
+    //    applied to a window that does not exist yet.
+    //  - The first Expose is the earliest point at which the window manager
+    //    has genuinely mapped and stacked the window. xfwm4 recomputes
+    //    placement around that moment, which is where a _NET_WM_STATE_BELOW
+    //    request handled too early tends to get lost, so re-assert it there.
+    QTimer::singleShot(0, this, &WallpaperLayer::applyX11State);
+    m_view->installEventFilter(this);
+}
+
+void WallpaperLayer::applyX11State()
+{
+    if (!m_x11 || !m_view) {
+        return;
+    }
+    m_x11->restackAfterMap(m_view);
+
+    if (!m_x11StateApplied) {
+        // Only the first expose is interesting; after that the window is
+        // where it belongs and re-restacking on every expose would be noise.
+        m_x11StateApplied = true;
+        m_view->removeEventFilter(this);
     }
 }
 
-WallpaperLayer::~WallpaperLayer()
+void WallpaperLayer::onScreenGeometryChanged()
 {
-    delete m_view;
+    if (!m_view) {
+        return;
+    }
+    if (m_screen) {
+        m_view->setScreen(m_screen);
+    }
+
+    if (m_backend == Backend::LayerShell) {
+        // Anchored layer surfaces are resized by the compositor; all we can
+        // usefully do is follow the screen if it moved to another output.
+        return;
+    }
+
+    // A resolution change (or a panel-free geometry change) has to be
+    // followed by an explicit resize: nothing else moves the window, and a
+    // resized window can be pushed back up the stacking order.
+    if (m_screen) {
+        m_view->setGeometry(m_screen->geometry());
+    }
+    if (m_x11) {
+        m_x11->restackAfterMap(m_view);
+    }
+}
+
+bool WallpaperLayer::eventFilter(QObject* watched, QEvent* event)
+{
+    if (watched == m_view && event->type() == QEvent::Expose && m_x11) {
+        applyX11State();
+    }
+    return QObject::eventFilter(watched, event);
 }
 
 void WallpaperLayer::connectDbusSignals()

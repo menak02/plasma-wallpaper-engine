@@ -1,6 +1,5 @@
 #include "dxt_decoder.h"
 #include <cstring>
-#include <algorithm>
 #include <iostream>
 #include <cmath>
 #include <QImage>

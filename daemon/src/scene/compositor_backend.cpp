@@ -1,5 +1,34 @@
 #include "compositor_backend.h"
+
+// The labwc and X11 backends ship in their own translation units and are
+// added to the target by CMake. They are pulled in here rather than from
+// compositor_backend.h because x11_ewmh_backend.h includes compositor_backend.h
+// itself, and needs CompositorBackend to be complete by then — which the
+// include above guarantees.
+//
+// A backend whose header is absent is treated as "not built into this
+// binary": detection skips it and the daemon falls through to the next
+// candidate instead of failing to compile or link. Define
+// PWE_DISABLE_LABWC_BACKEND / PWE_DISABLE_X11_BACKEND for a target that
+// compiles this file but does not link those backends (the headless
+// pause_gate_test target does exactly that).
+#if __has_include("labwc_backend.h") && !defined(PWE_DISABLE_LABWC_BACKEND)
+#include "labwc_backend.h"
+#define PWE_HAVE_LABWC_BACKEND 1
+#else
+#define PWE_HAVE_LABWC_BACKEND 0
+#endif
+
+#if __has_include("x11_ewmh_backend.h") && !defined(PWE_DISABLE_X11_BACKEND)
+#include "x11_ewmh_backend.h"
+#define PWE_HAVE_X11_BACKEND 1
+#else
+#define PWE_HAVE_X11_BACKEND 0
+#endif
+
 #include <algorithm>
+#include <cerrno>
+#include <sys/stat.h>
 #include <string>
 #include <vector>
 #include <cstdint>
@@ -282,6 +311,130 @@ int connectToHyprlandIpc(const std::string& socketPath) {
     }
     
     return sock;
+}
+
+// ---------- Session detection ---------------------------------------------
+//
+// The helpers below answer "which compositor is this process running under?"
+// and nothing more. They are deliberately cheap and side-effect free: a
+// getenv(), a stat(), or a bounded non-blocking connect(). They sit on the
+// daemon start-up path, so nothing here may block, throw, or fork. The
+// expensive part of every backend — hyprctl, a Wayland registry round-trip,
+// an XCB connection — stays inside the factory that owns it and only runs
+// after these checks have cleared.
+
+/** Upper bound on the cost of one socket probe. A stale socket left by a
+    crashed compositor is rejected by connect() immediately (ECONNREFUSED);
+    the timeout only covers a live listener whose accept queue is full,
+    which must still not be able to stall start-up. */
+constexpr int kSocketProbeTimeoutMs = 200;
+
+bool isSocketFile(const std::string& path) {
+    struct stat st;
+    return stat(path.c_str(), &st) == 0 && S_ISSOCK(st.st_mode);
+}
+
+/** Bounded, non-blocking connect() probe against a unix socket.
+
+    Answers "is something listening", nothing more. The fd is closed right
+    away: a probe client that disconnects immediately is the normal case and
+    the compositor simply reaps it. Blocking for longer than timeoutMs is
+    impossible — a non-blocking connect that cannot complete immediately
+    simply reports the socket as unreachable. */
+bool canConnectToUnixSocket(const std::string& path, int timeoutMs) {
+    if (path.empty()) return false;
+
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+
+    // Refuse anything that would be silently truncated into the wrong path.
+    if (path.size() >= sizeof(addr.sun_path)) {
+        return false;
+    }
+    if (path[0] == '@') {
+        // Abstract namespace: the leading '@' is the abstract name's NUL.
+        addr.sun_path[0] = '\0';
+        memcpy(addr.sun_path + 1, path.c_str() + 1, path.size() - 1);
+    } else {
+        memcpy(addr.sun_path, path.c_str(), path.size());
+    }
+
+    const int sock = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+    if (sock < 0) {
+        return false;
+    }
+
+    bool reachable = false;
+    if (connect(sock, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == 0) {
+        reachable = true;
+    } else if (errno == EINPROGRESS) {
+        // Only a full accept queue lands here. Cap the wait so a wedged
+        // compositor cannot hold up start-up, then read the real result.
+        struct pollfd pfd;
+        pfd.fd = sock;
+        pfd.events = POLLOUT;
+        pfd.revents = 0;
+        if (poll(&pfd, 1, timeoutMs) > 0) {
+            int err = 0;
+            socklen_t errLen = sizeof(err);
+            if (getsockopt(sock, SOL_SOCKET, SO_ERROR, &err, &errLen) == 0) {
+                reachable = (err == 0);
+            }
+        }
+    }
+
+    close(sock);
+    return reachable;
+}
+
+/** The Hyprland IPC socket of the current instance, or "" when there is none.
+
+    discoverHyprlandSignature() already covers both ways of identifying the
+    instance (the exported signature, then a directory under
+    $XDG_RUNTIME_DIR/hypr/). This adds the "is anything actually listening"
+    test, which is what separates a live compositor from a signature left
+    behind by a crash — but the signature check above still lets a running
+    Hyprland through unchanged, which is the no-regression requirement. */
+std::string findHyprlandIpcSocket() {
+    const std::string signature = discoverHyprlandSignature();
+    if (signature.empty()) return "";
+
+    const std::string base = getEnv("XDG_RUNTIME_DIR") + "/hypr/" + signature;
+    // Same two names buildIpcSocketPath() probes, in the same order.
+    for (const char* name : {"daemon_ipc", ".socket.sock"}) {
+        const std::string path = base + "/" + name;
+        if (isSocketFile(path)) return path;
+    }
+    return "";
+}
+
+/** Non-empty when this process is inside a Hyprland session. The value is a
+    short reason phrase for the log line, not an identifier. */
+std::string hyprlandSessionReason() {
+    if (!getEnv("HYPRLAND_INSTANCE_SIGNATURE").empty()) {
+        return "HYPRLAND_INSTANCE_SIGNATURE is set";
+    }
+    const std::string socket = findHyprlandIpcSocket();
+    if (!socket.empty()) {
+        return "IPC socket " + socket + " exists";
+    }
+    return "";
+}
+
+/** Resolves $WAYLAND_DISPLAY to a socket path, honouring both forms libwayland
+    accepts: a bare display name under $XDG_RUNTIME_DIR, or an absolute path.
+    Returns "" when the name cannot be resolved — which is NOT a negative
+    signal, since XDG_RUNTIME_DIR is often missing from a systemd user unit and
+    the labwc backend resolves the value by the same rules. */
+std::string waylandSocketPath() {
+    const std::string display = getEnv("WAYLAND_DISPLAY");
+    if (display.empty()) return "";
+    if (display[0] == '/') return display;
+
+    const std::string runtimeDir = getEnv("XDG_RUNTIME_DIR");
+    if (runtimeDir.empty()) return "";
+    return runtimeDir + "/" + display;
 }
 
 } // anonymous namespace
@@ -577,6 +730,88 @@ std::unique_ptr<CompositorBackend> makeHyprlandBackend() {
     }
 
     return backend;
+}
+
+std::unique_ptr<CompositorBackend> makeCompositorBackend() {
+    // 1. Hyprland. Checked first so an existing Hyprland install keeps
+    //    exactly the behaviour it had when this call was hardcoded. The
+    //    signature is exported into every child process, so this is one
+    //    getenv() and costs nothing on the other compositors.
+    const std::string hyprReason = hyprlandSessionReason();
+    if (!hyprReason.empty()) {
+        if (auto backend = makeHyprlandBackend()) {
+            std::cout << "CompositorBackend: Hyprland session detected ("
+                      << hyprReason << "); using Hyprland IPC backend" << std::endl;
+            return backend;
+        }
+        // A signature with a dead socket behind it. Fall through: a nested
+        // Hyprland inside another session is exactly the case where the
+        // backend below is the one that can still answer.
+        std::cout << "CompositorBackend: Hyprland detected (" << hyprReason
+                  << ") but its backend failed to initialize; trying the next candidate"
+                  << std::endl;
+    }
+
+    // 2. labwc (wlroots-IPC Wayland). $WAYLAND_DISPLAY alone is not enough:
+    //    GNOME, KDE and plain XWayland sessions all set it, and none of them
+    //    expose the wlr-IPC globals the backend needs. So probe the socket
+    //    first, then let the backend do the registry round-trip that actually
+    //    decides the question and report a non-labwc session by returning
+    //    nullptr.
+    const std::string waylandDisplay = getEnv("WAYLAND_DISPLAY");
+    if (!waylandDisplay.empty()) {
+        const std::string socketPath = waylandSocketPath();
+        // Unresolvable name is not a rejection — see waylandSocketPath().
+        const bool socketAlive = socketPath.empty()
+                                     ? true
+                                     : canConnectToUnixSocket(socketPath, kSocketProbeTimeoutMs);
+        if (!socketAlive) {
+            std::cout << "CompositorBackend: WAYLAND_DISPLAY=" << waylandDisplay
+                      << " is not connectable; not a usable Wayland session" << std::endl;
+        } else {
+#if PWE_HAVE_LABWC_BACKEND
+            if (auto backend = makeLabwcBackend()) {
+                std::cout << "CompositorBackend: Wayland session with wlr-IPC globals detected (WAYLAND_DISPLAY="
+                          << waylandDisplay << "); using labwc backend" << std::endl;
+                return backend;
+            }
+            std::cout << "CompositorBackend: Wayland session at WAYLAND_DISPLAY="
+                      << waylandDisplay
+                      << " does not expose the wlr-IPC globals the labwc backend needs"
+                      << std::endl;
+#else
+            std::cout << "CompositorBackend: Wayland session detected but no labwc backend is built into this binary"
+                      << std::endl;
+#endif
+        }
+    }
+
+    // 3. X11. $DISPLAY is authoritative here, and the backend is cheap to
+    //    reject: it opens the display and snapshots EWMH, returning nullptr
+    //    when nothing answers. An XWayland-only session under a non-wlroots
+    //    compositor therefore degrades to "no backend", not a broken one.
+    const std::string xDisplay = getEnv("DISPLAY");
+    if (!xDisplay.empty()) {
+#if PWE_HAVE_X11_BACKEND
+        if (auto backend = makeX11EwmhBackend()) {
+            std::cout << "CompositorBackend: X11 session detected (DISPLAY=" << xDisplay
+                      << "); using X11 EWMH backend" << std::endl;
+            return backend;
+        }
+        std::cout << "CompositorBackend: DISPLAY=" << xDisplay
+                  << " is set but no X server answered" << std::endl;
+#else
+        std::cout << "CompositorBackend: X11 session detected (DISPLAY=" << xDisplay
+                  << ") but no X11 EWMH backend is built into this binary" << std::endl;
+#endif
+    }
+
+    // 4. Nothing usable. This is the documented safe fallback, not a failure:
+    //    the pause gate never trips and the daemon keeps rendering.
+    std::cout << "CompositorBackend: no supported compositor session detected "
+                 "(HYPRLAND_INSTANCE_SIGNATURE, WAYLAND_DISPLAY and DISPLAY are all unset or unusable); "
+                 "pause gate disabled, daemon keeps rendering" << std::endl;
+    return nullptr;
 }
 
 } // namespace WallpaperEngine::Scene
