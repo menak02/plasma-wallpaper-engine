@@ -1,6 +1,6 @@
 # Remaining V3 — Competitive Analysis + Plan (post c271566, updated 2026-09-09)
 
-Batch 55✅/17⚠️/0❌. Verifier 72/72 baseline match (mae=0.000). C1–C9 from PLAN_REMAINING(_V2) all landed. Landed since: D-Bus path allowlist (S0.5), audio-reactive wiring (S1), FilmGrain GPU post-process (S2, first wired Vulkan compute pass), pause gate (S3), GPU quad composition revival + mesh-deform pipeline (S7, 2026-09-09). **Next up: S4 = T3 mouse click forwarding.**
+Batch 55✅/17⚠️/0❌. Verifier 72/72 baseline match (mae=0.000). C1–C9 from PLAN_REMAINING(_V2) all landed. Landed since: D-Bus path allowlist (S0.5), audio-reactive wiring (S1), FilmGrain GPU post-process (S2, first wired Vulkan compute pass), pause gate (S3, since extended to X11 EWMH + labwc wlr-IPC backends in 42ce787), GPU quad composition revival + mesh-deform pipeline (S7, 2026-09-09). **Next up: S4 = T3 mouse click forwarding.**
 
 ## Competitive landscape (researched 2026-09-03)
 
@@ -10,8 +10,8 @@ Batch 55✅/17⚠️/0❌. Verifier 72/72 baseline match (mae=0.000). C1–C9 fr
 | **AzPepoze/linux-wallpaperengine** | **Go** / native reimplementation | yes | mouse events | yes | native WebGL | yes | single binary | GitHub releases, own GUI |
 | **waywallen** (ex catsout/wallpaper-engine-kde-plugin) | C++/QML **KDE Plasma plugin** | Plasma-only | Plasma integration | yes | QtWebEngine | QtMultimedia | KPack plugin | AUR (`plasma6-wallpapers-wallpaper-engine-git`), full wallpaper **manager GUI**, workshop browse |
 | **Hidamari** | Python / video-only | GNOME/wayland | pause on fullscreen/maximized, volume | no | webpage-as-wallpaper | mpv/yt-dlp (streaming URLs!) | Flatpak on **Flathub**, autostart | Flathub, simple UX |
-| **Ours** | C++ / Qt6 / Vulkan compute / D-Bus daemon | layer-shell-style per-output DmaBuf | mouse parallax only | ✅ wired (T1: monitor capture → pulse) | QtWebEngine (loadFinished + JS bridge done) | ffmpeg single-decoder | install() daemon only | **none** — no README, no AUR, no CI |
-| **Ours, gaps still open** | | | G1 clicks, G2 fullscreen pause | 64-band parity vs PulseAudio TBD | | | G5 | |
+| **Ours** | C++ / Qt6 / Vulkan compute / D-Bus daemon | layer-shell **and X11 EWMH** desktop window, per-output DmaBuf | mouse parallax only | ✅ wired (T1: monitor capture → pulse) | QtWebEngine (loadFinished + JS bridge done) | ffmpeg single-decoder | install() daemon only | **none** — no README, no AUR, no CI |
+| **Ours, gaps still open** | | | G1 clicks | 64-band parity vs PulseAudio TBD | | | G5 | |
 
 ### What we do better (keep and advertise)
 1. **Verifier + PNG regression baseline (72 wallpapers, mae gate)** — nobody else has CI-grade per-wallpaper output verification. Unique selling point.
@@ -21,7 +21,7 @@ Batch 55✅/17⚠️/0❌. Verifier 72/72 baseline match (mae=0.000). C1–C9 fr
 
 ### What they have that we lack (the gaps)
 - G1 **Mouse forwarding / click interaction** — Almamu + AzPepoze. We only do parallax (`scene_compositor.cpp:106`). Interactive wallpapers are a visible class in the workshop.
-- G2 ~~**Pause on fullscreen / maximized window**~~ — ✅ DONE (S3): Hyprland IPC coverage gate (fullscreen-family or ≥90% tiled), per-output, auto-mute, headless decision tests.
+- G2 ~~**Pause on fullscreen / maximized window**~~ — ✅ DONE (S3): per-output coverage gate, auto-mute, headless decision tests. Backend is a `CompositorBackend` interface, not Hyprland-specific: Hyprland IPC (fullscreen-family or ≥90% tiled, summed client area), X11 EWMH (fullscreen or ≥90% union of normal-window rects, panel/DESKTOP/skip-taskbar chrome excluded), and labwc wlr-IPC (fullscreen or maximized only — wlr-foreign-toplevel-management exposes no per-window geometry, so a plain tiled window does not pause). Auto-detection order Hyprland → labwc → X11 → nullptr, where nullptr just leaves the gate inactive. The wallpaper now also displays on X11 via an EWMH desktop-level window (42ce787), not only through layer-shell.
 - G3 ~~**Autostart after login**~~ — implemented in T5 (systemd user unit) but **intentionally reverted on 2026-09-09**: idle power draw (16-17W, issue #29) made always-on unjustifiable. Session restore remains; users run the daemon by hand until GPU composition makes idle cheap again. Re-add the unit once power is acceptable.
 - G4 **Workshop browse → subscribe flow** — waywallen is a full manager. Our plugin QML already queries Steam Web API (`WorkshopView.qml`) but has no "open in Steam"/rescan loop. LibraryScanner already auto-discovers workshop paths, so this is a small UX loop.
 - G5 **Packaging: AUR + README + site** — every competitor is on AUR/Flathub with a README. We have zero user-facing surface.
@@ -127,7 +127,7 @@ All script-dependent (clock/date visibility). Feed user-property values (from th
 - S0.5: DBus path allowlist (T1b) — ✅ committed
 - S1: audio wire (T1) — ✅ committed
 - S2: FilmGrain (T2) — ✅ committed (c271566)
-- S3: fullscreen pause (T4) — ✅ committed (63a563c, 139306a)
+- S3: fullscreen pause (T4) — ✅ committed (63a563c, 139306a); X11 + labwc backends + X11 display path — ✅ committed 42ce787
 - S4: mouse click forwarding (T3) ← NEXT
 - S5: autostart + install (T5) — ✅ committed a8851fa, **install wiring reverted 2026-09-09**
 - S6: workshop UX (T6)
