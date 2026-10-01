@@ -132,6 +132,19 @@ if(ENABLE_REGRESSION_TESTS)
         SKIP_RETURN_CODE 77
     )
 
+    # blitIntoShared DmaBuf probe: the live wallpaper client consumes the
+    # exported DmaBuf, not readback(), so this covers the one GPU path the
+    # deform probe cannot see. Skips (exit 77) on GPU-less machines.
+    if(TARGET blit_shared_probe)
+        add_test(NAME blit_shared_probe
+                 COMMAND ${CMAKE_CURRENT_BINARY_DIR}/daemon/blit_shared_probe)
+        set_tests_properties(blit_shared_probe PROPERTIES
+            TIMEOUT 120
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            SKIP_RETURN_CODE 77
+        )
+    endif()
+
     # Self-contained fixture regression: renders a committed deterministic
     # scene.pkg through the verifier and PNG-diffs it against a committed
     # baseline. Runs everywhere (no Steam library, no GPU required) so CI

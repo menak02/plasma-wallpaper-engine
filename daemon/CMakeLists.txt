@@ -353,3 +353,30 @@ target_compile_options(gpu_deform_probe PRIVATE -fexceptions)
 
 # Test registered at top level so ctest sees it directly.
 # (pause_gate_headless is added in the top-level CMakeLists.txt.)
+
+# ---------- blitIntoShared DmaBuf probe ----------
+# The live wallpaper client consumes the exported DmaBuf that
+# blitIntoShared() writes, NOT readback(). The existing gpu_deform_probe
+# covers readback() only, so a defect in the blit path is invisible to
+# ctest while producing garbage on screen. This probe renders two frames
+# with different clear colors and asserts the exported buffer changes.
+add_executable(blit_shared_probe
+    ../tests/blit_shared_probe.cpp
+    src/render/gpu_quad_compositor.cpp
+    src/vulkan/vulkan_context.cpp
+    src/render/mesh_renderer.cpp
+)
+
+target_include_directories(blit_shared_probe
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(blit_shared_probe
+    PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Vulkan::Vulkan
+)
+
+target_compile_options(blit_shared_probe PRIVATE -fexceptions)
