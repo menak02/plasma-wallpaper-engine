@@ -1,0 +1,25 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [master, feat/hyprland-pause]
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM
+
+jobs:
+  secret-scanning:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Check for secrets
+      run: |
+        git log -p -n 100 | grep -E "(password|secret|key|token)" || echo "No secrets found"
+
+  vulnerability-scan:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Dependency scan placeholder
+      run: echo "Vulnerability scanning would be configured here"

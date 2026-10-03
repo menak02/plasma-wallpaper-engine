@@ -1,0 +1,113 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [master, feat/hyprland-pause]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake qt6-base-dev qt6-declarative-dev qt6-tools-dev-tools \
+          qt6-image-formats-plugins vulkan-tools libvulkan-dev \
+          liblz4-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
+          libpulse-dev
+
+    - name: Configure
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+
+    - name: Verify D-Bus interface XML
+      run: bash scripts/verify_dbus_interface.sh
+
+    - name: Build
+      run: cmake --build build -j$(nproc)
+
+    - name: Test
+      run: ctest --test-dir build --output-on-failure
+
+  fixture-regression:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake qt6-base-dev qt6-declarative-dev qt6-tools-dev-tools \
+          qt6-image-formats-plugins vulkan-tools libvulkan-dev \
+          liblz4-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
+          libpulse-dev python3-pil python3-numpy
+
+    - name: Configure
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build verifier
+      run: cmake --build build -j$(nproc) --target plasma-wallpaper-engine-verifier
+
+    - name: Run fixture regression
+      run: ctest --test-dir build -R fixture_regression --output-on-failure
+
+  dbus-interface:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Qt D-Bus tooling
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y qt6-tools-dev-tools
+
+    - name: Verify D-Bus interface XML
+      run: bash scripts/verify_dbus_interface.sh
+
+  repo-quality:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check for common AI-telltale patterns (fail on scaffolding)
+      run: |
+        bash scripts/check_repo_quality.sh 2>&1 | tee repo-quality-report.txt
+        exit ${PIPESTATUS[0]}
+
+    # Sticky PR comment: one per PR, found via the hidden marker in its
+    # first line and edited in place. Failures refresh the findings; later
+    # passing runs flip the same comment to a clean status so stale findings
+    # never linger on a merged PR.
+    - name: Report findings as PR comment
+      if: failure() && github.event_name == 'pull_request'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: bash scripts/update_repo_quality_comment.sh report repo-quality-report.txt
+
+    - name: Clear PR comment on pass
+      if: success() && github.event_name == 'pull_request'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: bash scripts/update_repo_quality_comment.sh clean
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Run security audit
+      run: |
+        echo "Security scan would run here"
+        # Placeholder for actual security scanning tools

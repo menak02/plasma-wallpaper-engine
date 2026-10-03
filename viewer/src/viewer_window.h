@@ -1,44 +1,32 @@
 #pragma once
 
-#include <QMainWindow>
-#include <QLabel>
-#include <QPushButton>
+#include <QObject>
+#include <QQuickView>
+#include <QImage>
 #include <QDBusInterface>
-#include <QProcess>
+#include <QDBusReply>
+#include <QDBusConnection>
+#include <QDBusUnixFileDescriptor>
+#include <QQuickImageProvider>
 #include <QTimer>
+#include <QDir>
+#include <QFileInfo>
 
-class LiveViewport : public QWidget {
+// Streams the daemon's exported DmaBuf frames into the QML scene. The
+// mmap'ed pixels are copied into a QImage and published through an
+// QQuickImageProvider; the QML Image element requests "frame://<n>" each
+// time a new frame lands so the scene graph re-uploads the texture.
+class ViewerWindow : public QObject {
     Q_OBJECT
+
 public:
-    explicit LiveViewport(QWidget* parent = nullptr);
-    ~LiveViewport() override;
-
-    void updateBuffer(int fd, uint32_t width, uint32_t height, uint32_t stride, size_t size);
-    void triggerRedraw();
-
-Q_SIGNALS:
-    void mouseMoved(float normX, float normY);
-
-protected:
-    void paintEvent(QPaintEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
-
-private:
-    int m_fd = -1;
-    uint32_t m_width = 0;
-    uint32_t m_height = 0;
-    uint32_t m_stride = 0;
-    size_t m_size = 0;
-    void* m_mappedPtr = nullptr;
-};
-
-class ViewerWindow : public QMainWindow {
-    Q_OBJECT
-public:
-    explicit ViewerWindow(QWidget* parent = nullptr);
+    explicit ViewerWindow(QObject* parent = nullptr);
     ~ViewerWindow() override = default;
 
     void loadPath(const QString& path);
+
+    // QML hover handler -> daemon setMousePosition (drives wallpaper parallax).
+    Q_INVOKABLE void sendMousePosition(double normX, double normY);
 
 public Q_SLOTS:
     void checkConnection();
@@ -47,14 +35,26 @@ public Q_SLOTS:
     void onWallpaperLoaded(const QString& title);
 
 private:
-    void ensureDaemonRunning();
+    class FrameProvider;
 
-    LiveViewport* m_viewport = nullptr;
-    QLabel* m_statusLabel = nullptr;
-    QLabel* m_infoLabel = nullptr;
-    QLabel* m_fpsLabel = nullptr;
-    int m_frameCount = 0;
-    int m_activeFd = -1;
+    void onSceneReady();
+    void setStatus(const QString& text, const QString& color);
+    void setInfo(const QString& text);
+    void connectDbusSignals();
+    void pullFrame();
+
+    QQuickView* m_view = nullptr;
+    QObject* m_rootItem = nullptr;
+    QDBusInterface m_iface;
+    QString m_activeOutput;
     QString m_pendingPath;
-    QProcess* m_daemonProc = nullptr;
+
+    // Provider + monotonically increasing request id. The id is appended to
+    // the Image source URL so every frame is a cache-busting new request.
+    FrameProvider* m_provider = nullptr;
+    qint64 m_frameSerial = 0;
+
+    // On-demand frame pump: single-shot timer rearmed after each pull, with
+    // backoff when the daemon isn't rendering. frameReady nudges it to 0ms.
+    QTimer* m_pumpTimer = nullptr;
 };

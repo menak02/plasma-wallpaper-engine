@@ -16,6 +16,8 @@ target_link_libraries(plasma-wallpaper-engine-viewer
         Qt6::Core
         Qt6::Gui
         Qt6::Quick
+        Qt6::Qml
+        Qt6::QuickControls2
         Qt6::DBus
         Qt6::Widgets
 )

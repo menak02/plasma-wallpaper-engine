@@ -12,7 +12,7 @@ bool VulkanCompute::init(VulkanContext* vulkanCtx) {
     m_vulkanCtx = vulkanCtx;
     m_device = vulkanCtx->getDevice();
 
-    // In this basic version, we query queue details from context
+    // Query queue details from context..
     m_computeQueueFamily = 0; // assuming graphics/compute queue is 0 (graphics contains compute)
     vkGetDeviceQueue(m_device, m_computeQueueFamily, 0, &m_computeQueue);
 

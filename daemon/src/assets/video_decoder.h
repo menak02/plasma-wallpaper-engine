@@ -41,11 +41,11 @@ public:
     Format format() const { return m_format; }
 
     QImage convertToFormat(Format format) const {
-        // For simplicity, we just change the format without converting data.
-        // In a real implementation, we would convert the pixel data.
+        // Stub: convert without full pixel format conversion.
+        // Caller handles conversion assumptions.
         QImage result(m_width, m_height, format);
-        // Note: We are not actually converting the image data.
-        // This is a stub, so we assume the data is already in the desired format or that the caller handles it.
+        // Pixel data is not actually converted here; the caller supplies
+        // data in the target format or converts afterwards.
         return result;
     }
 
@@ -54,7 +54,7 @@ public:
     }
 
     bool loadFromData(const uchar* data, int size) {
-        // For simplicity, we just copy the data if the size matches our expected size.
+        // Copy when size matches expected size.
         // We don't actually parse the image format (PNG, JPEG, etc.).
         if (size == static_cast<int>(m_data.size())) {
             m_data.assign(data, data + size);
@@ -147,9 +147,7 @@ private:
     int m_videoStreamIdx = -1;
     int m_width = 0;
     int m_height = 0;
-    bool m_open = false;
-
-    // For memory-backed input
+    bool m_open = false;        // Memory-backed input.
     std::vector<uint8_t> m_dataCopy;
     AVIOContext* m_avioCtx = nullptr;
     unsigned char* m_avioBuffer = nullptr;

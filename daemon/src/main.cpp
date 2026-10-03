@@ -11,6 +11,7 @@
 
 #include "vulkan/vulkan_context.h"
 #include "ipc/wallpaper_service.h"
+#include "ipc/wallpaper_service_adaptor.h"
 #include "plugin/wallpaper_plugin.h"
 
 volatile sig_atomic_t g_quitRequested = 0;
@@ -25,7 +26,7 @@ int main(int argc, char *argv[]) {
     // unless a compositor provides one.
     QGuiApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("plasma-wallpaper-engine-daemon"));
-    app.setOrganizationDomain(QStringLiteral("org.antigravity"));
+    app.setOrganizationDomain(QStringLiteral("org.plasmawallpaperengine"));
 
     qInfo() << "Starting Plasma Wallpaper Engine Daemon (Phase 3 Engine)...";
 
@@ -86,19 +87,26 @@ int main(int argc, char *argv[]) {
     WallpaperEngine::IPC::WallpaperService service(&vulkanCtx, trustedDirs);
     QDBusConnection connection = QDBusConnection::sessionBus();
 
-    if (!connection.registerService(QStringLiteral("org.antigravity.WallpaperEngine"))) {
+    if (!connection.registerService(QStringLiteral("org.plasmawallpaperengine.Daemon"))) {
         qWarning() << "Service already registered or failed:" << connection.lastError().message();
     }
 
+    // Pin the D-Bus surface to the generated adaptor so the runtime
+    // interface matches the validated XML contract exactly (issue #21).
+    // Using ExportAdaptors + the adaptor subclass instead of ExportAll*
+    // avoids accidentally exposing internals and keeps the panic/crash
+    // surface small.
+    new WallpaperServiceAdaptor(&service);
+
     if (!connection.registerObject(QStringLiteral("/WallpaperEngine"), &service,
-                                  QDBusConnection::ExportAllSlots |
-                                  QDBusConnection::ExportAllSignals |
-                                  QDBusConnection::ExportAllProperties)) {
+                                  QDBusConnection::ExportAdaptors |
+                                  QDBusConnection::ExportScriptableSlots |
+                                  QDBusConnection::ExportScriptableSignals)) {
         qCritical() << "Failed to register DBus object:" << connection.lastError().message();
         return 1;
     }
 
-    qInfo() << "DBus service registered: org.antigravity.WallpaperEngine at /WallpaperEngine";
+    qInfo() << "DBus service registered: org.plasmawallpaperengine.Daemon at /WallpaperEngine";
 
     // 60 FPS Simulation & Render Loop
     QTimer frameTimer;

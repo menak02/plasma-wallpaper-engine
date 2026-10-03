@@ -1,0 +1,239 @@
+<?xml version="1.0" ?>
+<!-- D-Bus interface definition for org.plasmawallpaperengine.Daemon.
+     Used as documentation + a validation source for the exposed slots.
+     The daemon currently registers with ExportAllSlots, so this file is
+     the source of truth for what callers should assume is available.
+
+     Design notes (panic/crash surface):
+     - All setters validate their inputs before touching state.
+     - Pause settings are stored in atomics and never block.
+     - No slot performs long-running work; expensive work stays on the
+       render/compositor side and is triggered indirectly via state changes.
+-->
+<node>
+  <interface name="org.plasmawallpaperengine.Daemon">
+    <!-- Frame / buffer -->
+    <method name="getBufferInfo">
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getBufferInfo"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantMap"/>
+      <arg direction="out" type="a{sv}"/>
+    </method>
+    <method name="loadWallpaper">
+      <arg direction="in" type="s"/>
+      <arg direction="out" type="b"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::loadWallpaper"/>
+    </method>
+    <!-- Ephemeral-load variant: grants one-shot trust for the wallpaper's
+         directory, consumed by this load. The grant never outlives the load
+         attempt — see WallpaperService::loadWallpaperEphemeral. -->
+    <method name="loadWallpaperEphemeral">
+      <arg direction="in" type="s"/>
+      <arg direction="out" type="b"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::loadWallpaperEphemeral"/>
+    </method>
+    <method name="requestFrame">
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::requestFrame"/>
+    </method>
+
+    <!-- Resolution / GPU -->
+    <method name="setResolution">
+      <arg direction="in" type="u"/>
+      <arg direction="in" type="u"/>
+      <arg direction="out" type="b"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::setResolution"/>
+    </method>
+    <method name="getAvailableGpus">
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantList"/>
+      <arg direction="out" type="a{sv}"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getAvailableGpus"/>
+    </method>
+
+    <!-- Multi-output -->
+    <method name="setResolutionForOutput">
+      <arg direction="in" type="s"/>
+      <arg direction="in" type="u"/>
+      <arg direction="in" type="u"/>
+      <arg direction="out" type="b"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::setResolutionForOutput"/>
+    </method>
+    <method name="getBufferFdForOutput">
+      <arg direction="in" type="s"/>
+      <arg direction="out" type="h"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getBufferFdForOutput"/>
+    </method>
+    <method name="getBufferInfoForOutput">
+      <arg direction="in" type="s"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantMap"/>
+      <arg direction="out" type="a{sv}"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getBufferInfoForOutput"/>
+    </method>
+    <method name="getOutputs">
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QStringList"/>
+      <arg direction="out" type="as"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getOutputs"/>
+    </method>
+
+    <!-- Interaction -->
+    <method name="setMousePosition">
+      <arg direction="in" type="d"/>
+      <arg direction="in" type="d"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::setMousePosition"/>
+    </method>
+
+    <!-- Pause gate -->
+    <method name="setPauseEnabled">
+      <arg direction="in" type="b"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::setPauseEnabled"/>
+    </method>
+    <method name="setPauseAllOutputs">
+      <arg direction="in" type="b"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::setPauseAllOutputs"/>
+    </method>
+    <method name="setPauseCoverageThreshold">
+      <arg direction="in" type="d"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::setPauseCoverageThreshold"/>
+    </method>
+    <method name="setPauseMuteAudio">
+      <arg direction="in" type="b"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::setPauseMuteAudio"/>
+    </method>
+
+    <method name="isPauseEnabled">
+      <arg direction="out" type="b"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::isPauseEnabled"/>
+    </method>
+    <method name="isPauseAllOutputs">
+      <arg direction="out" type="b"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::isPauseAllOutputs"/>
+    </method>
+    <method name="pauseCoverageThreshold">
+      <arg direction="out" type="d"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::pauseCoverageThreshold"/>
+    </method>
+    <method name="isPauseMuteAudio">
+      <arg direction="out" type="b"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::isPauseMuteAudio"/>
+    </method>
+
+    <method name="isOutputCovered">
+      <arg direction="in" type="s"/>
+      <arg direction="out" type="b"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::isOutputCovered"/>
+    </method>
+    <method name="getPauseState">
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantList"/>
+      <arg direction="out" type="a{sv}"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getPauseState"/>
+    </method>
+
+    <!-- Audio -->
+    <method name="startAudioCapture">
+      <arg direction="out" type="b"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::startAudioCapture"/>
+    </method>
+    <method name="stopAudioCapture">
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::stopAudioCapture"/>
+    </method>
+    <method name="getAudioBands">
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantList"/>
+      <arg direction="out" type="d"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getAudioBands"/>
+    </method>
+    <method name="setAudioVolume">
+      <arg direction="in" type="i"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::setAudioVolume"/>
+    </method>
+    <method name="setAudioMuted">
+      <arg direction="in" type="b"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::setAudioMuted"/>
+    </method>
+    <method name="setMuteOnOtherAudio">
+      <arg direction="in" type="b"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::setMuteOnOtherAudio"/>
+    </method>
+    <method name="setMuteOnFullscreen">
+      <arg direction="in" type="b"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::setMuteOnFullscreen"/>
+    </method>
+    <method name="getAudioSettings">
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantMap"/>
+      <arg direction="out" type="a{sv}"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getAudioSettings"/>
+    </method>
+
+    <!-- Playback -->
+    <method name="pause"/>
+    <method name="resume"/>
+    <method name="stop"/>
+
+    <!-- Library -->
+    <method name="getLibrary">
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantList"/>
+      <arg direction="out" type="a{sv}"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getLibrary"/>
+    </method>
+    <method name="scanLibrary"/>
+    <method name="addCustomLibraryPath">
+      <arg direction="in" type="s"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::addCustomLibraryPath"/>
+    </method>
+
+    <!-- Trust management -->
+    <method name="registerTrustedDirectory">
+      <arg direction="in" type="s"/>
+      <arg direction="out" type="b"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::registerTrustedDirectory"/>
+    </method>
+    <method name="getTrustedDirectories">
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QStringList"/>
+      <arg direction="out" type="as"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getTrustedDirectories"/>
+    </method>
+
+    <!-- Properties -->
+    <method name="getWallpaperProperties">
+      <arg direction="in" type="s"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantMap"/>
+      <arg direction="out" type="a{sv}"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getWallpaperProperties"/>
+    </method>
+    <method name="setProperty">
+      <arg direction="in" type="s"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.In1" value="QVariant"/>
+      <arg direction="in" type="v"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::setProperty"/>
+    </method>
+    <method name="getProperty">
+      <arg direction="in" type="s"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariant"/>
+      <arg direction="out" type="v"/>
+      <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getProperty"/>
+    </method>
+
+    <signal name="frameReady"/>
+    <signal name="wallpaperLoaded">
+      <arg direction="out" type="s"/>
+    </signal>
+    <signal name="libraryUpdated">
+      <arg direction="out" type="i"/>
+    </signal>
+    <signal name="bufferResized">
+      <arg direction="out" type="u"/>
+      <arg direction="out" type="u"/>
+    </signal>
+    <signal name="propertyChanged">
+      <arg direction="out" type="s"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.In1" value="QVariant"/>
+      <arg direction="out" type="v"/>
+    </signal>
+
+    <!-- Keep this file in sync with WallpaperService (daemon/src/ipc/wallpaper_service.h/cpp).
+         Run `scripts/verify_dbus_interface.sh` after editing.
+         The daemon wires this interface via the generated
+         WallpaperServiceAdaptor (daemon/src/ipc/wallpaper_service_adaptor.*)
+         and registers with ExportAdaptors so the runtime D-Bus surface
+         matches this XML exactly (see issue #21).
+    -->
+
+  </interface>
+</node>

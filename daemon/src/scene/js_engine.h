@@ -13,8 +13,7 @@ namespace WallpaperEngine::Scene {
 /**
  * JavaScript Engine for evaluating Wallpaper Engine script properties.
  *
- * Supports:
- * - Simple property references: {"user": "propname", "value": true}
+ * Supports:    * Property references: {"user": "propname", "value": true}
  * - Combo conditions: {"user": {"condition": "N", "name": "propname"}, "value": true}
  * - Script-based evaluation via inlined JS snippets
  *
@@ -56,7 +55,7 @@ public:
     void update(float currentTime, float deltaTime);
 
     /**
-     * Get current hour (0-23) for time-based scripts.
+     * Current hour (0-23) for time-based scripts.
      */
     int getCurrentHour() const { return m_currentHour; }
 

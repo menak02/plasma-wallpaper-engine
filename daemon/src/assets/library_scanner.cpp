@@ -41,7 +41,7 @@ QStringList LibraryScanner::findSteamLibraryPaths() const {
             steamWorkshopPaths.append(defaultWorkshop);
         }
 
-        // Parse libraryfolders.vdf for extra drives
+        // Read Steam libraryfolders.vdf for extra library roots.
         QString vdfPath = base + QStringLiteral("/steamapps/libraryfolders.vdf");
         QFile vdfFile(vdfPath);
         if (vdfFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -64,7 +64,18 @@ QStringList LibraryScanner::findSteamLibraryPaths() const {
 
 void LibraryScanner::scanSteamLibraries() {
     QStringList paths = findSteamLibraryPaths();
-    for (const auto& path : paths) {
+    // Canonicalize before dedupe: ~/.steam/steam and ~/.steam/root are
+    // symlinks to ~/.local/share/Steam, so string-level dedupe alone counts
+    // the same physical workshop three times ("Found 303 wallpapers" with
+    // only 101 actual items).
+    QStringList canonical;
+    for (const QString& path : paths) {
+        const QString real = QFileInfo(path).canonicalFilePath();
+        if (!real.isEmpty() && !canonical.contains(real)) {
+            canonical.append(real);
+        }
+    }
+    for (const auto& path : canonical) {
         scanDirectory(path.toStdString(), false);
     }
 }
@@ -141,7 +152,7 @@ void LibraryScanner::parseWallpaperFolder(const std::filesystem::path& folderPat
     if (!previewRel.isEmpty()) {
         item.previewPath = QString::fromStdString((folderPath / previewRel.toStdString()).string());
     } else {
-        // Fallbacks
+        // Guess preview from common extensions when not declared.
         for (const auto& ext : {".jpg", ".png", ".gif"}) {
             auto candidate = folderPath / ("preview" + std::string(ext));
             if (std::filesystem::exists(candidate)) {
@@ -256,8 +267,7 @@ WallpaperItemMetadata LibraryScanner::getWallpaperById(const QString& id) const 
     return {};
 }
 
-QStringList LibraryScanner::getTrustedDirectories() const {
-    // The scanner's own view of library roots: every Steam workshop root it
+QStringList LibraryScanner::getTrustedDirectories() const {        // The scanner tracks every Steam workshop root alongside local library roots.
     // scans plus user-registered custom directories.
     return findSteamLibraryPaths() + m_customDirectories;
 }

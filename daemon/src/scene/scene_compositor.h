@@ -9,6 +9,8 @@
 #include "../render/render_graph.h"
 #include "../render/mesh_renderer.h"
 #include "../render/vulkan_compute.h"
+#include "../render/gpu_quad_compositor.h"
+#include "../assets/video_decoder.h"
 
 namespace WallpaperEngine::Scene {
 
@@ -21,6 +23,9 @@ public:
     bool loadScene(Assets::PkgReader& pkgReader, const std::unordered_map<std::string, QVariant>& overrideProps);
     bool reloadWithProperties(const std::unordered_map<std::string, QVariant>& props);
     bool loadWeb(const std::string& html);
+    // Standalone video wallpaper (project.json "type":"video" with a loose
+    // media file — no scene.pkg archive involved).
+    bool loadVideo(const std::string& videoFilePath);
     void setWebProperty(const QString& key, const QVariant& value);
     void updateAndRender(float dt, float time);
     void setMouseParallax(float normX, float normY);
@@ -38,6 +43,10 @@ public:
     // Post-composite post-processing info (scene-level effects like film grain).
     bool hasFilmGrain() const { return m_hasFilmGrain; }
 
+    // True while the GPU quad compositor owns the frame pipeline (dmabuf is
+    // written directly; updateAndRender skips the CPU composite + upload).
+    bool usingGpuCompositor() const { return m_gpuCompositing; }
+
 private:
     Render::VulkanContext* m_vulkanCtx = nullptr;
     Render::VulkanCompute m_compute;
@@ -48,7 +57,10 @@ private:
     Audio::AudioVisualizer m_audioVisualizer;
     bool m_hasScene = false;
     bool m_isWeb = false;
+    bool m_isVideo = false;
     std::unique_ptr<class WebWallpaper> m_web;
+    std::shared_ptr<Assets::VideoDecoder> m_video;
+    float m_videoAcc = 0.0f;
     Assets::PkgReader* m_lastPkg = nullptr;
     std::unordered_map<std::string, QVariant> m_lastOverrideProps;
 
@@ -68,6 +80,21 @@ private:
     bool m_hasFilmGrain = false;
     float m_grainPower = 0.0f;
     float m_grainScale = 4.0f;
+
+    // ---- GPU compositing path ----
+    // Auto-selection: enabled when a Vulkan device exists and the scene has
+    // no features this slice renders on CPU (mesh deform effects, puppet
+    // bones, per-layer blur buffers, or film grain on scenes where the CPU
+    // grain path was the frozen reference). Falls back per-scene at load,
+    // never mid-frame.
+    bool tryInitGpuCompositing();
+    bool sceneSupportsGpuCompositing() const;
+    void buildGpuFrame(std::vector<Render::GpuLayer>& layers,
+                       std::vector<Render::GpuParticle>& particles,
+                       float time);
+    Render::GpuQuadCompositor m_gpuCompositor;
+    bool m_gpuCompositing = false;
+    bool m_gpuGrain = false; // grain handled on GPU for the current scene
 };
 
 } // namespace WallpaperEngine::Scene

@@ -44,7 +44,7 @@ bool PkgReader::open(const std::filesystem::path& path) {
         for (uint32_t i = 0; i < fileCount; ++i) {
             std::string filename = normalizePath(readSizedString());
             if (filename.empty()) {
-                // Skip malicious or empty filename
+                // Guard against empty entries in the file table.
                 continue;
             }
             uint32_t offset = readUInt32();

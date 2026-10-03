@@ -133,7 +133,7 @@ std::vector<GpuDeviceInfo> VulkanContext::getAvailableGpus() const {
         info.name = props.deviceName;
         info.isDiscrete = (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU);
 
-        // Check for extension support
+        // Extension support check.
         uint32_t extCount = 0;
         vkEnumerateDeviceExtensionProperties(devices[i], nullptr, &extCount, nullptr);
         std::vector<VkExtensionProperties> exts(extCount);
@@ -167,7 +167,7 @@ bool VulkanContext::selectPhysicalDevice(int preferredGpuIndex) {
     if (preferredGpuIndex >= 0 && preferredGpuIndex < static_cast<int>(deviceCount)) {
         m_physicalDevice = devices[preferredGpuIndex];
     } else {
-        // Auto-select: Discrete GPU (NVIDIA / AMD) first, fallback to Integrated (Intel / AMD APU)
+        // Auto-select: discrete GPU first, fallback to integrated.
         for (const auto& dev : devices) {
             VkPhysicalDeviceProperties props;
             vkGetPhysicalDeviceProperties(dev, &props);
@@ -381,33 +381,26 @@ void VulkanContext::clearSceneImage() {
         vkFreeMemory(m_device, m_stagingMemory, nullptr);
         m_stagingMemory = VK_NULL_HANDLE;
     }
+    m_stagingMapped = nullptr;
+    m_stagingSize = 0;
     m_hasSceneImage = false;
     m_texWidth = 0;
     m_texHeight = 0;
 }
 
-bool VulkanContext::uploadSceneImage(uint32_t width, uint32_t height, std::span<const uint8_t> rgbaPixels) {
-    if (width == 0 || height == 0 || rgbaPixels.empty()) {
-        return false;
+// (Re)allocate the staging buffer only when the frame size actually changes.
+// The staging buffer stays allocated and mapped between frames, so the
+// steady-state upload path is: memcpy into mapped memory, one submit.
+bool VulkanContext::ensureStagingBuffer(VkDeviceSize size) {
+    if (m_stagingBuffer != VK_NULL_HANDLE && m_stagingSize >= size) {
+        return true;
     }
 
     clearSceneImage();
 
-    // Scale and center-crop image to match target framebuffer dimensions exactly
-    QImage srcImg(rgbaPixels.data(), width, height, width * 4, QImage::Format_RGBA8888);
-    QImage scaledImg = srcImg.scaled(m_currentBuffer.width, m_currentBuffer.height, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
-    
-    int cropX = std::max(0, (scaledImg.width() - static_cast<int>(m_currentBuffer.width)) / 2);
-    int cropY = std::max(0, (scaledImg.height() - static_cast<int>(m_currentBuffer.height)) / 2);
-    QImage finalImg = scaledImg.copy(cropX, cropY, m_currentBuffer.width, m_currentBuffer.height);
-
-    uint32_t finalWidth = finalImg.width();
-    uint32_t finalHeight = finalImg.height();
-    VkDeviceSize imageSize = finalWidth * finalHeight * 4;
-
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = imageSize;
+    bufferInfo.size = size;
     bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -430,17 +423,82 @@ bool VulkanContext::uploadSceneImage(uint32_t width, uint32_t height, std::span<
 
     vkBindBufferMemory(m_device, m_stagingBuffer, m_stagingMemory, 0);
 
-    void* data = nullptr;
-    vkMapMemory(m_device, m_stagingMemory, 0, imageSize, 0, &data);
-    std::memcpy(data, finalImg.constBits(), imageSize);
-    vkUnmapMemory(m_device, m_stagingMemory);
+    if (vkMapMemory(m_device, m_stagingMemory, 0, size, 0, &m_stagingMapped) != VK_SUCCESS) {
+        m_stagingMapped = nullptr;
+        return false;
+    }
 
-    m_texWidth = finalWidth;
-    m_texHeight = finalHeight;
+    m_stagingSize = size;
+    return true;
+}
+
+bool VulkanContext::uploadSceneImage(uint32_t width, uint32_t height, std::span<const uint8_t> rgbaPixels) {
+    if (width == 0 || height == 0 || rgbaPixels.empty()) {
+        return false;
+    }
+
+    const uint32_t dstW = m_currentBuffer.width;
+    const uint32_t dstH = m_currentBuffer.height;
+    if (dstW == 0 || dstH == 0) {
+        return false;
+    }
+    const VkDeviceSize imageSize = static_cast<VkDeviceSize>(dstW) * dstH * 4;
+
+    if (!ensureStagingBuffer(imageSize)) {
+        return false;
+    }
+
+    // The exportable dmabuf image is VK_FORMAT_B8G8R8A8_UNORM
+    // (DRM_FORMAT_ARGB8888): memory order B,G,R,X. Converting the RGBA
+    // canvas to Format_ARGB32 puts bytes in that exact order on
+    // little-endian (premultiplied 0xAARRGGBB -> B,G,R,A storage), so the
+    // staging memcpy below needs no per-pixel channel swizzle. Uploading
+    // the RGBA bytes directly would swap red and blue for every consumer
+    // of the buffer.
+    void* data = m_stagingMapped;
+
+    if (width == dstW && height == dstH) {
+        // Canvas already matches the DmaBuf target — no rescale, no crop.
+        // Copy row-wise: RGBA8888 canvases may carry padded strides.
+        const qsizetype srcBpl = static_cast<qsizetype>(width) * 4;
+        const qsizetype dstBpl = static_cast<qsizetype>(dstW) * 4;
+        const uint8_t* src = rgbaPixels.data();
+        uint8_t* dst = static_cast<uint8_t*>(data);
+        for (uint32_t row = 0; row < height; ++row) {
+            std::memcpy(dst + static_cast<qsizetype>(row) * dstBpl,
+                        src + static_cast<qsizetype>(row) * srcBpl,
+                        dstBpl);
+        }
+        m_hasSceneImage = true;
+        m_texWidth = dstW;
+        m_texHeight = dstH;
+        return true;
+    }
+
+    // Different size: scale + center-crop to target framebuffer dimensions.
+    QImage srcImg(rgbaPixels.data(), static_cast<qsizetype>(width), static_cast<int>(height),
+                  static_cast<qsizetype>(width) * 4, QImage::Format_RGBA8888);
+    QImage scaledImg = srcImg.scaled(static_cast<int>(dstW), static_cast<int>(dstH),
+                                     Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation)
+                             .convertToFormat(QImage::Format_ARGB32);
+
+    const int cropX = std::max(0, (scaledImg.width() - static_cast<int>(dstW)) / 2);
+    const int cropY = std::max(0, (scaledImg.height() - static_cast<int>(dstH)) / 2);
+    QImage finalImg = scaledImg.copy(cropX, cropY, static_cast<int>(dstW), static_cast<int>(dstH));
+
+    const qsizetype srcBpl = finalImg.bytesPerLine();
+    const qsizetype dstBpl = static_cast<qsizetype>(dstW) * 4;
+    const uint8_t* src = finalImg.constBits();
+    uint8_t* dst = static_cast<uint8_t*>(data);
+    for (uint32_t row = 0; row < dstH; ++row) {
+        std::memcpy(dst + static_cast<qsizetype>(row) * dstBpl,
+                    src + static_cast<qsizetype>(row) * srcBpl,
+                    std::min<qsizetype>(dstBpl, srcBpl));
+    }
+
+    m_texWidth = dstW;
+    m_texHeight = dstH;
     m_hasSceneImage = true;
-
-    std::cout << "Uploaded & Scaled Scene Texture: " << width << "x" << height << " -> " 
-              << finalWidth << "x" << finalHeight << " (" << imageSize << " bytes)" << std::endl;
     return true;
 }
 
@@ -456,7 +514,7 @@ void VulkanContext::renderFrame(float time) {
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     vkBeginCommandBuffer(m_commandBuffer, &beginInfo);
 
-    // Legacy primary image first, then every registered per-output target.
+    // Primary image first, then every registered per-output target.
     std::vector<VkImage> targets;
     targets.reserve(1 + m_outputTargets.size());
     targets.push_back(m_sharedImage);
@@ -467,7 +525,7 @@ void VulkanContext::renderFrame(float time) {
     }
 
     for (VkImage image : targets) {
-    // Transition image layout to TRANSFER_DST
+    // Transition to TRANSFER_DST layout.
     VkImageMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -507,7 +565,7 @@ void VulkanContext::renderFrame(float time) {
         vkCmdCopyBufferToImage(m_commandBuffer, m_stagingBuffer, image,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
     } else {
-        // Render diagnostic pulsating color pattern
+        // Diagnostic pulsating color when no scene image is available.
         VkClearColorValue clearColor{};
         clearColor.float32[0] = std::sin(time) * 0.5f + 0.5f;
         clearColor.float32[1] = std::sin(time + 2.0f) * 0.5f + 0.5f;
@@ -524,7 +582,7 @@ void VulkanContext::renderFrame(float time) {
         vkCmdClearColorImage(m_commandBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearColor, 1, &range);
     }
 
-    // Transition to GENERAL for zero-copy reading
+    // Transition to GENERAL for zero-copy reads.
     barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -594,6 +652,95 @@ std::vector<std::string> VulkanContext::getOutputNames() const {
         names.push_back(name);
     }
     return names;
+}
+
+bool VulkanContext::blitIntoSharedImage(VkImage srcImage, uint32_t srcWidth, uint32_t srcHeight) {
+    if (m_sharedImage == VK_NULL_HANDLE || srcImage == VK_NULL_HANDLE) return false;
+    if (m_currentBuffer.width == 0 || m_currentBuffer.height == 0) return false;
+
+    vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, UINT64_MAX);
+    vkResetFences(m_device, 1, &m_fence);
+    vkResetCommandBuffer(m_commandBuffer, 0);
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    vkBeginCommandBuffer(m_commandBuffer, &beginInfo);
+
+    std::vector<VkImage> targets;
+    targets.reserve(1 + m_outputTargets.size());
+    targets.push_back(m_sharedImage);
+    for (auto& [name, target] : m_outputTargets) {
+        if (target.image != VK_NULL_HANDLE && target.image != m_sharedImage) {
+            targets.push_back(target.image);
+        }
+    }
+
+    for (VkImage image : targets) {
+        // IMPORT: general (external reader layout) -> transfer dst
+        VkImageMemoryBarrier toDst{};
+        toDst.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        toDst.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+        toDst.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        toDst.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toDst.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toDst.image = image;
+        toDst.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        toDst.subresourceRange.levelCount = 1;
+        toDst.subresourceRange.layerCount = 1;
+        toDst.srcAccessMask = 0;
+        toDst.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        vkCmdPipelineBarrier(m_commandBuffer,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0, 0, nullptr, 0, nullptr, 1, &toDst);
+
+        // Src arrives in SHADER_READ_ONLY from the compositor's render pass
+        VkBlitImageInfo2 blit{};
+        blit.sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2;
+        blit.srcImage = srcImage;
+        blit.srcImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        blit.dstImage = image;
+        blit.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        blit.regionCount = 1;
+        VkImageBlit2 region{};
+        region.sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2;
+        region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.srcSubresource.layerCount = 1;
+        region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.dstSubresource.layerCount = 1;
+        region.srcOffsets[0] = {0, 0, 0};
+        region.srcOffsets[1] = {static_cast<int32_t>(srcWidth), static_cast<int32_t>(srcHeight), 1};
+        region.dstOffsets[0] = {0, 0, 0};
+        region.dstOffsets[1] = {static_cast<int32_t>(m_currentBuffer.width), static_cast<int32_t>(m_currentBuffer.height), 1};
+        blit.pRegions = &region;
+        blit.filter = VK_FILTER_LINEAR;
+        vkCmdBlitImage2(m_commandBuffer, &blit);
+
+        // EXPORT: back to GENERAL for zero-copy dmabuf consumers
+        VkImageMemoryBarrier toGeneral{};
+        toGeneral.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        toGeneral.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        toGeneral.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        toGeneral.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toGeneral.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toGeneral.image = image;
+        toGeneral.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        toGeneral.subresourceRange.levelCount = 1;
+        toGeneral.subresourceRange.layerCount = 1;
+        toGeneral.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        toGeneral.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        vkCmdPipelineBarrier(m_commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+            0, 0, nullptr, 0, nullptr, 1, &toGeneral);
+    }
+
+    vkEndCommandBuffer(m_commandBuffer);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &m_commandBuffer;
+    vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fence);
+    return true;
 }
 
 } // namespace WallpaperEngine::Render

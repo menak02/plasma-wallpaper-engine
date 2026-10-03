@@ -4,7 +4,7 @@
 #include <vector>
 #include <cstdint>
 
-class QProcess;
+#include "common/managed_process.h"
 
 namespace WallpaperEngine::Audio {
 
@@ -111,8 +111,8 @@ private:
     float m_duration = 0.0f;
     size_t m_playbackPos = 0;
 
-    // Live capture state (parec subprocess reading the default sink monitor)
-    QProcess* m_captureProcess = nullptr;
+    // Live capture state: owned subprocess for the default sink monitor.
+    Common::ManagedProcess m_captureProcess;
     bool m_isLive = false;
 };
 

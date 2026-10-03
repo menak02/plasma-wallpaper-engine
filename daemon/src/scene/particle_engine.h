@@ -32,6 +32,10 @@ public:
     void render(QPainter& painter, uint32_t screenWidth, uint32_t screenHeight);
     void clear();
 
+    // Read access for the GPU compositor (simulated state + emitter configs).
+    const std::vector<Particle>& particles() const { return m_particles; }
+    const std::vector<ParticleEmitterConfig>& emitters() const { return m_emitters; }
+
 private:
     std::vector<ParticleEmitterConfig> m_emitters;
     std::vector<Particle> m_particles;
