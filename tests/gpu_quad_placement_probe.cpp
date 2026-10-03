@@ -1,6 +1,6 @@
 // Headless GPU quad-placement regression test.
 //
-// The other two GPU probes (gpu_deform_probe, blit_shared_probe) each cover
+// Other two GPU probes (gpu_deform_probe, blit_shared_probe) each cover
 // ONE layer set: the deform probe puts two full-screen quads at the same
 // center, the blit probe puts a single full-screen quad. Both therefore pass
 // even when per-instance data is fed to the vertex stage incorrectly -- if
@@ -246,7 +246,7 @@ void caseDistinctPlacement(GpuQuadCompositor& gpu) {
 }
 
 // ---------- Case 2: full-screen textured background + overlays ----------
-// This is the shape of the live wallpaper that degenerated to a flat fill.
+// Shape of the live wallpaper that degenerated to a flat fill.
 void caseFullScreenBackground(GpuQuadCompositor& gpu) {
     const uint32_t W = 1920, H = 1080;
     std::puts("--- case 2: 1920x1080 full-screen patterned background + 4 overlays ---");
@@ -299,7 +299,7 @@ void caseFullScreenBackground(GpuQuadCompositor& gpu) {
 
     const size_t colors = distinctColors(c);
     std::printf("      distinct colors in frame: %zu\n", colors);
-    // The live bug: the whole 1920x1080 buffer was ONE constant color.
+    // Live bug: the whole 1920x1080 buffer was ONE constant color.
     check(colors > 16, "full-screen textured background is NOT a flat constant color");
 
     // Background must be visible in the gaps between the overlays.
@@ -355,7 +355,7 @@ void caseMixedDeform(GpuQuadCompositor& gpu) {
         check(inside, label);
         if (!inside) reportFirstMismatch(c, *r, "plain quad");
     }
-    // The deformed quad is displaced by up to +-12px, so only assert it covers
+    // Deformed quad is displaced by up to +-12px, so only assert it covers
     // a wide band around its center (its exact edges are deformed by design).
     const QRgb ctr = c.pixel(256, 192);
     check(nearColor(ctr, qRgba(0, 255, 0, 255), 10),
@@ -365,7 +365,7 @@ void caseMixedDeform(GpuQuadCompositor& gpu) {
 }
 
 // ---------- Case 4: vertex-buffer reallocation between frames ----------
-// The second frame needs more instance bytes than the first, so the vertex
+// Second frame needs more instance bytes than the first, so the vertex
 // buffer is reallocated. The corner strip lives in that buffer and must be
 // rewritten after every reallocation; if it is not, binding 0 reads zeros and
 // every quad collapses to a point (frame renders as a flat clear color).
@@ -418,7 +418,7 @@ void caseVertexGrowth(GpuQuadCompositor& gpu) {
 // torn down and reallocated. That must not orphan the descriptors of the
 // textures that already exist -- and in the live daemon it did, so every layer
 // that reused an already-known layer id sampled an unwritten descriptor set.
-// The whole exported frame degenerated to a single flat color while
+// Whole exported frame degenerated to a single flat color while
 // buildGpuFrame() still reported a full, correct layer list, which is why the
 // defect was invisible to every other probe.
 void casePoolGrowthKeepsDescriptors(GpuQuadCompositor& gpu) {

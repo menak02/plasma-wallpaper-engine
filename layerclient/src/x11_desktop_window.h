@@ -12,7 +12,7 @@ struct xcb_connection_t;
 // on X11 there is no such protocol, so the window has to be pushed down the
 // stacking order by convention instead.
 //
-// The work is deliberately split into a pre-map and a post-map call. Both are
+// Work is deliberately split into a pre-map and a post-map call. Both are
 // required and neither alone is sufficient; see the comments in
 // configureBeforeMap() / restackAfterMap() and in wallpaper_layer.cpp.
 class X11DesktopWindow {

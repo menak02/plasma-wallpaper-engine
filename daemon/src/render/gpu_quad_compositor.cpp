@@ -116,7 +116,7 @@ void GpuQuadCompositor::cleanup() {
     if (m_readback) vkDestroyBuffer(m_device, m_readback, nullptr);
     if (m_readbackMemory) vkFreeMemory(m_device, m_readbackMemory, nullptr);
 
-    // The handles are dead now. Leaving m_vertexBuffer / m_vertexMapped /
+    // Handles are dead now. Leaving m_vertexBuffer / m_vertexMapped /
     // m_vertexCapacity populated made a second init() believe the vertex buffer
     // still existed (ensureVertexCapacity only checks the handle and the
     // capacity), so the first frame after re-init drew from a destroyed

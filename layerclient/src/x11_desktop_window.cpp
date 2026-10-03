@@ -224,7 +224,7 @@ void X11DesktopWindow::restackAfterMap(QWindow* window)
     }
     const auto win = static_cast<quint32>(id);
 
-    // The authoritative way to set _NET_WM_STATE: "add" the four atoms. A
+    // Authoritative way to set _NET_WM_STATE: "add" the four atoms. A
     // 32-bit client message carries five words and two of them are the source
     // indication and the action, so only three atoms fit per message.
     const uint32_t primaryStateWords[kClientMessageWords] = {

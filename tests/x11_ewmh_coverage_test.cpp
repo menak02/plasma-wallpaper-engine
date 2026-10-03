@@ -107,7 +107,7 @@ int main() {
     }
 
     // Four quadrants: many distinct x edges, y spans that abut within a slab.
-    // This is the shape of a real tiled desktop and must be exact.
+    // Shape of a real tiled desktop, so the expected area must be exact.
     {
         const std::vector<Rect> quadrants = {makeRect(0, 0, 50, 50),
                                              makeRect(50, 0, 50, 50),

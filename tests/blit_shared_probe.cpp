@@ -1,7 +1,7 @@
 // Diagnostic: does blitIntoShared() — the path the layerclient actually
 // consumes — write the composited frame into the exportable DmaBuf?
 //
-// The existing gpu_deform_probe validates the GPU path through
+// Existing gpu_deform_probe validates the GPU path through
 // readback(), which copies to a host-visible staging buffer. The live
 // wallpaper client does not use readback(): it mmaps the exported DmaBuf
 // that blitIntoShared() writes. So blitIntoShared() has no coverage, and
@@ -171,7 +171,7 @@ int main(int argc, char** argv) {
     }
 
     // ---- Textured frame ----
-    // The clear-color cases above never touch the texture path, but every
+    // Clear-color cases above never touch the texture path, but every
     // real wallpaper does. A scene whose layers carry actual images is the
     // case that has to work, so cover it explicitly.
     QImage tex(64, 64, QImage::Format_RGBA8888);

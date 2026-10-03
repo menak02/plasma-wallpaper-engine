@@ -1,6 +1,6 @@
 #include "compositor_backend.h"
 
-// The labwc and X11 backends ship in their own translation units and are
+// labwc and X11 backends ship in their own translation units and are
 // added to the target by CMake. They are pulled in here rather than from
 // compositor_backend.h because x11_ewmh_backend.h includes compositor_backend.h
 // itself, and needs CompositorBackend to be complete by then — which the

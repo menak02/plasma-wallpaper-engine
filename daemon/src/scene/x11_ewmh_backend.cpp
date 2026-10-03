@@ -1,7 +1,6 @@
 #include "x11_ewmh_backend.h"
 
 #include <xcb/xcb.h>
-#include <xcb/randr.h>
 
 #include <algorithm>
 #include <cstdlib>
@@ -236,7 +235,7 @@ std::vector<X11EwmhBackend::WindowInfo> X11EwmhBackend::queryWindows() const {
         WindowInfo info;
         info.id = id;
 
-        // Skip unmapped / viewable check: a window that is not viewable
+        // Unmapped windows are dropped here: a window that is not viewable
         // cannot be covering anything.
         auto attrsCookie = xcb_get_window_attributes(m_conn, id);
         auto attrs = xcb_get_window_attributes_reply(m_conn, attrsCookie, nullptr);

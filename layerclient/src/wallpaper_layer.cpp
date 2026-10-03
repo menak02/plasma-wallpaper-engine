@@ -178,8 +178,8 @@ WallpaperLayer::WallpaperLayer(const QString& outputName, QScreen* screen, QObje
 
 WallpaperLayer::~WallpaperLayer()
 {
-    // The view has to go first: X11DesktopWindow talks to the window that
-    // lives inside it.
+    // QQuickView must be destroyed first: X11DesktopWindow talks to the
+    // window that lives inside it.
     delete m_view;
     m_view = nullptr;
     m_x11.reset();
@@ -242,7 +242,7 @@ void WallpaperLayer::configureX11()
     //                             raising the window when it takes focus,
     //   Tool                    - Qt classifies it as a transient utility
     //                             window, so it never lands in the taskbar.
-    // The EWMH properties set below remain authoritative; they are written
+    // EWMH properties set below remain authoritative; they are written
     // after create(), which is when Qt has already stamped its own
     // _NET_WM_WINDOW_TYPE_UTILITY onto the window.
     m_view->setFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnBottomHint | Qt::Tool);

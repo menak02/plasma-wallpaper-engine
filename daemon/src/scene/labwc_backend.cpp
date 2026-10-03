@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------------
 // WHY THESE STRUCTS ARE HAND-WRITTEN
 // ---------------------------------------------------------------------------
-// This build has libwayland-client but no wlroots, no wayland-scanner run at
-// build time, no wlrctl and no swaymsg. So wlr-foreign-toplevel-management,
+// libwayland-client is present but wlroots, a build-time wayland-scanner run,
+// wlrctl and swaymsg are not, so wlr-foreign-toplevel-management,
 // wlr-output-management and xdg-output are spoken by hand:
 //
 //   * opcodes, request/event order and argument signatures were derived from
