@@ -189,8 +189,16 @@ void GpuQuadCompositor::setResolution(uint32_t width, uint32_t height) {
 bool GpuQuadCompositor::createRenderPasses() {
     // Pass 1: clear + quads/particles -> SHADER_READ_ONLY (sampled by grain,
     // readback, and the dmabuf blit).
+    //
+    // B8G8R8A8, not R8G8B8A8: the exportable dmabuf the wallpaper client
+    // mmaps is B8G8R8A8_UNORM, and vkCmdBlitImage copies texels without
+    // swizzling. Rendering into an R8G8B8A8 intermediate therefore handed the
+    // client a frame with red and blue transposed, which showed up as a
+    // wrong-hued wallpaper. Matching the export format makes the blit
+    // format-identical. Textures stay R8G8B8A8 (see createTextureImage) and
+    // are sampled as vec4, so only the attachment layout changed.
     VkAttachmentDescription color{};
-    color.format = VK_FORMAT_R8G8B8A8_UNORM;
+    color.format = VK_FORMAT_B8G8R8A8_UNORM;
     color.samples = VK_SAMPLE_COUNT_1_BIT;
     color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -199,7 +207,7 @@ bool GpuQuadCompositor::createRenderPasses() {
 
     // Pass 2: load quad target -> grain target, also SHADER_READ_ONLY out.
     VkAttachmentDescription grainColor{};
-    grainColor.format = VK_FORMAT_R8G8B8A8_UNORM;
+    grainColor.format = VK_FORMAT_B8G8R8A8_UNORM;  // matches pass 1
     grainColor.samples = VK_SAMPLE_COUNT_1_BIT;
     grainColor.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     grainColor.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -494,7 +502,10 @@ bool GpuQuadCompositor::createTargets(uint32_t width, uint32_t height) {
         VkImageCreateInfo info{};
         info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         info.imageType = VK_IMAGE_TYPE_2D;
-        info.format = VK_FORMAT_R8G8B8A8_UNORM;
+        // Must match the render pass attachment format (createRenderPasses).
+        // A view whose format disagrees with the attachment is undefined
+        // behaviour and renders garbage.
+        info.format = VK_FORMAT_B8G8R8A8_UNORM;
         info.extent = {width, height, 1};
         info.mipLevels = 1;
         info.arrayLayers = 1;
@@ -516,7 +527,7 @@ bool GpuQuadCompositor::createTargets(uint32_t width, uint32_t height) {
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         viewInfo.image = *img;
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+        viewInfo.format = VK_FORMAT_B8G8R8A8_UNORM;  // matches info.format above
         viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         viewInfo.subresourceRange.levelCount = 1;
         viewInfo.subresourceRange.layerCount = 1;
@@ -1205,8 +1216,18 @@ bool GpuQuadCompositor::readback(QImage& outCanvas) {
         0, 0, nullptr, 0, nullptr, 1, &toShaderRead);
     endFrame();
 
+    // Render target is B8G8R8A8 (see createRenderPasses), so staged bytes are
+    // BGRA in memory and Format_RGBA8888 would transpose red and blue.
     outCanvas = QImage(int(m_width), int(m_height), QImage::Format_RGBA8888);
-    std::memcpy(outCanvas.bits(), m_readbackMapped, size);
+    auto* dstPixels = outCanvas.bits();
+    const auto* staged = static_cast<const uint8_t*>(m_readbackMapped);
+    const size_t pixels = size / 4;
+    for (size_t i = 0; i < pixels; ++i) {
+        dstPixels[i * 4 + 0] = staged[i * 4 + 2];  // R <- B
+        dstPixels[i * 4 + 1] = staged[i * 4 + 1];  // G
+        dstPixels[i * 4 + 2] = staged[i * 4 + 0];  // B <- R
+        dstPixels[i * 4 + 3] = staged[i * 4 + 3];  // A
+    }
     return true;
 }
 
