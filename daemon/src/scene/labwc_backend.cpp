@@ -33,8 +33,8 @@
 //   * every wl_proxy_marshal_flags() result is null-checked;
 //   * every listener callback tolerates a null user_data and a null proxy;
 //   * update() only pumps with a zero timeout, so it never blocks and stays
-//     safe on a dead socket (wl_display_dispatch_timeout where libwayland is
-//     >= 1.20, an explicit poll() fallback below that);
+//     safe on a dead socket (wl_display_dispatch_timeout when CMake confirms
+//     the symbol links, otherwise an explicit poll() fallback);
 //   * once the display reports an error the backend latches to a dead state,
 //     clears all cached state and stops touching the proxies.
 //
@@ -1138,19 +1138,11 @@ struct LabwcBackend::Impl {
             return false;
         }
         int ret;
-#if defined(WAYLAND_VERSION_MAJOR) && \
-    (WAYLAND_VERSION_MAJOR > 1 || \
-     (WAYLAND_VERSION_MAJOR == 1 && WAYLAND_VERSION_MINOR >= 20))
-        // Only ever called with a zero timeout, so it never blocks.
-        const struct timespec zero = {0, 0};
-        do {
-            ret = wl_display_dispatch_timeout(display, &zero);
-        } while (ret < 0 && errno == EINTR);
-#else
-        // libwayland < 1.20 has no wl_display_dispatch_timeout. Fall back to
-        // polling the fd ourselves and dispatching only when it is readable,
-        // which preserves the never-blocking contract on older runtimes
-        // (Ubuntu CI ships 1.20-; Gentoo here has 1.24).
+#ifdef PWE_WL_NO_DISPATCH_TIMEOUT
+        // wl_display_dispatch_timeout is not linkable here even though the
+        // headers may declare it, so poll the display fd ourselves and
+        // dispatch only when it is readable. This preserves the
+        // never-blocking contract the pause gate depends on.
         ret = 0;
         for (;;) {
             struct pollfd pfd{};
@@ -1173,6 +1165,12 @@ struct LabwcBackend::Impl {
             }
             break;
         }
+#else
+        // Zero timeout only, so this never blocks.
+        const struct timespec zero = {0, 0};
+        do {
+            ret = wl_display_dispatch_timeout(display, &zero);
+        } while (ret < 0 && errno == EINTR);
 #endif
 
         while (wl_display_dispatch_pending(display) > 0) {

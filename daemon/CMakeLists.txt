@@ -40,6 +40,23 @@ pkg_check_modules(WAYLAND_CLIENT wayland-client)
 if(WAYLAND_CLIENT_FOUND)
     message(STATUS "labwc wlr-IPC pause backend: ENABLED")
     set(HAVE_LABWC_BACKEND TRUE)
+    # wl_display_dispatch_timeout arrived in libwayland 1.20, but a header
+    # version check is not reliable: some distros ship 1.20+ headers against
+    # an older runtime library (Ubuntu runners do exactly this), so the
+    # declaration is visible while the symbol is not linkable. Probe for the
+    # symbol itself instead of trusting WAYLAND_VERSION_MINOR.
+    include(CheckSymbolExists)
+    set(CMAKE_REQUIRED_LIBRARIES ${WAYLAND_CLIENT_LIBRARIES})
+    set(CMAKE_REQUIRED_INCLUDES ${WAYLAND_CLIENT_INCLUDE_DIRS})
+    check_symbol_exists(wl_display_dispatch_timeout "wayland-client.h"
+        HAVE_WL_DISPLAY_DISPATCH_TIMEOUT)
+    unset(CMAKE_REQUIRED_LIBRARIES)
+    unset(CMAKE_REQUIRED_INCLUDES)
+    if(HAVE_WL_DISPLAY_DISPATCH_TIMEOUT)
+        message(STATUS "  wl_display_dispatch_timeout: available")
+    else()
+        message(STATUS "  wl_display_dispatch_timeout: MISSING, using poll() fallback")
+    endif()
 else()
     message(STATUS "labwc wlr-IPC pause backend: DISABLED (libwayland-client not found)")
     set(HAVE_LABWC_BACKEND FALSE)
@@ -119,6 +136,10 @@ if(HAVE_LABWC_BACKEND)
         src/scene/labwc_backend.h
         src/scene/labwc_backend.cpp
     )
+    if(NOT HAVE_WL_DISPLAY_DISPATCH_TIMEOUT)
+        target_compile_definitions(plasma-wallpaper-engine-daemon PRIVATE
+            PWE_WL_NO_DISPATCH_TIMEOUT=1)
+    endif()
 else()
     target_compile_definitions(plasma-wallpaper-engine-daemon PRIVATE PWE_DISABLE_LABWC_BACKEND=1)
 endif()
@@ -218,6 +239,10 @@ if(HAVE_LABWC_BACKEND)
         src/scene/labwc_backend.h
         src/scene/labwc_backend.cpp
     )
+    if(NOT HAVE_WL_DISPLAY_DISPATCH_TIMEOUT)
+        target_compile_definitions(plasma-wallpaper-engine-verifier PRIVATE
+            PWE_WL_NO_DISPATCH_TIMEOUT=1)
+    endif()
 else()
     target_compile_definitions(plasma-wallpaper-engine-verifier PRIVATE PWE_DISABLE_LABWC_BACKEND=1)
 endif()
