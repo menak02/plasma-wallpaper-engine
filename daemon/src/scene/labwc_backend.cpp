@@ -32,8 +32,9 @@
 // SAFETY RULES OBSERVED HERE (the daemon must never crash):
 //   * every wl_proxy_marshal_flags() result is null-checked;
 //   * every listener callback tolerates a null user_data and a null proxy;
-//   * update() only calls wl_display_dispatch_timeout() with a zero timeout,
-//     so it never blocks and stays safe on a dead socket;
+//   * update() only pumps with a zero timeout, so it never blocks and stays
+//     safe on a dead socket (wl_display_dispatch_timeout where libwayland is
+//     >= 1.20, an explicit poll() fallback below that);
 //   * once the display reports an error the backend latches to a dead state,
 //     clears all cached state and stops touching the proxies.
 //
@@ -50,6 +51,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <poll.h>
 #include <cstdint>
 #include <cstring>
 #include <ctime>
@@ -1135,11 +1137,43 @@ struct LabwcBackend::Impl {
         if (!display || dead) {
             return false;
         }
-        const struct timespec zero = {0, 0};
         int ret;
+#if defined(WAYLAND_VERSION_MAJOR) && \
+    (WAYLAND_VERSION_MAJOR > 1 || \
+     (WAYLAND_VERSION_MAJOR == 1 && WAYLAND_VERSION_MINOR >= 20))
+        // Only ever called with a zero timeout, so it never blocks.
+        const struct timespec zero = {0, 0};
         do {
             ret = wl_display_dispatch_timeout(display, &zero);
         } while (ret < 0 && errno == EINTR);
+#else
+        // libwayland < 1.20 has no wl_display_dispatch_timeout. Fall back to
+        // polling the fd ourselves and dispatching only when it is readable,
+        // which preserves the never-blocking contract on older runtimes
+        // (Ubuntu CI ships 1.20-; Gentoo here has 1.24).
+        ret = 0;
+        for (;;) {
+            struct pollfd pfd{};
+            pfd.fd = wl_display_get_fd(display);
+            pfd.events = POLLIN;
+            const int pr = poll(&pfd, 1, 0);
+            if (pr < 0) {
+                if (errno == EINTR) {
+                    continue;
+                }
+                ret = -1;
+                break;
+            }
+            if (pr == 0) {
+                break;  // nothing readable: non-blocking pump is done
+            }
+            if (wl_display_dispatch(display) < 0) {
+                ret = -1;
+                break;
+            }
+            break;
+        }
+#endif
 
         while (wl_display_dispatch_pending(display) > 0) {
             // drain whatever the previous call queued
