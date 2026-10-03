@@ -19,7 +19,7 @@ jobs:
         sudo apt-get install -y cmake qt6-base-dev qt6-declarative-dev qt6-tools-dev-tools \
           qt6-image-formats-plugins vulkan-tools libvulkan-dev \
           liblz4-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
-          libpulse-dev
+          libpulse-dev libxcb1-dev libwayland-dev
 
     - name: Configure
       run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
@@ -44,7 +44,7 @@ jobs:
         sudo apt-get install -y cmake qt6-base-dev qt6-declarative-dev qt6-tools-dev-tools \
           qt6-image-formats-plugins vulkan-tools libvulkan-dev \
           liblz4-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
-          libpulse-dev python3-pil python3-numpy
+          libpulse-dev python3-pil python3-numpy libxcb1-dev libwayland-dev
 
     - name: Configure
       run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release

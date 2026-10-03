@@ -7,7 +7,6 @@
 #include <QtGui/qguiapplication_platform.h>
 
 #include <xcb/xcb.h>
-#include <xcb/xcb_aux.h>
 
 #include <cstdlib>
 #include <cstring>

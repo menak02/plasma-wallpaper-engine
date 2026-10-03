@@ -31,7 +31,7 @@ jobs:
         sudo apt-get install -y cmake qt6-base-dev qt6-declarative-dev qt6-tools-dev-tools \
           qt6-image-formats-plugins vulkan-tools libvulkan-dev \
           liblz4-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
-          libpulse-dev python3-pil python3-numpy ffmpeg
+          libpulse-dev python3-pil python3-numpy ffmpeg libxcb1-dev libwayland-dev
 
     - name: Download regression corpus
       env:
