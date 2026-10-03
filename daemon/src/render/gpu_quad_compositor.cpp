@@ -59,6 +59,7 @@ bool GpuQuadCompositor::init(VulkanContext* ctx, uint32_t width, uint32_t height
     }
 
     VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     // Pre-signaled: beginFrame() waits on this fence before the first submit;
     // an unsignaled initial state would deadlock there forever.
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
@@ -115,6 +116,28 @@ void GpuQuadCompositor::cleanup() {
     if (m_readback) vkDestroyBuffer(m_device, m_readback, nullptr);
     if (m_readbackMemory) vkFreeMemory(m_device, m_readbackMemory, nullptr);
 
+    // The handles are dead now. Leaving m_vertexBuffer / m_vertexMapped /
+    // m_vertexCapacity populated made a second init() believe the vertex buffer
+    // still existed (ensureVertexCapacity only checks the handle and the
+    // capacity), so the first frame after re-init drew from a destroyed
+    // VkBuffer through a dangling mapping. Reset every piece of device state
+    // alongside the handles it belongs to.
+    m_vertexBuffer = VK_NULL_HANDLE;
+    m_vertexMemory = VK_NULL_HANDLE;
+    m_vertexMapped = nullptr;
+    m_vertexCapacity = 0;
+    m_quadInstOffset = m_deformInstOffset = m_partInstOffset = 0;
+    m_needsStripUpload = true;
+    m_staging = VK_NULL_HANDLE;
+    m_stagingMemory = VK_NULL_HANDLE;
+    m_stagingMapped = nullptr;
+    m_stagingSize = 0;
+    m_readback = VK_NULL_HANDLE;
+    m_readbackMemory = VK_NULL_HANDLE;
+    m_readbackMapped = nullptr;
+    m_readbackSize = 0;
+    m_hasGrainThisFrame = false;
+
     destroyTargets();
 
     auto destroyPipeline = [&](VkPipeline& p) { if (p) vkDestroyPipeline(m_device, p, nullptr); p = VK_NULL_HANDLE; };
@@ -130,6 +153,22 @@ void GpuQuadCompositor::cleanup() {
     if (m_sampler) vkDestroySampler(m_device, m_sampler, nullptr);
     if (m_commandPool) vkDestroyCommandPool(m_device, m_commandPool, nullptr);
     if (m_fence) vkDestroyFence(m_device, m_fence, nullptr);
+
+    // Null the handles that were just destroyed. Leaving them populated made
+    // a second init() skip re-creating objects that no longer existed:
+    // ensureTexturePool() saw a live m_texturePool and returned early, so the
+    // white texture created at the end of init() wrote its descriptor into a
+    // destroyed pool and the NVIDIA driver faulted. Same failure shape as the
+    // vertex-buffer handle above.
+    m_renderPass = VK_NULL_HANDLE;
+    m_grainRenderPass = VK_NULL_HANDLE;
+    m_texturePool = VK_NULL_HANDLE;
+    m_poolCapacity = 0;
+    m_textureSets.clear();
+    m_textureSetLayout = VK_NULL_HANDLE;
+    m_sampler = VK_NULL_HANDLE;
+    m_commandPool = VK_NULL_HANDLE;
+    m_fence = VK_NULL_HANDLE;
 
     m_cmd = VK_NULL_HANDLE;
     m_device = VK_NULL_HANDLE;
@@ -541,8 +580,40 @@ void GpuQuadCompositor::destroyTargets() {
     m_grainSet = VK_NULL_HANDLE;
 }
 
+bool GpuQuadCompositor::writeTextureDescriptor(uint32_t textureIndex) {
+    if (textureIndex >= m_textures.size() || textureIndex >= m_textureSets.size()) return false;
+    VkDescriptorImageInfo imgInfo{};
+    imgInfo.imageView = m_textures[textureIndex].view;
+    imgInfo.sampler = m_sampler;
+    imgInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = m_textureSets[textureIndex];
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.descriptorCount = 1;
+    write.pImageInfo = &imgInfo;
+    vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
+    return true;
+}
+
 bool GpuQuadCompositor::ensureTexturePool(uint32_t neededSets) {
     if (m_texturePool != VK_NULL_HANDLE && m_poolCapacity >= neededSets) return true;
+
+    // Destroying the pool frees EVERY descriptor set it owns, so the sets of
+    // textures that already exist have to be rewritten below or they are left
+    // unwritten. An unwritten COMBINED_IMAGE_SAMPLER is undefined behaviour,
+    // and on the NVIDIA driver the quad silently samples nothing: the whole
+    // frame comes out as the bare clear color.
+    //
+    // This is not hypothetical. The texture cache is keyed by layer id and
+    // lives for the whole SceneCompositor, while the daemon loads one wallpaper
+    // at construction (restoreLastWallpaper) and another (or the same one
+    // again) when the client asks, then one more per switch — so the pool
+    // crossed 64 sets partway through a session and every later wallpaper that
+    // reused a known layer id drew from a dangling descriptor. The layer list
+    // was still correct, which is why the defect showed up on screen as a flat
+    // fill and in no test that looked at buildGpuFrame() alone.
+    const size_t survivingTextures = m_textures.size();
 
     uint32_t newCap = std::max<uint32_t>(64, alignedUp(neededSets + 8, 64));
     if (m_texturePool) vkDestroyDescriptorPool(m_device, m_texturePool, nullptr);
@@ -591,6 +662,13 @@ bool GpuQuadCompositor::ensureTexturePool(uint32_t neededSets) {
     grainWrite.descriptorCount = 1;
     grainWrite.pImageInfo = &grainImg;
     vkUpdateDescriptorSets(m_device, 1, &grainWrite, 0, nullptr);
+
+    // Re-point every surviving texture at its freshly allocated set. Bounded
+    // by m_textureSets.size() because a pool rebuild that dropped textures is
+    // not a state this compositor can reach (clearTextureCache empties both).
+    for (size_t i = 0; i < survivingTextures && i < m_textureSets.size(); ++i) {
+        writeTextureDescriptor(uint32_t(i));
+    }
     return true;
 }
 
@@ -613,6 +691,8 @@ uint32_t GpuQuadCompositor::getOrCreateTexture(const QImage& image, int slotId) 
             return idx; // unchanged since last upload
         }
     } else {
+        // Grows the pool first, which re-points every existing texture at its
+        // new descriptor set, so the push_back below lands on a valid one.
         if (!ensureTexturePool(uint32_t(m_textures.size()) + 2)) return UINT32_MAX;
 
         GpuTexture tex;
@@ -621,20 +701,27 @@ uint32_t GpuQuadCompositor::getOrCreateTexture(const QImage& image, int slotId) 
         if (!createTextureImage(image, tex)) return UINT32_MAX;
 
         idx = uint32_t(m_textures.size());
-        VkDescriptorImageInfo imgInfo{};
-        imgInfo.imageView = tex.view;
-        imgInfo.sampler = m_sampler;
-        imgInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        VkWriteDescriptorSet write{};
-        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write.dstSet = m_textureSets[idx];
-        write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        write.descriptorCount = 1;
-        write.pImageInfo = &imgInfo;
-        vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
-
         m_textures.push_back(tex);
         m_slotTextures[slotId] = idx;
+        if (!writeTextureDescriptor(idx)) {
+            m_lastError = "texture descriptor";
+            return UINT32_MAX;
+        }
+    }
+
+    // A slot may be reused by a DIFFERENT scene, and layers keep their id for
+    // their lifetime, so the image behind a slot can change dimensions. The
+    // VkImage is immutable once created, so a size change needs a new image
+    // (and therefore a fresh descriptor) rather than a re-upload: copying into
+    // the old extent would read past the end of a shrinking staging buffer and
+    // leave the rest of the texture holding the previous scene's pixels.
+    if (m_textures[idx].width != uint32_t(image.width()) ||
+        m_textures[idx].height != uint32_t(image.height())) {
+        if (!recreateTextureImage(image, idx)) return UINT32_MAX;
+        if (!writeTextureDescriptor(idx)) {
+            m_lastError = "texture descriptor";
+            return UINT32_MAX;
+        }
     }
 
     if (!uploadTexturePixels(image, idx)) {
@@ -687,6 +774,28 @@ bool GpuQuadCompositor::createTextureImage(const QImage& image, GpuTexture& tex)
         m_lastError = "texture view";
         return false;
     }
+    return true;
+}
+
+bool GpuQuadCompositor::recreateTextureImage(const QImage& image, uint32_t textureIndex) {
+    if (textureIndex >= m_textures.size()) return false;
+    // The old image is only referenced by a descriptor that the caller rewrites
+    // immediately after this returns, and endFrame() has already waited on the
+    // fence for the previous frame, so no in-flight command buffer touches it.
+    GpuTexture old = m_textures[textureIndex];
+    if (old.view) vkDestroyImageView(m_device, old.view, nullptr);
+    if (old.image) vkDestroyImage(m_device, old.image, nullptr);
+    if (old.memory) vkFreeMemory(m_device, old.memory, nullptr);
+    // Blank the slot first: if createTextureImage() fails the texture is gone,
+    // and leaving the old extent behind would make the caller's size check
+    // report "up to date" and copy pixels into a null VkImage next frame.
+    m_textures[textureIndex] = GpuTexture{};
+
+    GpuTexture tex;
+    tex.width = uint32_t(image.width());
+    tex.height = uint32_t(image.height());
+    if (!createTextureImage(image, tex)) return false;
+    m_textures[textureIndex] = tex;
     return true;
 }
 

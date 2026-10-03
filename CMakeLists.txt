@@ -145,6 +145,21 @@ if(ENABLE_REGRESSION_TESTS)
         )
     endif()
 
+    # GPU quad placement probe: several textured quads at known, distinct
+    # screen positions, asserting each lands in its own rect. This is the
+    # only probe that can see a degenerate per-instance stream, which the
+    # full-screen layer sets in the other two probes cannot. Skips (exit 77)
+    # on GPU-less machines.
+    if(TARGET gpu_quad_placement_probe)
+        add_test(NAME gpu_quad_placement_probe
+                 COMMAND ${CMAKE_CURRENT_BINARY_DIR}/daemon/gpu_quad_placement_probe)
+        set_tests_properties(gpu_quad_placement_probe PROPERTIES
+            TIMEOUT 120
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            SKIP_RETURN_CODE 77
+        )
+    endif()
+
     # Self-contained fixture regression: renders a committed deterministic
     # scene.pkg through the verifier and PNG-diffs it against a committed
     # baseline. Runs everywhere (no Steam library, no GPU required) so CI

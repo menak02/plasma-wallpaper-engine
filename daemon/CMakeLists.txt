@@ -380,3 +380,32 @@ target_link_libraries(blit_shared_probe
 )
 
 target_compile_options(blit_shared_probe PRIVATE -fexceptions)
+
+# ---------- GPU quad placement probe ----------
+# Headless Vulkan probe: renders N textured quads at KNOWN, DISTINCT screen
+# positions and asserts each quad's pixels land in its own expected rect.
+# Both existing GPU probes use full-screen layer sets, where a degenerate
+# instance stream (every quad on the same pixel) still looks correct, so the
+# flat-color frame the live client displayed was invisible to ctest.
+# Exits 77 (skip) when no Vulkan device is present.
+add_executable(gpu_quad_placement_probe
+    ../tests/gpu_quad_placement_probe.cpp
+    src/render/gpu_quad_compositor.cpp
+    src/vulkan/vulkan_context.cpp
+    src/render/mesh_renderer.cpp
+)
+
+target_include_directories(gpu_quad_placement_probe
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(gpu_quad_placement_probe
+    PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Vulkan::Vulkan
+)
+
+target_compile_options(gpu_quad_placement_probe PRIVATE -fexceptions)
+

@@ -123,6 +123,13 @@ private:
 
     bool ensureTexturePool(uint32_t neededSets);
     bool createTextureImage(const QImage& image, GpuTexture& tex);
+    // Points m_textureSets[textureIndex] at m_textures[textureIndex]'s view.
+    // Called on creation and again for every surviving texture after a pool
+    // reallocation, which frees all of its sets (see ensureTexturePool).
+    bool writeTextureDescriptor(uint32_t textureIndex);
+    // Replaces a slot's VkImage with one sized for `image`. Needed because a
+    // layer id can be reused by a later scene with different layer dimensions.
+    bool recreateTextureImage(const QImage& image, uint32_t textureIndex);
     bool uploadTexturePixels(const QImage& image, uint32_t textureIndex);
     bool ensureVertexCapacity(VkDeviceSize bytes);
     // True after (re)allocation of m_vertexBuffer: bytes 0..31 (corner strip)
