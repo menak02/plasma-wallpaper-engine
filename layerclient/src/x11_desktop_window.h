@@ -59,6 +59,8 @@ private:
         quint32 wmDesktop = 0;          // _NET_WM_DESKTOP
         quint32 typeWindow = 0;         // "WINDOW"
         quint32 typeCardinal = 0;       // "CARDINAL"
+        quint32 typeAtom = 0;           // "ATOM" — required for _NET_WM_WINDOW_TYPE
+                                         // and _NET_WM_STATE, which hold atom values
     };
 
     quint32 internAtom(const char* name);

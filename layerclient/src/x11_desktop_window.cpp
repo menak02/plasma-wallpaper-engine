@@ -74,6 +74,7 @@ X11DesktopWindow::X11DesktopWindow()
     m_atoms.wmDesktop = internAtom("_NET_WM_DESKTOP");
     m_atoms.typeWindow = internAtom("WINDOW");
     m_atoms.typeCardinal = internAtom("CARDINAL");
+    m_atoms.typeAtom = internAtom("ATOM");
 
     if (!atomsReady()) {
         qWarning() << "X11DesktopWindow: could not intern the EWMH atoms;"
@@ -115,7 +116,7 @@ bool X11DesktopWindow::atomsReady() const
            m_atoms.state != 0 && m_atoms.stateBelow != 0 &&
            m_atoms.stateSkipTaskbar != 0 && m_atoms.stateSkipPager != 0 &&
            m_atoms.stateSticky != 0 && m_atoms.wmDesktop != 0 &&
-           m_atoms.typeWindow != 0 && m_atoms.typeCardinal != 0;
+           m_atoms.typeWindow != 0 && m_atoms.typeCardinal != 0 && m_atoms.typeAtom != 0;
 }
 
 bool X11DesktopWindow::setProperty(quint32 window, quint32 property, quint32 type,
@@ -183,8 +184,14 @@ bool X11DesktopWindow::configureBeforeMap(QWindow* window)
 
     // A DESKTOP window is what makes the window manager treat this as part of
     // the desktop rather than as a normal client window.
+    //
+    // The property's *type* must be ATOM, not WINDOW: both _NET_WM_WINDOW_TYPE
+    // and _NET_WM_STATE carry atom values. Writing them with type WINDOW makes
+    // xprop report "(WINDOW): window id # 0x..." and a conforming window
+    // manager ignores the property outright, so the window never becomes a
+    // desktop-layer window and ends up swallowing desktop clicks.
     const quint32 type = m_atoms.windowTypeDesktop;
-    setProperty(win, m_atoms.windowType, m_atoms.typeWindow, 32, 1, &type);
+    setProperty(win, m_atoms.windowType, m_atoms.typeAtom, 32, 1, &type);
 
     // Pre-set _NET_WM_STATE as a property as well. Qt only puts BELOW in
     // there (it maps Qt::WindowStaysOnBottomHint to that single atom), and a
@@ -194,7 +201,7 @@ bool X11DesktopWindow::configureBeforeMap(QWindow* window)
         m_atoms.stateBelow, m_atoms.stateSticky,
         m_atoms.stateSkipTaskbar, m_atoms.stateSkipPager
     };
-    setProperty(win, m_atoms.state, m_atoms.typeWindow, 32, 4, states);
+    setProperty(win, m_atoms.state, m_atoms.typeAtom, 32, 4, states);
 
     // 0xFFFFFFFF means "on every desktop". restackAfterMap() repeats this as
     // a client message, because window managers are split on whether they
