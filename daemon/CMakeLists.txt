@@ -434,3 +434,58 @@ target_link_libraries(gpu_quad_placement_probe
 
 target_compile_options(gpu_quad_placement_probe PRIVATE -fexceptions)
 
+
+# ---------- End-to-end GPU scene regression ----------
+# The 72-wallpaper PNG regression renders on the CPU QPainter path only
+# (batch_verifier.cpp never calls the GPU compositor), so the whole Vulkan
+# pipeline is invisible to it -- a flat-colour wallpaper still scored
+# "69/72 byte-identical". This loads the committed fixture scene.pkg through
+# the real GPU path and asserts the exported DmaBuf holds an actual frame.
+# Exits 77 without a Vulkan device; CI installs lavapipe and treats a skip as
+# a failure (see scripts/check_repo_quality.sh).
+add_executable(gpu_scene_e2e
+    ../tests/gpu_scene_e2e.cpp
+    src/assets/pkg_reader.cpp
+    src/assets/tex_parser.cpp
+    src/assets/dxt_decoder.cpp
+    src/assets/video_decoder.cpp
+    src/scene/scene_parser.cpp
+    src/scene/scene_compositor.cpp
+    src/scene/js_engine.cpp
+    src/scene/web_wallpaper.cpp
+    src/scene/particle_engine.cpp
+    src/render/render_graph.cpp
+    src/render/mesh_renderer.cpp
+    src/render/gpu_quad_compositor.cpp
+    src/render/vulkan_compute.cpp
+    src/audio/audio_player.cpp
+    src/audio/audio_visualizer.cpp
+    src/common/managed_process.cpp
+    src/vulkan/vulkan_context.cpp
+)
+
+target_include_directories(gpu_scene_e2e
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${LZ4_INCLUDE_DIRS}
+        ${AVFORMAT_INCLUDE_DIRS}
+        ${AVCODEC_INCLUDE_DIRS}
+        ${AVUTIL_INCLUDE_DIRS}
+        ${SWSCALE_INCLUDE_DIRS}
+)
+
+target_link_libraries(gpu_scene_e2e
+    PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Qml
+        Qt6::Network
+        Vulkan::Vulkan
+        ${LZ4_LIBRARIES}
+        ${AVFORMAT_LIBRARIES}
+        ${AVCODEC_LIBRARIES}
+        ${AVUTIL_LIBRARIES}
+        ${SWSCALE_LIBRARIES}
+)
+
+target_compile_options(gpu_scene_e2e PRIVATE -fexceptions)

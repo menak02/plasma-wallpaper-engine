@@ -432,7 +432,7 @@ bool WallpaperService::loadWallpaper(const QString& path) {
         }
     } else if (info.suffix().toLower() == QStringLiteral("pkg") || info.isDir()) {
         QString pkgFile = info.isDir() ? (canonical + QStringLiteral("/scene.pkg")) : canonical;
-        
+
         if (QFile::exists(pkgFile) && m_pkgReader.open(pkgFile.toStdString())) {
             // Load Project metadata
             std::string projJson = m_pkgReader.readTextFile("project.json");

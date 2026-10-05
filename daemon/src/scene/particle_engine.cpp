@@ -28,7 +28,7 @@ void ParticleEngine::spawnParticle(size_t emitterIdx, uint32_t screenWidth, uint
 
     Particle p;
     p.emitterIndex = static_cast<int>(emitterIdx);
-    
+
     p.x = static_cast<float>(rand() % (screenWidth > 0 ? screenWidth : 1920));
     p.y = static_cast<float>(rand() % (screenHeight > 0 ? screenHeight : 1080));
 

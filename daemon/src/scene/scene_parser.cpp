@@ -288,7 +288,7 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
         layer.id = obj.value(QStringLiteral("id")).toInt(-1);
         layer.parentId = obj.value(QStringLiteral("parent")).toInt(-1);
         layer.attachpoint = obj.value(QStringLiteral("attachpoint")).toString().toStdString();
-        
+
         if (obj.contains(QStringLiteral("sort"))) {
             layer.zOrder = obj.value(QStringLiteral("sort")).toInt(zOrder++);
         } else {
@@ -345,7 +345,7 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
 
                 if (r < 0.01f && g < 0.01f && b < 0.01f) {
                     QString n = QString::fromStdString(layer.name).toLower();
-                    if (n.contains(QStringLiteral("bloqueo")) || n.contains(QStringLiteral("boundary")) || 
+                    if (n.contains(QStringLiteral("bloqueo")) || n.contains(QStringLiteral("boundary")) ||
                         n.contains(QStringLiteral("collision")) ||
                         n.contains(QStringLiteral("clouds")) || n.contains(QStringLiteral("mask")) ||
                         n.contains(QStringLiteral("drag")) || n.contains(QStringLiteral("interactive")) ||
@@ -353,7 +353,7 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
                         layer.visible = false;
                     }
                 }
-            } else if (targetModel.find("composelayer") != std::string::npos || 
+            } else if (targetModel.find("composelayer") != std::string::npos ||
                 targetModel.find("projectlayer") != std::string::npos ||
                 targetModel.find("fullscreenlayer") != std::string::npos ||
                 targetModel.find("solid_instance_model") != std::string::npos) {
@@ -395,7 +395,7 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
         } else if (!layer.image.isNull()) {
             outScene.layers.push_back(std::move(layer));
         } else if (!layer.isText) {
-            std::cout << "SceneParser: Failed to load image for visual layer '" << layer.name 
+            std::cout << "SceneParser: Failed to load image for visual layer '" << layer.name
                       << "' with targetModel '" << targetModel << "'" << std::endl;
         }
     }
@@ -517,8 +517,8 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
         }
     }
 
-    std::cout << "SceneParser: Parsed " << outScene.layers.size() << "/" << outScene.totalVisualObjectsDeclared 
-              << " visual layers and " << outScene.emitters.size() << "/" << outScene.totalParticleEmittersDeclared 
+    std::cout << "SceneParser: Parsed " << outScene.layers.size() << "/" << outScene.totalVisualObjectsDeclared
+              << " visual layers and " << outScene.emitters.size() << "/" << outScene.totalParticleEmittersDeclared
               << " particle emitters" << std::endl;
     return true;
 }
@@ -968,7 +968,7 @@ bool SceneParser::resolveParticle(Assets::PkgReader& pkgReader, const std::strin
 
     QJsonObject obj = doc.object();
     outEmitter.name = particlePath;
-    
+
     float rate = static_cast<float>(obj.value(QStringLiteral("rate")).toDouble(3.0));
     QJsonArray emitterArr = obj.value(QStringLiteral("emitter")).toArray();
     if (!emitterArr.isEmpty()) {

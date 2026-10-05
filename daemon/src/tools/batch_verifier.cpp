@@ -267,7 +267,7 @@ int main(int argc, char* argv[]) {
         particleEngine.update(0.016f, 1920, 1080);
         particleEngine.render(painter, 1920, 1080);
         painter.end();
-        
+
         std::string snapshotFile = outputDir + "/" + id + ".png";
         canvas.save(QString::fromStdString(snapshotFile), "PNG");
 
@@ -302,17 +302,17 @@ int main(int argc, char* argv[]) {
         std::string titleSafe = sceneDesc.title;
         std::replace(titleSafe.begin(), titleSafe.end(), '|', '/');
 
-        report << "| `" << id << "` | " << (titleSafe.empty() ? id : titleSafe) << " | " 
-               << renderedLayers << "/" << totalDeclared << " | " 
-               << sceneDesc.emitters.size() << "/" << sceneDesc.totalParticleEmittersDeclared << " | " 
+        report << "| `" << id << "` | " << (titleSafe.empty() ? id : titleSafe) << " | "
+               << renderedLayers << "/" << totalDeclared << " | "
+               << sceneDesc.emitters.size() << "/" << sceneDesc.totalParticleEmittersDeclared << " | "
                << (!sceneDesc.soundPath.empty() ? "🎵 Yes" : "No") << " | "
                << "![" << id << "](" << snapshotFile << ") | "
                << status << " |\n";
         report.flush();
 
-        std::cout << "[" << (i+1) << "/" << itemDirs.size() << "] ID " << id 
-                  << " ('" << sceneDesc.title << "'): " 
-                  << renderedLayers << "/" << totalDeclared << " layers, " 
+        std::cout << "[" << (i+1) << "/" << itemDirs.size() << "] ID " << id
+                  << " ('" << sceneDesc.title << "'): "
+                  << renderedLayers << "/" << totalDeclared << " layers, "
                   << sceneDesc.emitters.size() << "/" << sceneDesc.totalParticleEmittersDeclared << " emitters -> " << status << std::endl;
     }
 

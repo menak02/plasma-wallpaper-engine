@@ -29,7 +29,7 @@ int main(int argc, char** argv)
     QDBusReply<QVariantMap> info =
         iface.call("getBufferInfoForOutput", QString::fromLatin1(out));
     if (!info.isValid()) {
-        printf("info failed: %s\n", qPrintable(info.error().message()));
+        std::printf("info failed: %s\n", qPrintable(info.error().message()));
         return 1;
     }
     const QVariantMap m = info.value();
@@ -37,16 +37,16 @@ int main(int argc, char** argv)
     const int h = m["height"].toInt();
     const int stride = m["stride"].toInt();
     const qulonglong size = m["size"].toULongLong();
-    printf("info: %dx%d stride=%d size=%llu\n", w, h, stride, size);
+    std::printf("info: %dx%d stride=%d size=%llu\n", w, h, stride, size);
 
     QDBusReply<QDBusUnixFileDescriptor> fr =
         iface.call("getBufferFdForOutput", QString::fromLatin1(out));
     if (!fr.isValid()) {
-        printf("fd call failed: %s\n", qPrintable(fr.error().message()));
+        std::printf("fd call failed: %s\n", qPrintable(fr.error().message()));
         return 1;
     }
     const int fd = fr.value().fileDescriptor();
-    printf("fd=%d\n", fd);
+    std::printf("fd=%d\n", fd);
     if (fd < 0) {
         return 1;
     }
@@ -58,11 +58,11 @@ int main(int argc, char** argv)
     }
     const auto* b = static_cast<const unsigned char*>(p);
 
-    printf("first 8 px (BGRA): ");
+    std::printf("first 8 px (BGRA): ");
     for (int k = 0; k < 8; ++k) {
-        printf("(%d,%d,%d,%d) ", b[k*4], b[k*4+1], b[k*4+2], b[k*4+3]);
+        std::printf("(%d,%d,%d,%d) ", b[k*4], b[k*4+1], b[k*4+2], b[k*4+3]);
     }
-    printf("\n");
+    std::printf("\n");
 
     // Distinct 32-bit pixels across the whole frame: the single number that
     // separates "rendered scene" from "flat fill".
@@ -77,13 +77,13 @@ int main(int argc, char** argv)
         }
         if (pixels.size() > 400000) break;
     }
-    printf("distinct colors: %zu  -> %s\n", pixels.size(),
+    std::printf("distinct colors: %zu  -> %s\n", pixels.size(),
            pixels.size() <= 2 ? "FLAT FILL (bug)" : "has image content");
 
     for (int y = 0; y < h; y += h / 3) {
         const auto* row = b + static_cast<size_t>(y) * stride;
         const auto mid = static_cast<size_t>(stride / 2);
-        printf("row %4d: (%d,%d,%d,%d)  mid:(%d,%d,%d,%d)\n", y,
+        std::printf("row %4d: (%d,%d,%d,%d)  mid:(%d,%d,%d,%d)\n", y,
                row[0], row[1], row[2], row[3],
                row[mid], row[mid+1], row[mid+2], row[mid+3]);
     }

@@ -112,6 +112,22 @@ if(ENABLE_REGRESSION_TESTS)
              COMMAND ${CMAKE_CURRENT_BINARY_DIR}/daemon/pause_gate_test)
     set_tests_properties(pause_gate_headless PROPERTIES TIMEOUT 60)
 
+    # End-to-end GPU scene regression: the 72-wallpaper PNG suite renders on
+    # the CPU painter only, so nothing else in CI can catch a broken Vulkan
+    # path. This one loads the committed fixture scene through the real GPU
+    # path and asserts the exported DmaBuf holds a frame, not a flat fill.
+    if(TARGET gpu_scene_e2e AND
+       EXISTS "${REGRESSION_DIR}/fixture_test_scene/scene.pkg")
+        add_test(NAME gpu_scene_e2e
+                 COMMAND ${CMAKE_CURRENT_BINARY_DIR}/daemon/gpu_scene_e2e
+                         ${REGRESSION_DIR}/fixture_test_scene/scene.pkg)
+        set_tests_properties(gpu_scene_e2e PROPERTIES
+            TIMEOUT 300
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            SKIP_RETURN_CODE 77
+        )
+    endif()
+
     # X11 EWMH coverage math: union-area sweep, exercised headlessly. Built
     # in the daemon tree and only registered when the X11 backend was
     # actually detected, so it does not fail on a pure-Wayland build.

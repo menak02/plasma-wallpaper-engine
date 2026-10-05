@@ -19,7 +19,8 @@ jobs:
         sudo apt-get install -y cmake qt6-base-dev qt6-declarative-dev qt6-tools-dev-tools \
           qt6-image-formats-plugins vulkan-tools libvulkan-dev \
           liblz4-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
-          libpulse-dev libxcb1-dev libwayland-dev
+          libpulse-dev libxcb1-dev libwayland-dev \
+          mesa-vulkan-drivers
 
     - name: Configure
       run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
@@ -32,6 +33,45 @@ jobs:
 
     - name: Test
       run: ctest --test-dir build --output-on-failure
+
+    # The GPU probes exit 77 when no Vulkan device is present, which in a ctest
+    # summary is indistinguishable from a pass -- so a real GPU regression would
+    # show green. lavapipe is a software Vulkan ICD: no GPU required. Force it so
+    # the run does not depend on which ICDs happen to be installed.
+    - name: Select software Vulkan (lavapipe)
+      run: |
+        ICD=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+        if [ ! -f "$ICD" ]; then
+          echo "::error::lavapipe ICD missing at $ICD -- GPU probes would skip"
+          ls -l /usr/share/vulkan/icd.d/ || true
+          exit 1
+        fi
+        echo "VK_ICD_FILENAMES=$ICD" >> "$GITHUB_ENV"
+        echo "VK_DRIVER_FILES=$ICD" >> "$GITHUB_ENV"
+        vulkaninfo --summary 2>/dev/null | head -30 || true
+
+    - name: GPU probes must run, not skip
+      run: |
+        failed=0
+        for probe in gpu_deform_probe blit_shared_probe gpu_quad_placement_probe gpu_scene_e2e; do
+          if [ ! -x "build/daemon/$probe" ]; then
+            echo "::error::$probe was not built"
+            failed=1
+            continue
+          fi
+          QT_QPA_PLATFORM=offscreen "build/daemon/$probe" \
+            tests/regression/fixture_test_scene/scene.pkg || rc=$?
+          rc=${rc:-0}
+          case "$rc" in
+            0)  echo "$probe: PASS" ;;
+            77) echo "::error::$probe SKIPPED (no Vulkan device) -- a skip must not pass CI"
+                failed=1 ;;
+            *)  echo "::error::$probe FAILED (exit $rc)"
+                failed=1 ;;
+          esac
+          unset rc
+        done
+        [ "$failed" = 0 ] || exit 1
 
   fixture-regression:
     runs-on: ubuntu-latest

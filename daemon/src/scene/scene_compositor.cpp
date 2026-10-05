@@ -164,7 +164,7 @@ bool SceneCompositor::loadScene(Assets::PkgReader& pkgReader, const std::unorder
     m_hasScene = true;
     // GPU/CPU decision is per-scene at load time, never mid-frame.
     m_gpuCompositing = tryInitGpuCompositing();
-    std::cout << "SceneCompositor: Loaded scene '" << m_scene.title 
+    std::cout << "SceneCompositor: Loaded scene '" << m_scene.title
               << "' with " << m_scene.layers.size() << " layers"
               << " [renderer: " << (m_gpuCompositing ? "gpu" : "cpu") << "]" << std::endl;
     return true;
@@ -696,10 +696,10 @@ void SceneCompositor::updateAndRender(float dt, float time) {
             if (eff.visible && (eff.type == EffectType::GodRays || eff.type == EffectType::Shine)) {
                 painter.save();
                 painter.setCompositionMode(QPainter::CompositionMode_Plus);
-                
+
                 float rayPulse = 0.8f + 0.2f * std::sin(time * eff.speed * 1.5f);
                 float rayRadius = std::max(spriteW, spriteH) * eff.length * rayPulse;
-                
+
                 QRadialGradient rayGrad(0, 0, rayRadius);
                 QColor centerCol = eff.color;
                 centerCol.setAlphaF(std::clamp(eff.intensity * 0.4f * rayPulse, 0.0f, 1.0f));

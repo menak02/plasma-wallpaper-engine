@@ -52,18 +52,18 @@ struct JsonValue {
     bool boolValue = false;
     std::vector<JsonValue> arrayValue;
     std::vector<std::pair<std::string, JsonValue>> objectValue;
-    
+
     bool isNull() const { return type == Null; }
     bool isString() const { return type == String; }
     bool isNumber() const { return type == Number; }
     bool isBool() const { return type == Bool; }
     bool isArray() const { return type == Array; }
     bool isObject() const { return type == Object; }
-    
+
     const std::string& asString() const { return stringValue; }
     double asNumber() const { return numberValue; }
     bool asBool() const { return boolValue; }
-    
+
     const JsonValue& operator[](const std::string& key) const {
         for (const auto& pair : objectValue) {
             if (pair.first == key) return pair.second;
@@ -71,13 +71,13 @@ struct JsonValue {
         static JsonValue nullValue;
         return nullValue;
     }
-    
+
     const JsonValue& operator[](size_t index) const {
         if (index < arrayValue.size()) return arrayValue[index];
         static JsonValue nullValue;
         return nullValue;
     }
-    
+
     size_t size() const {
         if (type == Array) return arrayValue.size();
         if (type == Object) return objectValue.size();
@@ -95,7 +95,7 @@ void skipWhitespace(const std::string& json, size_t& pos) {
 JsonValue parseJsonValue(const std::string& json, size_t& pos) {
     skipWhitespace(json, pos);
     if (pos >= json.size()) return {};
-    
+
     if (json[pos] == '"') {
         // String
         JsonValue val;
@@ -120,7 +120,7 @@ JsonValue parseJsonValue(const std::string& json, size_t& pos) {
         if (pos < json.size()) pos++; // skip closing quote
         return val;
     }
-    
+
     if (json[pos] == '{') {
         // Object
         JsonValue val;
@@ -151,7 +151,7 @@ JsonValue parseJsonValue(const std::string& json, size_t& pos) {
         }
         return val;
     }
-    
+
     if (json[pos] == '[') {
         // Array
         JsonValue val;
@@ -170,7 +170,7 @@ JsonValue parseJsonValue(const std::string& json, size_t& pos) {
         }
         return val;
     }
-    
+
     if (json[pos] == 't' && json.substr(pos, 4) == "true") {
         JsonValue val;
         val.type = JsonValue::Bool;
@@ -178,7 +178,7 @@ JsonValue parseJsonValue(const std::string& json, size_t& pos) {
         pos += 4;
         return val;
     }
-    
+
     if (json[pos] == 'f' && json.substr(pos, 5) == "false") {
         JsonValue val;
         val.type = JsonValue::Bool;
@@ -186,12 +186,12 @@ JsonValue parseJsonValue(const std::string& json, size_t& pos) {
         pos += 5;
         return val;
     }
-    
+
     if (json[pos] == 'n' && json.substr(pos, 4) == "null") {
         pos += 4;
         return {};
     }
-    
+
     // Number
     if (json[pos] == '-' || (json[pos] >= '0' && json[pos] <= '9')) {
         JsonValue val;
@@ -208,7 +208,7 @@ JsonValue parseJsonValue(const std::string& json, size_t& pos) {
         }
         return val;
     }
-    
+
     return {};
 }
 
@@ -254,62 +254,62 @@ std::string discoverHyprlandSignature() {
 std::string buildIpcSocketPath(const std::string& signature) {
     std::string runtimeDir = getEnv("XDG_RUNTIME_DIR");
     if (runtimeDir.empty() || signature.empty()) return "";
-    
+
     // Try the standard daemon_ipc path first, then fall back to .socket.sock
     std::string path1 = runtimeDir + "/hypr/" + signature + "/daemon_ipc";
     std::string path2 = runtimeDir + "/hypr/" + signature + "/.socket.sock";
-    
+
     // Check which one exists
     if (access(path1.c_str(), F_OK) == 0) return path1;
     if (access(path2.c_str(), F_OK) == 0) return path2;
-    
+
     return path1; // Return the standard path even if it doesn't exist
 }
 
 std::string sendHyprlandCommandViaHyprctl(const std::string& command) {
     std::string cmd = "hyprctl -j " + command;
-    
+
     FILE* pipe = popen(cmd.c_str(), "r");
     if (!pipe) {
         std::cerr << "HyprlandBackend: Failed to run hyprctl" << std::endl;
         return "";
     }
-    
+
     std::string result;
     char buffer[256];
     while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
         result += buffer;
     }
-    
+
     int status = pclose(pipe);
     if (status != 0) {
         std::cerr << "HyprlandBackend: hyprctl command failed with status " << status << std::endl;
         return "";
     }
-    
+
     // Remove trailing newlines
     while (!result.empty() && (result.back() == '\n' || result.back() == '\r'))
         result.pop_back();
-    
+
     return result;
 }
 
 int connectToHyprlandIpc(const std::string& socketPath) {
     if (socketPath.empty()) return -1;
-    
+
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sock < 0) return -1;
-    
+
     struct sockaddr_un addr;
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, socketPath.c_str(), sizeof(addr.sun_path) - 1);
-    
+
     if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         close(sock);
         return -1;
     }
-    
+
     return sock;
 }
 
