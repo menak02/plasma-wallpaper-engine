@@ -154,8 +154,10 @@ if(ENABLE_REGRESSION_TESTS)
     if(TARGET blit_shared_probe)
         add_test(NAME blit_shared_probe
                  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/daemon/blit_shared_probe)
+        # Measured 32s on a discrete GPU and 76ms under lavapipe; the spread is
+        # dmabuf allocation, so leave real headroom for slower CI hosts.
         set_tests_properties(blit_shared_probe PROPERTIES
-            TIMEOUT 120
+            TIMEOUT 300
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
             SKIP_RETURN_CODE 77
         )

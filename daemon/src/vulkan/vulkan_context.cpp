@@ -92,7 +92,13 @@ bool VulkanContext::initInstance() {
     appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.pEngineName = "AGY Engine";
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.apiVersion = VK_API_VERSION_1_2;
+    // 1.3, not 1.2: the dmabuf export path uses vkCmdBlitImage2, which is core
+    // in 1.3. Asking for 1.2 left the loader free to hand back a NULL
+    // trampoline for it -- fine on the NVIDIA driver, a segfault on lavapipe.
+    // Request 1.3 but tolerate a loader that caps lower; the blit resolves
+    // through vkGetDeviceProcAddr and degrades with an error instead of a
+    // crash if it is genuinely unavailable.
+    appInfo.apiVersion = VK_API_VERSION_1_3;
 
     std::vector<const char*> extensions = {
         VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
@@ -713,7 +719,24 @@ bool VulkanContext::blitIntoSharedImage(VkImage srcImage, uint32_t srcWidth, uin
         region.dstOffsets[1] = {static_cast<int32_t>(m_currentBuffer.width), static_cast<int32_t>(m_currentBuffer.height), 1};
         blit.pRegions = &region;
         blit.filter = VK_FILTER_LINEAR;
-        vkCmdBlitImage2(m_commandBuffer, &blit);
+
+        // vkCmdBlitImage2 is core in Vulkan 1.3, but the instance above is
+        // created as VK_API_VERSION_1_2. Calling the core symbol directly
+        // therefore dereferences a NULL loader trampoline on any driver that
+        // does not export it for a 1.2 instance -- which is exactly what
+        // lavapipe does, and it segfaulted here. Resolve it through the
+        // device instead, and refuse the frame if the driver is too old
+        // rather than crashing.
+        static PFN_vkCmdBlitImage2 fnBlitImage2 =
+            reinterpret_cast<PFN_vkCmdBlitImage2>(
+                vkGetDeviceProcAddr(m_device, "vkCmdBlitImage2"));
+        if (!fnBlitImage2) {
+            std::cerr << "VulkanContext: vkCmdBlitImage2 unavailable "
+                         "(driver lacks Vulkan 1.3); cannot export dmabuf"
+                      << std::endl;
+            return false;
+        }
+        fnBlitImage2(m_commandBuffer, &blit);
 
         // EXPORT: back to GENERAL for zero-copy dmabuf consumers
         VkImageMemoryBarrier toGeneral{};
