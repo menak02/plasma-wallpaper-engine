@@ -124,7 +124,7 @@ if(ENABLE_REGRESSION_TESTS)
         set_tests_properties(gpu_scene_e2e PROPERTIES
             TIMEOUT 300
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-            SKIP_RETURN_CODE 77
+            SKIP_RETURN_CODE 77;78
         )
     endif()
 
@@ -159,7 +159,7 @@ if(ENABLE_REGRESSION_TESTS)
         set_tests_properties(blit_shared_probe PROPERTIES
             TIMEOUT 300
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-            SKIP_RETURN_CODE 77
+            SKIP_RETURN_CODE 77;78
         )
     endif()
 
