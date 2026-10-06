@@ -102,6 +102,7 @@ elif [ -x build/daemon/gpu_deform_probe ]; then
         rc=$?
         case "$rc" in
             0)  echo "  $probe: PASS" ;;
+            78) echo "  $probe: UNSUPPORTED (no DRM render node; dmabuf export untestable here)" ;;
             77) echo "  $probe: SKIPPED (no Vulkan device)"
                  if [ "${PWE_ALLOW_SKIPPED_TESTS:-0}" != "1" ]; then
                      echo "     -> failing: a skip must not look like a pass in CI"

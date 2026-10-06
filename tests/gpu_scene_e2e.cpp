@@ -147,8 +147,10 @@ int main(int argc, char** argv)
 
     DmaBufBuffer buf;
     if (!ctx.setResolution(W, H, buf)) {
-        std::printf("SKIP: no exportable DmaBuf\n");
-        return 77;
+        // 78, not 77: see blit_shared_probe.cpp. This environment cannot
+        // export a DMA_BUF, which is distinct from having no GPU at all.
+        std::printf("UNSUPPORTED: cannot export a DMA_BUF (needs a DRM render node)\n");
+        return 78;
     }
     std::printf("exported DmaBuf: %ux%u stride=%u size=%zu\n",
                 W, H, buf.stride, buf.size);

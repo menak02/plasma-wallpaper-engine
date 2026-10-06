@@ -76,6 +76,10 @@ jobs:
             0)  echo "$probe: PASS" ;;
             77) echo "::error::$probe SKIPPED (no Vulkan device) -- a skip must not pass CI"
                 failed=1 ;;
+            78) echo "$probe: UNSUPPORTED (no DRM render node, cannot export dmabuf)"
+                echo "  Not a failure: lavapipe is displayless and GitHub runners have"
+                echo "  no /dev/dri, so the dmabuf export path cannot be exercised here."
+                echo "  It still runs on real hardware -- do not use this to skip locally." ;;
             *)  echo "::error::$probe FAILED (exit $rc)"
                 failed=1 ;;
           esac

@@ -91,8 +91,14 @@ int main(int argc, char** argv) {
 
     WallpaperEngine::Render::DmaBufBuffer buffer;
     if (!ctx.setResolution(kW, kH, buffer)) {
-        std::printf("SKIP: could not allocate an exportable DmaBuf\n");
-        return 77;
+        // 78, not 77. This is not "no GPU", it is "this environment cannot
+        // export a DMA_BUF", which needs a DRM render node (/dev/dri/renderD*).
+        // A displayless software Vulkan device (lavapipe) can render but has
+        // no way to produce one, and CI has no /dev/dri at all. Reporting a
+        // distinct code keeps "no GPU" distinguishable from "GPU but no DRM",
+        // so CI can treat the first as fatal and the second as expected.
+        std::printf("UNSUPPORTED: cannot export a DMA_BUF (needs a DRM render node)\n");
+        return 78;
     }
     std::printf("exported DmaBuf: %ux%u stride=%u size=%zu fd=%d\n",
                 kW, kH, buffer.stride, buffer.size, buffer.fd);
