@@ -91,14 +91,15 @@ int main(int argc, char** argv) {
 
     WallpaperEngine::Render::DmaBufBuffer buffer;
     if (!ctx.setResolution(kW, kH, buffer)) {
-        // 78, not 77. This is not "no GPU", it is "this environment cannot
-        // export a DMA_BUF", which needs a DRM render node (/dev/dri/renderD*).
-        // A displayless software Vulkan device (lavapipe) can render but has
-        // no way to produce one, and CI has no /dev/dri at all. Reporting a
-        // distinct code keeps "no GPU" distinguishable from "GPU but no DRM",
-        // so CI can treat the first as fatal and the second as expected.
+        // Both "no GPU at all" and "cannot export a DMA_BUF" skip, because
+        // CMake's SKIP_RETURN_CODE only reliably accepts a single code across
+        // versions. They are told apart by the message below: CI greps stdout
+        // for UNSUPPORTED and treats only the plain-SKIP case as fatal. The
+        // distinction matters -- exporting a DMA_BUF needs a DRM render node
+        // (/dev/dri/renderD128), which a displayless software Vulkan device
+        // (lavapipe) cannot provide and GitHub runners do not have.
         std::printf("UNSUPPORTED: cannot export a DMA_BUF (needs a DRM render node)\n");
-        return 78;
+        return 77;
     }
     std::printf("exported DmaBuf: %ux%u stride=%u size=%zu fd=%d\n",
                 kW, kH, buffer.stride, buffer.size, buffer.fd);

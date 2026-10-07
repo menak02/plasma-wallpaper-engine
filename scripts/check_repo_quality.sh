@@ -98,20 +98,30 @@ elif [ -x build/daemon/gpu_deform_probe ]; then
             gpu_fail=1
             continue
         fi
-        QT_QPA_PLATFORM=offscreen "$binary" tests/regression/fixture_test_scene/scene.pkg >"/tmp/pwe-probe-$probe.log" 2>&1
+        probe_out="$(QT_QPA_PLATFORM=offscreen "$binary" \
+            tests/regression/fixture_test_scene/scene.pkg 2>&1)"
         rc=$?
+        printf '%s\n' "$probe_out" > "/tmp/pwe-probe-$probe.log"
         case "$rc" in
             0)  echo "  $probe: PASS" ;;
-            78) echo "  $probe: UNSUPPORTED (no DRM render node; dmabuf export untestable here)" ;;
-            77) echo "  $probe: SKIPPED (no Vulkan device)"
-                 if [ "${PWE_ALLOW_SKIPPED_TESTS:-0}" != "1" ]; then
-                     echo "     -> failing: a skip must not look like a pass in CI"
-                     echo "     -> install a software Vulkan ICD (Ubuntu: mesa-vulkan-drivers)"
-                     gpu_fail=1
-                 fi ;;
+            77)
+                if printf '%s' "$probe_out" | grep -q UNSUPPORTED; then
+                    # No DRM render node, so the dmabuf export path cannot be
+                    # exercised here. Still a real signal locally: a dev box
+                    # with a GPU is expected to run this, so it is reported but
+                    # not fatal, matching CI.
+                    echo "  $probe: UNSUPPORTED (no DRM render node; dmabuf export untestable here)"
+                else
+                    echo "  $probe: SKIPPED (no Vulkan device)"
+                    if [ "${PWE_ALLOW_SKIPPED_TESTS:-0}" != "1" ]; then
+                        echo "     -> failing: a skip must not look like a pass in CI"
+                        echo "     -> install a software Vulkan ICD (Ubuntu: mesa-vulkan-drivers)"
+                        gpu_fail=1
+                    fi
+                fi ;;
             *)  echo "  $probe: FAIL (exit $rc)"
-                 tail -15 "/tmp/pwe-probe-$probe.log" | sed 's/^/     /'
-                 gpu_fail=1 ;;
+                tail -15 "/tmp/pwe-probe-$probe.log" | sed 's/^/     /'
+                gpu_fail=1 ;;
         esac
     done
     [ "$gpu_fail" = 1 ] && FAILURES=1

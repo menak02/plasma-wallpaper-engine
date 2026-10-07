@@ -69,17 +69,22 @@ jobs:
             failed=1
             continue
           fi
-          QT_QPA_PLATFORM=offscreen "build/daemon/$probe" \
-            tests/regression/fixture_test_scene/scene.pkg || rc=$?
+          out="$(QT_QPA_PLATFORM=offscreen "build/daemon/$probe" \
+            tests/regression/fixture_test_scene/scene.pkg 2>&1)" || rc=$?
           rc=${rc:-0}
+          echo "$out"
           case "$rc" in
             0)  echo "$probe: PASS" ;;
-            77) echo "::error::$probe SKIPPED (no Vulkan device) -- a skip must not pass CI"
-                failed=1 ;;
-            78) echo "$probe: UNSUPPORTED (no DRM render node, cannot export dmabuf)"
-                echo "  Not a failure: lavapipe is displayless and GitHub runners have"
-                echo "  no /dev/dri, so the dmabuf export path cannot be exercised here."
-                echo "  It still runs on real hardware -- do not use this to skip locally." ;;
+            77)
+              if echo "$out" | grep -q UNSUPPORTED; then
+                echo "$probe: UNSUPPORTED (no DRM render node; dmabuf export untestable here)"
+                echo "  Expected: lavapipe is displayless and GitHub runners have no"
+                echo "  /dev/dri, so the dmabuf export path cannot run. It is still"
+                echo "  exercised on real hardware -- do not use this to skip locally."
+              else
+                echo "::error::$probe SKIPPED (no Vulkan device) -- a skip must not pass CI"
+                failed=1
+              fi ;;
             *)  echo "::error::$probe FAILED (exit $rc)"
                 failed=1 ;;
           esac
