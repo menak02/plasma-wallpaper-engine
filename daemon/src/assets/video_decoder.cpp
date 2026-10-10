@@ -172,4 +172,14 @@ void VideoDecoder::seekToStart() {
     avcodec_flush_buffers(m_codecCtx);
 }
 
+double VideoDecoder::framesPerSecond() const {
+    if (!m_open || !m_formatCtx || m_videoStreamIdx < 0) return 30.0;
+    AVStream* st = m_formatCtx->streams[m_videoStreamIdx];
+    AVRational fr = st->avg_frame_rate;
+    if (fr.num <= 0 || fr.den <= 0) fr = st->r_frame_rate;
+    if (fr.num <= 0 || fr.den <= 0) return 30.0;
+    const double fps = av_q2d(fr);
+    return (fps > 0.0 && fps <= 240.0) ? fps : 30.0;
+}
+
 } // namespace WallpaperEngine::Assets

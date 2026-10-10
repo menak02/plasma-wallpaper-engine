@@ -126,6 +126,9 @@ public:
     // Seek to beginning (loop)
     void seekToStart();
 
+    /** Source frame rate; 30 when the container does not say. */
+    double framesPerSecond() const;
+
     // Properties
     int width() const { return m_width; }
     int height() const { return m_height; }

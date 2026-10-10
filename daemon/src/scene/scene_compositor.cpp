@@ -421,22 +421,29 @@ void SceneCompositor::updateAndRender(float dt, float time) {
         }
     }
 
-    // Standalone video wallpaper: decode the next frame at ~30fps. Loop by
-    // seeking back to the start on EOF so the wallpaper plays forever.
-    if (m_isVideo && m_video) {
+    // Standalone video wallpaper: advance by wall-clock video time and decode
+    // as many frames as the elapsed time covers. A fixed decode cadence plays
+    // high-fps sources in slow motion. Loop by seeking back to the start on
+    // EOF so the wallpaper plays forever.
+    if (m_isVideo && m_video && !m_scene.layers.empty()) {
+        const double fps = std::max(1.0, m_video->framesPerSecond());
         m_videoAcc += dt;
-        if (m_videoAcc > 1.0f / 30.0f) {
+        int steps = static_cast<int>(m_videoAcc * fps);
+        if (steps > 8) {
+            steps = 8; // cap catch-up work after a stall and drop the backlog
             m_videoAcc = 0.0f;
-            if (!m_scene.layers.empty()) {
-                QImage next = m_video->decodeNextFrame();
-                if (!next.isNull()) {
-                    m_scene.layers[0].image = std::move(next);
-                } else {
-                    m_video->seekToStart();
-                    QImage retry = m_video->decodeNextFrame();
-                    if (!retry.isNull()) {
-                        m_scene.layers[0].image = std::move(retry);
-                    }
+        } else if (steps > 0) {
+            m_videoAcc -= static_cast<float>(steps / fps);
+        }
+        for (int i = 0; i < steps; ++i) {
+            QImage next = m_video->decodeNextFrame();
+            if (!next.isNull()) {
+                m_scene.layers[0].image = std::move(next);
+            } else {
+                m_video->seekToStart();
+                QImage retry = m_video->decodeNextFrame();
+                if (!retry.isNull()) {
+                    m_scene.layers[0].image = std::move(retry);
                 }
             }
         }
