@@ -53,7 +53,7 @@ public:
     void setCoverageThreshold(double threshold) { m_threshold = threshold; }
 
     /** Human-readable name of the detected window manager, for logging. */
-    std::string windowManagerName() const { return m_wmName; }
+    const std::string& windowManagerName() const { return m_wmName; }
 
     /** Geometry of a window or of the wallpaper output. */
     struct Rect {

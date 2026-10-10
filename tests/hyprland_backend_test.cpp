@@ -86,7 +86,7 @@ static int connectToSocket(const std::string& path) {
     addr.sun_family = AF_UNIX;
     std::strncpy(addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
 
-    if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+    if (connect(sock, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0) {
         std::cerr << "Failed to connect to IPC socket" << std::endl;
         close(sock);
         return -1;
