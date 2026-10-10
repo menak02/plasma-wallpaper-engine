@@ -3,6 +3,8 @@ name: Security Scan
 on:
   push:
     branches: [master, feat/hyprland-pause]
+  pull_request:
+    branches: [master]
   schedule:
     - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM
 
@@ -10,16 +12,31 @@ jobs:
   secret-scanning:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0   # gitleaks scans the full history, not just the tip
 
-    - name: Check for secrets
+    # Full-history secret scan with real credential detection. This replaces
+    # the old `git log -p | grep -E "(password|secret|key|token)"`, which
+    # matched ordinary words in code comments and missed every real key
+    # format. Bump the image tag when updating.
+    - name: gitleaks
       run: |
-        git log -p -n 100 | grep -E "(password|secret|key|token)" || echo "No secrets found"
+        docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.21.2 \
+          detect --source=/repo --redact --no-banner --exit-code 1
 
-  vulnerability-scan:
+  c-risk-scan:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
-    - name: Dependency scan placeholder
-      run: echo "Vulnerability scanning would be configured here"
+    # Advisory C/C++ risk list. The known hits are the session-probe code in
+    # compositor_backend.cpp (two access() probes and one popen() in
+    # makeCompositorBackend) — reviewed in-tree. Reported so a NEW hit shows
+    # up in the run log without turning this into a noisy gate.
+    - name: flawfinder (advisory)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y flawfinder
+        flawfinder --minlevel=3 --quiet --columns \
+          daemon/src layerclient/src viewer/src plugin/src tools || true
