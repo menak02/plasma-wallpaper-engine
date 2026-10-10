@@ -120,11 +120,14 @@ bool MeshDeformer::boneWeightedDeform(std::vector<MeshVertex>& vertices,
             float dy = vert.position.y() - boneOrigin.y();
             float dist = dx * dx + dy * dy;
 
-            // Insert into the top-4 (sorted ascending)
+            // Insert into the top-4 (sorted ascending). Swap a copy of the
+            // loop counter: swapping `b` itself rewinds the outer loop and
+            // can insert the same bone twice.
+            size_t idx = b;
             for (int slot = 0; slot < 4; ++slot) {
                 if (dist < bestDist[slot]) {
                     std::swap(dist, bestDist[slot]);
-                    std::swap(b, bestIdx[slot]);
+                    std::swap(idx, bestIdx[slot]);
                 }
             }
         }
