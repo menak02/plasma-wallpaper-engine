@@ -1,5 +1,4 @@
 #include "video_decoder.h"
-#include <cstring>
 #include <iostream>
 
 extern "C" {
@@ -7,23 +6,6 @@ extern "C" {
 }
 
 namespace WallpaperEngine::Assets {
-
-// File-scope struct for AVIO custom I/O context
-struct AvioContextData {
-    const uint8_t* data;
-    size_t size;
-    size_t pos;
-};
-
-// AVIO callback: read from memory buffer
-static int avioReadPacket(void* opaque, uint8_t* buf, int buf_size) {
-    auto* avioCtx = static_cast<AVIOContext*>(opaque);
-    auto* data = static_cast<uint8_t*>(avioCtx->opaque);
-    size_t pos = static_cast<size_t>(avioCtx->pos);
-    // avioCtx->opaque is AVIOContext itself, we stored data pointer in a custom struct
-    // Actually we need a different approach - use the AVIOContext's userdata
-    return 0; // placeholder
-}
 
 VideoDecoder::VideoDecoder() {}
 
@@ -39,68 +21,10 @@ void VideoDecoder::close() {
     if (m_swsCtx) { sws_freeContext(m_swsCtx); m_swsCtx = nullptr; }
     if (m_codecCtx) { avcodec_free_context(&m_codecCtx); m_codecCtx = nullptr; }
     if (m_formatCtx) {
-        // Detach custom AVIO before close to avoid double-free on some FFmpeg builds
-        if (m_avioCtx) m_formatCtx->pb = nullptr;
         avformat_close_input(&m_formatCtx);
         m_formatCtx = nullptr;
     }
-    if (m_avioCtx) {
-        avio_context_free(&m_avioCtx);
-        m_avioCtx = nullptr;
-    }
-    m_avioBuffer = nullptr;
-    if (m_avioOpaque) { delete static_cast<AvioContextData*>(m_avioOpaque); m_avioOpaque = nullptr; }
     m_open = false;
-}
-
-bool VideoDecoder::openFromData(const uint8_t* data, size_t size, int targetWidth, int targetHeight) {
-    close();
-    m_dataCopy.assign(data, data + size);
-
-    // Create AVIOContext for custom I/O
-    constexpr int avioBufSize = 32768;
-    m_avioBuffer = static_cast<unsigned char*>(av_malloc(avioBufSize));
-
-    // CRITICAL: use m_dataCopy.data() not original 'data' pointer —
-    // 'data' points into texImg.mipmaps which gets freed after resolveTexture returns
-    auto* ctxData = new AvioContextData{m_dataCopy.data(), m_dataCopy.size(), 0};
-    m_avioOpaque = ctxData; // track for cleanup in close()
-
-    m_avioCtx = avio_alloc_context(
-        m_avioBuffer, avioBufSize, 0, ctxData,
-        [](void* opaque, uint8_t* buf, int buf_size) -> int {
-            auto* d = static_cast<AvioContextData*>(opaque);
-            size_t remaining = d->size - d->pos;
-            if (remaining == 0) return AVERROR_EOF;
-            size_t toRead = std::min(remaining, static_cast<size_t>(buf_size));
-            std::memcpy(buf, d->data + d->pos, toRead);
-            d->pos += toRead;
-            return static_cast<int>(toRead);
-        },
-        nullptr, // write
-        [](void* opaque, int64_t pos, int whence) -> int64_t {
-            auto* d = static_cast<AvioContextData*>(opaque);
-            if (whence == AVSEEK_SIZE) {
-                return static_cast<int64_t>(d->size);
-            }
-            d->pos = static_cast<size_t>(pos);
-            return static_cast<int64_t>(d->pos);
-        }
-    );
-
-    m_formatCtx = avformat_alloc_context();
-    m_formatCtx->pb = m_avioCtx;
-    m_formatCtx->flags |= AVFMT_FLAG_CUSTOM_IO;
-
-    // Open input
-    int ret = avformat_open_input(&m_formatCtx, nullptr, nullptr, nullptr);
-    if (ret < 0) {
-        std::cerr << "VideoDecoder: Failed to open input: " << ret << std::endl;
-        close();
-        return false;
-    }
-
-    return openInternal(targetWidth, targetHeight);
 }
 
 bool VideoDecoder::openFromFile(const std::string& path, int targetWidth, int targetHeight) {
@@ -161,6 +85,7 @@ bool VideoDecoder::openInternal(int targetWidth, int targetHeight) {
 
     m_width = m_codecCtx->width;
     m_height = m_codecCtx->height;
+    m_sourceHeight = m_codecCtx->height;
 
     std::cerr << "VideoDecoder: Opened " << m_width << "x" << m_height
               << " " << codec->name << std::endl;
@@ -222,7 +147,7 @@ QImage VideoDecoder::decodeNextFrame() {
         if (ret == 0) {
             // Convert to RGBA
             sws_scale(m_swsCtx,
-                      m_frame->data, m_frame->linesize, 0, m_height,
+                      m_frame->data, m_frame->linesize, 0, m_sourceHeight,
                       m_rgbFrame->data, m_rgbFrame->linesize);
 
             // Copy to QImage

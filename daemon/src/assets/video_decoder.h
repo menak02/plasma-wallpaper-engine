@@ -117,9 +117,6 @@ public:
     VideoDecoder();
     ~VideoDecoder();
 
-    // Open video from raw data (MP4 bytes in memory)
-    bool openFromData(const uint8_t* data, size_t size, int targetWidth, int targetHeight);
-
     // Open video from file path
     bool openFromFile(const std::string& path, int targetWidth, int targetHeight);
 
@@ -147,11 +144,8 @@ private:
     int m_videoStreamIdx = -1;
     int m_width = 0;
     int m_height = 0;
-    bool m_open = false;        // Memory-backed input.
-    std::vector<uint8_t> m_dataCopy;
-    AVIOContext* m_avioCtx = nullptr;
-    unsigned char* m_avioBuffer = nullptr;
-    void* m_avioOpaque = nullptr; // AvioContextData for custom I/O
+    int m_sourceHeight = 0;      // decoded frame height; m_height is the scaled output height
+    bool m_open = false;         // Decoder successfully opened.
 };
 
 } // namespace WallpaperEngine::Assets

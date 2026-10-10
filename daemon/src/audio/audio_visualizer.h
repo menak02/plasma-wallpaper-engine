@@ -20,14 +20,6 @@ public:
     ~AudioVisualizer();
 
     /**
-     * Initialize with audio data.
-     * @param audioBytes Raw audio bytes
-     * @param sampleRate Sample rate (e.g., 44100)
-     * @param channels Number of channels (1=mono, 2=stereo)
-     */
-    void init(const std::vector<uint8_t>& audioBytes, int sampleRate = 44100, int channels = 2);
-
-    /**
      * Get spectrum data for a specific band.
      * @param band Index (0 = bass, 1 = low mid, etc.)
      * @return Amplitude 0.0f to 1.0f

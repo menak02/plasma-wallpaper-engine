@@ -3,7 +3,6 @@
 #include <QProcess>
 #include <algorithm>
 #include <cmath>
-#include <cstring>
 #include <complex>
 
 namespace WallpaperEngine::Audio {
@@ -12,34 +11,14 @@ AudioVisualizer::AudioVisualizer() : m_bandCount(8), m_waveSize(2048) {}
 
 AudioVisualizer::~AudioVisualizer() { stopLiveCapture(); }
 
-void AudioVisualizer::init(const std::vector<uint8_t>& audioBytes, int sampleRate, int channels) {
-    m_sampleRate = sampleRate;
-    m_channels = channels;
-
-    // Convert incoming audio bytes to 16-bit PCM.
-    m_rawAudio.resize(audioBytes.size() / 2);
-    if (!audioBytes.empty()) {
-        std::memcpy(m_rawAudio.data(), audioBytes.data(), audioBytes.size());
-    }
-
-    // Calculate duration
-    m_duration = static_cast<float>(m_rawAudio.size()) / (m_sampleRate * m_channels);
-    m_currentTime = 0.0f;
-    m_playbackPos = 0;
-
-    // Allocate spectrum and waveform buffers
-    m_spectrum.resize(m_waveSize / 2, 0.0f);
-    m_waveform.resize(m_waveSize, 0.0f);
-}
-
 void AudioVisualizer::update() {
     if (m_rawAudio.empty() || m_volume <= 0.0f) {
         std::fill(m_spectrum.begin(), m_spectrum.end(), 0.0f);
         std::fill(m_waveform.begin(), m_waveform.end(), 0.0f);
         return;
     }
-    // The live-capture path never runs init(): size the window buffers here
-    // so all writes below stay in-bounds.
+    // Size the window buffers on first update so all writes below stay
+    // in-bounds.
     if (m_waveform.size() != static_cast<size_t>(m_waveSize)) {
         m_waveform.resize(m_waveSize, 0.0f);
     }
@@ -165,7 +144,7 @@ void AudioVisualizer::computeFFT() {
 }
 
 float AudioVisualizer::getBand(int band) const {
-    // m_spectrum may be empty before init()/update() ever ran (fresh daemon,
+    // m_spectrum may be empty before update() ever ran (fresh daemon,
     // no capture): reading it would be out-of-bounds.
     if (band < 0 || band >= m_bandCount || band >= static_cast<int>(m_spectrum.size())) {
         return 0.0f;
