@@ -112,6 +112,16 @@ if(ENABLE_REGRESSION_TESTS)
              COMMAND ${CMAKE_CURRENT_BINARY_DIR}/daemon/pause_gate_test)
     set_tests_properties(pause_gate_headless PROPERTIES TIMEOUT 60)
 
+    # DXT decoder coverage (built in the daemon tree).
+    add_test(NAME dxt_decoder_headless
+             COMMAND ${CMAKE_CURRENT_BINARY_DIR}/daemon/dxt_decoder_test)
+    set_tests_properties(dxt_decoder_headless PROPERTIES TIMEOUT 60)
+
+    # DXT decoder pixel-value assertions (6x2 partial-block edge case).
+    add_test(NAME dxt_decoder_pixel_headless
+             COMMAND ${CMAKE_CURRENT_BINARY_DIR}/daemon/dxt_decoder_pixel_test)
+    set_tests_properties(dxt_decoder_pixel_headless PROPERTIES TIMEOUT 60)
+
     # End-to-end GPU scene regression: the 72-wallpaper PNG suite renders on
     # the CPU painter only, so nothing else in CI can catch a broken Vulkan
     # path. This one loads the committed fixture scene through the real GPU

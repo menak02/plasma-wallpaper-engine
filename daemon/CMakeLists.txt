@@ -324,6 +324,46 @@ target_compile_definitions(pause_gate_test PRIVATE
     PWE_DISABLE_LABWC_BACKEND=1
 )
 
+# ---------- DXT decoder test ----------
+# Headless coverage for the DXT1/DXT3/DXT5 block decoders. Asserts decoded
+# pixel values rather than buffer size, because size alone cannot tell a
+# correct decode from garbage: solid-colour DXT1, DXT1 4-colour mode
+# transparency (c0 < c1 makes index 3 transparent), explicit 4-bit DXT3
+# alpha, and interpolated DXT5 alpha.
+add_executable(dxt_decoder_test
+    ../tests/dxt_decoder_test.cpp
+    src/assets/dxt_decoder.cpp
+)
+
+target_include_directories(dxt_decoder_test
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(dxt_decoder_test
+    PRIVATE
+        Qt6::Gui
+)
+
+# ---------- DXT decoder pixel test ----------
+# Independent fixtures over the same decoders; every case asserts exact
+# decoded RGBA bytes, including the 6x2 partial-block edge case where
+# neither dimension fills a 4x4 block.
+add_executable(dxt_decoder_pixel_test
+    ../tests/dxt_decoder_pixel_test.cpp
+    src/assets/dxt_decoder.cpp
+)
+
+target_include_directories(dxt_decoder_pixel_test
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(dxt_decoder_pixel_test
+    PRIVATE
+        Qt6::Gui
+)
+
 # ---------- X11 EWMH coverage math test ----------
 # Headless test for the union-area sweep used by the X11 pause backend.
 # The whole point of the union (rather than the sum the Hyprland backend
