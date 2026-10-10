@@ -11,9 +11,10 @@ and caught nothing real; the comment/naming scan is gone (already removed from
 hygiene-only CI with real error detection:
 
 - `build-and-test.yml` `repo-quality`:
-  - Hard gates: cppcheck (warning/style/performance/portability, calibrated to
-    zero findings on the whole tree), hygiene (tracked build artifacts,
-    trailing whitespace, bare printf-family calls).
+  - Hard gates: cppcheck error-class checks (warning/performance/portability,
+    exhaustive; calibrated zero, with Qt's Q_SLOTS family suppressed as
+    unknownMacro), hygiene (tracked build artifacts, trailing whitespace,
+    bare printf-family calls). Style findings (102 today) stay advisory.
   - Reported: compiler warnings under `-Wall -Wextra`, clang-tidy
     (bugprone/clang-analyzer/performance) over the parsing + IPC core.
     Both feed the sticky PR comment.

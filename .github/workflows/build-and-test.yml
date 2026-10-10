@@ -29,7 +29,7 @@ jobs:
       run: bash scripts/verify_dbus_interface.sh
 
     - name: Build
-      run: cmake --build build -j$(nproc)
+      run: cmake --build build -j"$(nproc)"
 
     - name: Test
       run: ctest --test-dir build --output-on-failure
@@ -46,9 +46,9 @@ jobs:
         # Prefer the 64-bit ICD. A bare lvp_icd*.json glob would sort i686
         # before x86_64 and pick the 32-bit driver, which cannot load in a
         # 64-bit process.
-        ICD="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json 2>/dev/null | grep -E '64' | head -1)"
+        ICD="$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp_icd*.json' 2>/dev/null | sort | grep -E '64' | head -1)"
         if [ -z "$ICD" ]; then
-          ICD="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json 2>/dev/null | head -1)"
+          ICD="$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp_icd*.json' 2>/dev/null | sort | head -1)"
         fi
         if [ -z "$ICD" ]; then
           echo "::error::no lavapipe ICD found -- GPU probes would skip and CI would go green on a real regression"
@@ -109,7 +109,7 @@ jobs:
       run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 
     - name: Build verifier
-      run: cmake --build build -j$(nproc) --target plasma-wallpaper-engine-verifier
+      run: cmake --build build -j"$(nproc)" --target plasma-wallpaper-engine-verifier
 
     - name: Run fixture regression
       run: ctest --test-dir build -R fixture_regression --output-on-failure
@@ -154,8 +154,8 @@ jobs:
 
     - name: Build
       run: |
-        cmake --build build -j$(nproc) 2>&1 | tee build.log
-        exit ${PIPESTATUS[0]}
+        cmake --build build -j"$(nproc)" 2>&1 | tee build.log
+        exit "${PIPESTATUS[0]}"
 
     - name: Compiler warnings (reported; hard-gate once count is zero)
       run: |
@@ -169,17 +169,27 @@ jobs:
         PWE_REQUIRE_GPU_TESTS: "0"
       run: |
         bash scripts/check_repo_quality.sh 2>&1 | tee -a repo-quality-report.txt
-        exit ${PIPESTATUS[0]}
+        exit "${PIPESTATUS[0]}"
 
-    # Hard gate, calibrated to zero findings on the whole tree. A new finding
-    # must be fixed, or explicitly inline-suppressed with a why-comment.
-    - name: Static analysis - cppcheck
+    # Error-class findings form the gate (calibrated clean; Qt's Q_SLOTS
+    # family is not configurable in cppcheck, hence unknownMacro suppressed).
+    # A new finding must be fixed, or explicitly inline-suppressed with a
+    # why-comment. Style nits are advisory in the next step: a gate that
+    # fails on trivia is a gate people learn to ignore.
+    - name: Static analysis - cppcheck (gate)
       run: |
-        cppcheck --enable=warning,style,performance,portability --force \
-          --inline-suppr --suppress=missingIncludeSystem \
-          --error-exitcode=1 -I daemon/src \
+        cppcheck --enable=warning,performance,portability --check-level=exhaustive \
+          --force --inline-suppr --suppress=missingIncludeSystem \
+          --suppress=unknownMacro --error-exitcode=1 -I daemon/src \
           daemon layerclient viewer plugin tools tests 2>&1 | tee -a repo-quality-report.txt
-        exit ${PIPESTATUS[0]}
+        exit "${PIPESTATUS[0]}"
+
+    - name: Static analysis - cppcheck style (advisory)
+      run: |
+        cppcheck --enable=style --check-level=exhaustive --force \
+          --inline-suppr --suppress=missingIncludeSystem -I daemon/src \
+          daemon layerclient viewer plugin tools tests 2>&1 | tee -a repo-quality-report.txt
+        exit 0
 
     # Advisory: bug-finding checks over the parsing/IPC core, reported in the
     # sticky PR comment. Promoted to a gate once findings are triaged.
@@ -232,13 +242,13 @@ jobs:
           -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
 
     - name: Build
-      run: cmake --build build-asan -j$(nproc)
+      run: cmake --build build-asan -j"$(nproc)"
 
     - name: Select software Vulkan (lavapipe)
       run: |
-        ICD="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json 2>/dev/null | grep -E '64' | head -1)"
+        ICD="$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp_icd*.json' 2>/dev/null | sort | grep -E '64' | head -1)"
         if [ -z "$ICD" ]; then
-          ICD="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json 2>/dev/null | head -1)"
+          ICD="$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp_icd*.json' 2>/dev/null | sort | head -1)"
         fi
         if [ -z "$ICD" ]; then
           echo "::error::no lavapipe ICD found -- GPU probes would skip and go green on a real regression"

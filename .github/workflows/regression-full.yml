@@ -31,7 +31,8 @@ jobs:
         sudo apt-get install -y cmake qt6-base-dev qt6-declarative-dev qt6-tools-dev-tools \
           qt6-image-formats-plugins vulkan-tools libvulkan-dev \
           liblz4-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
-          libpulse-dev python3-pil python3-numpy ffmpeg libxcb1-dev libwayland-dev
+          libpulse-dev python3-pil python3-numpy ffmpeg libxcb1-dev libwayland-dev \
+          mesa-vulkan-drivers
 
     - name: Download regression corpus
       env:
@@ -50,13 +51,27 @@ jobs:
         sha256sum -c SHA256SUMS
         mkdir -p "$HOME/corpus"
         tar -xf regression-corpus.tar -C "$HOME/corpus"
-        echo "corpus items: $(ls -1 "$HOME/corpus" | wc -l)"
+        echo "corpus items: $(find "$HOME/corpus" -mindepth 1 -maxdepth 1 | wc -l)"
+
+    - name: Select software Vulkan (lavapipe)
+      run: |
+        ICD="$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp_icd*.json' 2>/dev/null | sort | grep -E '64' | head -1)"
+        if [ -z "$ICD" ]; then
+          ICD="$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp_icd*.json' 2>/dev/null | sort | head -1)"
+        fi
+        if [ -z "$ICD" ]; then
+          echo "::error::no lavapipe ICD found (the verifier aborts in vkCreateImage without a Vulkan device)"
+          exit 1
+        fi
+        echo "Using lavapipe ICD: $ICD"
+        echo "VK_ICD_FILENAMES=$ICD" >> "$GITHUB_ENV"
+        echo "VK_DRIVER_FILES=$ICD" >> "$GITHUB_ENV"
 
     - name: Configure
       run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 
     - name: Build verifier
-      run: cmake --build build -j$(nproc) --target plasma-wallpaper-engine-verifier
+      run: cmake --build build -j"$(nproc)" --target plasma-wallpaper-engine-verifier
 
     - name: Render all baselined wallpapers
       run: |
@@ -64,7 +79,7 @@ jobs:
         QT_QPA_PLATFORM=offscreen \
           ./build/daemon/plasma-wallpaper-engine-verifier "$HOME/corpus" \
           --output "$HOME/verifier-output" | tee render.log
-        echo "snapshots: $(ls -1 "$HOME/verifier-output"/*.png | wc -l)"
+        echo "snapshots: $(find "$HOME/verifier-output" -maxdepth 1 -name '*.png' | wc -l)"
 
     - name: Compare against baseline
       run: |
