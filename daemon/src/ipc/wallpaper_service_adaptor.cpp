@@ -39,11 +39,11 @@ void WallpaperServiceAdaptor::addCustomLibraryPath(const QString &in0)
     QMetaObject::invokeMethod(parent(), "addCustomLibraryPath", Q_ARG(QString, in0));
 }
 
-double WallpaperServiceAdaptor::getAudioBands()
+QVariantList WallpaperServiceAdaptor::getAudioBands()
 {
     // handle method call org.plasmawallpaperengine.Daemon.getAudioBands
-    double out0;
-    QMetaObject::invokeMethod(parent(), "getAudioBands", Q_RETURN_ARG(double, out0));
+    QVariantList out0;
+    QMetaObject::invokeMethod(parent(), "getAudioBands", Q_RETURN_ARG(QVariantList, out0));
     return out0;
 }
 

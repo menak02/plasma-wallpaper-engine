@@ -136,7 +136,7 @@
     </method>
     <method name="getAudioBands">
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QVariantList"/>
-      <arg direction="out" type="d"/>
+      <arg direction="out" type="av"/>
       <annotation name="org.qt.QtDBus.MethodAdaptor" value="WallpaperService::getAudioBands"/>
     </method>
     <method name="setAudioVolume">

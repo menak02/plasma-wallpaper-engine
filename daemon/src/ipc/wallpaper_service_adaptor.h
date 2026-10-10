@@ -133,7 +133,7 @@ class WallpaperServiceAdaptor: public QDBusAbstractAdaptor
 "    </method>\n"
 "    <method name=\"getAudioBands\">\n"
 "      <annotation value=\"QVariantList\" name=\"org.qtproject.QtDBus.QtTypeName.Out0\"/>\n"
-"      <arg direction=\"out\" type=\"d\"/>\n"
+"      <arg direction=\"out\" type=\"av\"/>\n"
 "      <annotation value=\"WallpaperService::getAudioBands\" name=\"org.qt.QtDBus.MethodAdaptor\"/>\n"
 "    </method>\n"
 "    <method name=\"setAudioVolume\">\n"
@@ -223,7 +223,7 @@ public:
 public: // PROPERTIES
 public Q_SLOTS: // METHODS
     void addCustomLibraryPath(const QString &in0);
-    double getAudioBands();
+    QVariantList getAudioBands();
     QVariantMap getAudioSettings();
     QVariantList getAvailableGpus();
     QDBusUnixFileDescriptor getBufferFdForOutput(const QString &in0);
