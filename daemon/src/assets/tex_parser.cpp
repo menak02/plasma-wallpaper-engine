@@ -150,6 +150,9 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
     }
 
     uint32_t imageCount = file.readUInt32();
+    // Bound the work a crafted header can request: a huge count just spins
+    // the parse loop at EOF without consuming input.
+    if (imageCount > 256) return false;
 
     if (std::strncmp(bodyTag, "TEXB0003", 8) == 0) {
         for (uint32_t imgIdx = 0; imgIdx < imageCount; ++imgIdx) {
@@ -284,6 +287,7 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
             // True TEXB0004 with per-mipmap extras (MP4 video)
             for (uint32_t imgIdx = 0; imgIdx < imageCount; ++imgIdx) {
                 uint32_t mipmapCount = file.readUInt32();
+                if (mipmapCount > 64) mipmapCount = 64; // crafted counts must not spin at EOF
 
                 for (uint32_t mipIdx = 0; mipIdx < mipmapCount; ++mipIdx) {
                     file.skip(4); // extra1
@@ -354,6 +358,7 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
             //   width, height, compression, uncompressedSize, compressedSize, data
             for (uint32_t imgIdx = 0; imgIdx < imageCount; ++imgIdx) {
                 uint32_t mipmapCount = file.readUInt32();
+                if (mipmapCount > 64) mipmapCount = 64; // crafted counts must not spin at EOF
 
                 for (uint32_t mipIdx = 0; mipIdx < mipmapCount; ++mipIdx) {
                     uint32_t mipWidth = file.readUInt32();
@@ -402,6 +407,9 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
             uint32_t compSize = file.readUInt32();
 
             if (compSize == 0 || compSize > file.remaining()) continue;
+            // Same 100 MB cap the TEXB0003/TEXB0004 branches apply; without it
+            // a 20-byte crafted header requests a multi-GB allocation.
+            if (uncompSize > 100 * 1024 * 1024) continue;
 
             Mipmap mip;
             mip.width = mipWidth;

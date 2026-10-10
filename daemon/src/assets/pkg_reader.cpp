@@ -57,7 +57,7 @@ bool PkgReader::open(const std::filesystem::path& path) {
             };
         }
 
-        m_baseOffset = static_cast<uint32_t>(m_stream.tellg());
+        m_baseOffset = static_cast<uint64_t>(m_stream.tellg());
         return true;
     } catch (const std::exception& e) {
         std::cerr << "Failed to parse PKG " << path << ": " << e.what() << std::endl;
@@ -95,9 +95,19 @@ std::vector<uint8_t> PkgReader::readFile(const std::string& filename) {
     }
 
     const auto& entry = it->second;
-    std::vector<uint8_t> buffer(entry.length);
 
-    m_stream.seekg(m_baseOffset + entry.offset, std::ios::beg);
+    // Offsets/lengths are attacker-controlled file-table values; validate the
+    // claimed range against the real file size before allocating or seeking.
+    m_stream.seekg(0, std::ios::end);
+    const uint64_t fileSize = static_cast<uint64_t>(m_stream.tellg());
+    const uint64_t entryEnd = m_baseOffset + entry.offset + entry.length;
+    if (entryEnd > fileSize) {
+        std::cerr << "PKG entry out of bounds: " << filename << std::endl;
+        return {};
+    }
+
+    std::vector<uint8_t> buffer(entry.length);
+    m_stream.seekg(static_cast<std::streamoff>(m_baseOffset) + entry.offset, std::ios::beg);
     m_stream.read(reinterpret_cast<char*>(buffer.data()), entry.length);
 
     return buffer;

@@ -152,6 +152,11 @@ std::vector<uint8_t> DxtDecoder::decodeToRgba(const TexImage& image, size_t mipm
 
     if (width == 0 || height == 0 || mip.data.empty()) return {};
 
+    // Crafted .tex headers can claim arbitrary dimensions; width * height * 4
+    // wraps in 32-bit math, allocating a tiny buffer that the decode loop then
+    // writes a full image into. Reject anything beyond 128M pixels outright.
+    if (static_cast<uint64_t>(width) * height > (1ull << 27)) return {};
+
     // Detect MP4/video data: ftyp box at offset 4 (ISO base media file format)
     if (mip.data.size() >= 8) {
         const uint8_t* d = mip.data.data();
@@ -162,7 +167,7 @@ std::vector<uint8_t> DxtDecoder::decodeToRgba(const TexImage& image, size_t mipm
         }
     }
 
-    std::vector<uint8_t> outRgba(width * height * 4);
+    std::vector<uint8_t> outRgba(static_cast<size_t>(width) * height * 4);
     uint32_t* outPixels = reinterpret_cast<uint32_t*>(outRgba.data());
 
     // Compute DXT block sizes for format detection

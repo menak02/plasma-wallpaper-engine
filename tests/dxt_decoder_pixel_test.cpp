@@ -116,6 +116,17 @@ int main() {
         check(pixelIs(rgba, 6, 0, 1, 255, 0, 0, 255), "partial block 6x2: (0,1) red on row stride");
     }
 
+    // 6. Edge case: crafted dimensions must be rejected, not wrapped. For
+    // 65536x65536 the 32-bit product width*height*4 is 0, which would allocate
+    // an empty buffer and then write a decoded image into it.
+    {
+        uint8_t block[16] = {0};
+        auto huge = makeImage(65536, 65536, TextureFormat::DXT5, std::vector<uint8_t>(block, block + 16));
+        check(DxtDecoder::decodeToRgba(huge, 0).empty(), "crafted dims 65536x65536 rejected");
+        auto huge2 = makeImage(0xFFFFFFFF, 0xFFFFFFFF, TextureFormat::DXT1, std::vector<uint8_t>(block, block + 8));
+        check(DxtDecoder::decodeToRgba(huge2, 0).empty(), "crafted dims 4Gx4G rejected");
+    }
+
     std::cout << "dxt_decoder_pixel_test: all assertions passed" << std::endl;
     return 0;
 }

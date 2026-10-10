@@ -38,7 +38,7 @@ public:
 private:
     std::filesystem::path m_path;
     std::ifstream m_stream;
-    uint32_t m_baseOffset = 0;
+    uint64_t m_baseOffset = 0;
     std::unordered_map<std::string, PkgFileEntry> m_entries;
 
     std::string readSizedString();
