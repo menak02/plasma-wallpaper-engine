@@ -16,7 +16,12 @@ constexpr int32_t kAllDesktops = 0xFFFFFFFF;
 uint32_t internAtom(xcb_connection_t* conn, const char* name) {
     auto cookie = xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(name)), name);
     auto reply = xcb_intern_atom_reply(conn, cookie, nullptr);
-    return reply ? reply->atom : XCB_ATOM_NONE;
+    if (!reply) {
+        return XCB_ATOM_NONE;
+    }
+    uint32_t atom = reply->atom;
+    free(reply);
+    return atom;
 }
 
 uint32_t internAtomChecked(xcb_connection_t* conn, xcb_atom_t existing, const char* name) {
