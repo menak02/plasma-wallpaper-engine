@@ -769,7 +769,12 @@ bool GpuQuadCompositor::createTextureImage(const QImage& image, GpuTexture& tex)
         m_lastError = "texture memory";
         return false;
     }
-    vkBindImageMemory(m_device, tex.image, tex.memory, 0);
+    if (vkBindImageMemory(m_device, tex.image, tex.memory, 0) != VK_SUCCESS) {
+        vkFreeMemory(m_device, tex.memory, nullptr);
+        vkDestroyImage(m_device, tex.image, nullptr);
+        m_lastError = "texture bind";
+        return false;
+    }
 
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;

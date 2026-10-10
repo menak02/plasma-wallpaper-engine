@@ -326,7 +326,10 @@ bool VulkanContext::createExportableImage(uint32_t width, uint32_t height, VkIma
         return false;
     }
 
-    vkBindImageMemory(m_device, outImage, outMemory, 0);
+    if (vkBindImageMemory(m_device, outImage, outMemory, 0) != VK_SUCCESS) {
+        std::cerr << "Failed to bind Vulkan memory for export." << std::endl;
+        return false;
+    }
 
     auto fpGetMemoryFdKHR = reinterpret_cast<PFN_vkGetMemoryFdKHR>(vkGetDeviceProcAddr(m_device, "vkGetMemoryFdKHR"));
     if (!fpGetMemoryFdKHR) {
