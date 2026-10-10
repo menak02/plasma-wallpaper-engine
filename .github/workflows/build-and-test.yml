@@ -136,10 +136,60 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Check for common AI-telltale patterns (fail on scaffolding)
+    - name: Install dependencies and analyzers
       run: |
-        bash scripts/check_repo_quality.sh 2>&1 | tee repo-quality-report.txt
+        sudo apt-get update
+        sudo apt-get install -y cmake qt6-base-dev qt6-declarative-dev qt6-tools-dev-tools \
+          qt6-image-formats-plugins vulkan-tools libvulkan-dev \
+          liblz4-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
+          libpulse-dev libxcb1-dev libwayland-dev cppcheck clang-tidy
+
+    # Compile database feeds clang-tidy; -Wall -Wextra surfaces warnings the
+    # default build does not print.
+    - name: Configure
+      run: |
+        cmake -B build -S . -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_CXX_FLAGS="-Wall -Wextra" \
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+    - name: Build
+      run: |
+        cmake --build build -j$(nproc) 2>&1 | tee build.log
         exit ${PIPESTATUS[0]}
+
+    - name: Compiler warnings (reported; hard-gate once count is zero)
+      run: |
+        n="$(grep -c 'warning:' build.log || true)"
+        echo "== compiler warnings: ${n}" | tee -a repo-quality-report.txt
+        grep 'warning:' build.log | sed 's/^/  /' | sort -u | head -40 | tee -a repo-quality-report.txt
+        exit 0
+
+    - name: Hygiene checks (artifacts, whitespace, bare printf)
+      env:
+        PWE_REQUIRE_GPU_TESTS: "0"
+      run: |
+        bash scripts/check_repo_quality.sh 2>&1 | tee -a repo-quality-report.txt
+        exit ${PIPESTATUS[0]}
+
+    # Hard gate, calibrated to zero findings on the whole tree. A new finding
+    # must be fixed, or explicitly inline-suppressed with a why-comment.
+    - name: Static analysis - cppcheck
+      run: |
+        cppcheck --enable=warning,style,performance,portability --force \
+          --inline-suppr --suppress=missingIncludeSystem \
+          --error-exitcode=1 -I daemon/src \
+          daemon layerclient viewer plugin tools tests 2>&1 | tee -a repo-quality-report.txt
+        exit ${PIPESTATUS[0]}
+
+    # Advisory: bug-finding checks over the parsing/IPC core, reported in the
+    # sticky PR comment. Promoted to a gate once findings are triaged.
+    - name: Static analysis - clang-tidy (advisory)
+      run: |
+        for f in daemon/src/assets/*.cpp daemon/src/ipc/*.cpp daemon/src/common/*.cpp; do
+          echo "== clang-tidy $f"
+          clang-tidy -p build --checks='-*,bugprone-*,clang-analyzer-*,performance-*,-bugprone-easily-swappable-parameters' "$f" || true
+        done 2>&1 | tee -a repo-quality-report.txt
+        exit 0
 
     # Sticky PR comment: one per PR, found via the hidden marker in its
     # first line and edited in place. Failures refresh the findings; later
@@ -161,12 +211,67 @@ jobs:
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       run: bash scripts/update_repo_quality_comment.sh clean
 
-  security-scan:
+  sanitizers:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
 
-    - name: Run security audit
+    - name: Install dependencies
       run: |
-        echo "Security scan would run here"
-        # Placeholder for actual security scanning tools
+        sudo apt-get update
+        sudo apt-get install -y cmake qt6-base-dev qt6-declarative-dev qt6-tools-dev-tools \
+          qt6-image-formats-plugins vulkan-tools libvulkan-dev \
+          liblz4-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
+          libpulse-dev libxcb1-dev libwayland-dev \
+          mesa-vulkan-drivers
+
+    - name: Configure ASan + UBSan
+      run: |
+        cmake -B build-asan -S . -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g" \
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+    - name: Build
+      run: cmake --build build-asan -j$(nproc)
+
+    - name: Select software Vulkan (lavapipe)
+      run: |
+        ICD="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json 2>/dev/null | grep -E '64' | head -1)"
+        if [ -z "$ICD" ]; then
+          ICD="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json 2>/dev/null | head -1)"
+        fi
+        if [ -z "$ICD" ]; then
+          echo "::error::no lavapipe ICD found -- GPU probes would skip and go green on a real regression"
+          exit 1
+        fi
+        echo "Using lavapipe ICD: $ICD"
+        echo "VK_ICD_FILENAMES=$ICD" >> "$GITHUB_ENV"
+        echo "VK_DRIVER_FILES=$ICD" >> "$GITHUB_ENV"
+
+    # UB must stop the run, not print and continue. Leak check ON: these logic
+    # tests link no GPU drivers, so a leak here is ours.
+    - name: Logic tests under ASan/UBSan (leaks fatal)
+      env:
+        UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+      run: |
+        ctest --test-dir build-asan -R 'pause_gate|dxt_decoder|x11_ewmh|hyprland' --output-on-failure
+
+    # Leak check OFF only for Qt Gui / driver paths: lavapipe and Qt allocate
+    # through static destructors LSan cannot prove dead, and third-party noise
+    # would drown a real finding. ASan/UBSan memory-error detection stays on.
+    - name: Rendering + GPU probes under ASan/UBSan (leaks off)
+      env:
+        UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        ASAN_OPTIONS: detect_leaks=0
+      run: |
+        ctest --test-dir build-asan -R 'png_regression|fixture_regression|gpu_|blit_' --output-on-failure
+
+  workflow-lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: actionlint
+      run: |
+        bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+        ./actionlint
