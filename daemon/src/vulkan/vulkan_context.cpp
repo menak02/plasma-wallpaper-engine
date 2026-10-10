@@ -13,6 +13,10 @@
 
 namespace WallpaperEngine::Render {
 
+namespace {
+constexpr size_t kMaxOutputTargets = 16;
+}
+
 VulkanContext::VulkanContext() = default;
 
 VulkanContext::~VulkanContext() {
@@ -323,17 +327,27 @@ bool VulkanContext::createExportableImage(uint32_t width, uint32_t height, VkIma
 
     if (vkAllocateMemory(m_device, &allocInfo, nullptr, &outMemory) != VK_SUCCESS) {
         std::cerr << "Failed to allocate Vulkan memory for export." << std::endl;
+        vkDestroyImage(m_device, outImage, nullptr);
+        outImage = VK_NULL_HANDLE;
         return false;
     }
 
     if (vkBindImageMemory(m_device, outImage, outMemory, 0) != VK_SUCCESS) {
         std::cerr << "Failed to bind Vulkan memory for export." << std::endl;
+        vkFreeMemory(m_device, outMemory, nullptr);
+        outMemory = VK_NULL_HANDLE;
+        vkDestroyImage(m_device, outImage, nullptr);
+        outImage = VK_NULL_HANDLE;
         return false;
     }
 
     auto fpGetMemoryFdKHR = reinterpret_cast<PFN_vkGetMemoryFdKHR>(vkGetDeviceProcAddr(m_device, "vkGetMemoryFdKHR"));
     if (!fpGetMemoryFdKHR) {
         std::cerr << "vkGetMemoryFdKHR not available." << std::endl;
+        vkFreeMemory(m_device, outMemory, nullptr);
+        outMemory = VK_NULL_HANDLE;
+        vkDestroyImage(m_device, outImage, nullptr);
+        outImage = VK_NULL_HANDLE;
         return false;
     }
 
@@ -345,6 +359,10 @@ bool VulkanContext::createExportableImage(uint32_t width, uint32_t height, VkIma
     int fd = -1;
     if (fpGetMemoryFdKHR(m_device, &getFdInfo, &fd) != VK_SUCCESS) {
         std::cerr << "Failed to export memory FD." << std::endl;
+        vkFreeMemory(m_device, outMemory, nullptr);
+        outMemory = VK_NULL_HANDLE;
+        vkDestroyImage(m_device, outImage, nullptr);
+        outImage = VK_NULL_HANDLE;
         return false;
     }
 
@@ -617,13 +635,23 @@ bool VulkanContext::setResolutionForOutput(const std::string& outputName, uint32
     if (outputName.empty() || width == 0 || height == 0) return false;
 
     auto it = m_outputTargets.find(outputName);
-    if (it != m_outputTargets.end()) {
+    const bool isNewOutput = (it == m_outputTargets.end());
+    if (!isNewOutput) {
         const auto& buf = it->second.buffer;
         if (buf.width == width && buf.height == height && it->second.image != VK_NULL_HANDLE) {
             outBuffer = buf;
             return true; // already correct size
         }
         destroyOutputTarget(it->second);
+    }
+
+    // Cap distinct registered outputs so a hostile D-Bus client cannot grow
+    // the registry (and its per-output GPU allocations) without bound. An
+    // existing output being resized is exempt: it already has an entry.
+    if (isNewOutput && m_outputTargets.size() >= kMaxOutputTargets) {
+        std::cerr << "VulkanContext: refusing to register output '" << outputName
+                  << "': at " << kMaxOutputTargets << " output limit" << std::endl;
+        return false;
     }
 
     OutputTarget target;

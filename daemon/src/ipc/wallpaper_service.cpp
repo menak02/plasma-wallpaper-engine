@@ -13,6 +13,24 @@
 
 #include <algorithm>
 
+namespace {
+constexpr uint32_t kMaxOutputResolution = 16384;
+
+// Reject zero (0 is not a usable dmabuf dimension) and clamp to a sane
+// ceiling so a hostile D-Bus client cannot ask for a multi-gigabyte image.
+bool sanitizeResolution(uint32_t& width, uint32_t& height) {
+    if (width == 0 || height == 0) return false;
+    width = std::clamp(width, uint32_t{1}, kMaxOutputResolution);
+    height = std::clamp(height, uint32_t{1}, kMaxOutputResolution);
+    return true;
+}
+
+// True when canonicalChild equals canonicalDir or lives inside it.
+bool isPathWithin(const QString& canonicalChild, const QString& canonicalDir) {
+    return canonicalChild == canonicalDir || canonicalChild.startsWith(canonicalDir + u'/');
+}
+}
+
 namespace WallpaperEngine::IPC {
 
 WallpaperService::WallpaperService(Render::VulkanContext* vulkanCtx,
@@ -160,7 +178,7 @@ QVariantMap WallpaperService::getBufferInfo() {
 }
 
 bool WallpaperService::setResolution(uint32_t width, uint32_t height) {
-    if (!m_vulkanCtx) return false;
+    if (!sanitizeResolution(width, height) || !m_vulkanCtx) return false;
     Render::DmaBufBuffer newBuf;
     if (m_vulkanCtx->setResolution(width, height, newBuf)) {
         m_compositor.setTargetResolution(width, height);
@@ -171,7 +189,7 @@ bool WallpaperService::setResolution(uint32_t width, uint32_t height) {
 }
 
 bool WallpaperService::setResolutionForOutput(const QString& outputName, uint32_t width, uint32_t height) {
-    if (!m_vulkanCtx) return false;
+    if (!sanitizeResolution(width, height) || !m_vulkanCtx) return false;
     Render::DmaBufBuffer newBuf;
     if (m_vulkanCtx->setResolutionForOutput(outputName.toStdString(), width, height, newBuf)) {
         qInfo() << "Output" << outputName << "resolution set to" << width << "x" << height;
@@ -395,7 +413,16 @@ bool WallpaperService::loadWallpaper(const QString& path) {
             return obj.value(QStringLiteral("file")).toString();
         }();
         if (!fileRef.isEmpty() && videoSuffixes.contains(QFileInfo(fileRef).suffix().toLower())) {
-            videoProjectFile = QFileInfo(canonical).dir().filePath(fileRef);
+            // The file reference comes from attacker-controlled project.json:
+            // resolve it, canonicalize, and require it to stay inside this
+            // wallpaper's own directory before it is ever opened.
+            const QString candidate = QFileInfo(canonical).dir().filePath(fileRef);
+            const QString videoCanonical = QFileInfo(candidate).canonicalFilePath();
+            if (videoCanonical.isEmpty() || !isPathWithin(videoCanonical, QFileInfo(canonical).absolutePath())) {
+                qWarning() << "WallpaperService: video reference escapes wallpaper directory, ignoring:" << fileRef;
+            } else {
+                videoProjectFile = videoCanonical;
+            }
         }
     } else if (info.isDir()) {
         const QString projPath = canonical + QStringLiteral("/project.json");
@@ -405,7 +432,15 @@ bool WallpaperService::loadWallpaper(const QString& path) {
             const QString fileRef = obj.value(QStringLiteral("file")).toString();
             const QString type = obj.value(QStringLiteral("type")).toString().toLower();
             if (type == QStringLiteral("video") && !fileRef.isEmpty()) {
-                videoProjectFile = QFileInfo(projPath).dir().filePath(fileRef);
+                // Same containment rule as the project.json file-ref branch:
+                // the video must stay inside the wallpaper's own directory.
+                const QString candidate = QFileInfo(projPath).dir().filePath(fileRef);
+                const QString videoCanonical = QFileInfo(candidate).canonicalFilePath();
+                if (videoCanonical.isEmpty() || !isPathWithin(videoCanonical, canonical)) {
+                    qWarning() << "WallpaperService: video reference escapes wallpaper directory, ignoring:" << fileRef;
+                } else {
+                    videoProjectFile = videoCanonical;
+                }
             }
         }
     }
