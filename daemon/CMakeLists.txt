@@ -171,4 +171,24 @@ endif()
 
 target_compile_options(plasma-wallpaper-engine-verifier PRIVATE -fexceptions)
 
+# ---------- Vulkan-path regression probe ----------
+# Exercises uploadSceneImage + renderFrame offscreen and verifies the exported
+# dma-buf pixels (channel order, per-output extents). See vulkan_probe.cpp.
+add_executable(plasma-wallpaper-engine-vulkan-probe
+    src/tools/vulkan_probe.cpp
+    src/vulkan/vulkan_context.cpp
+)
+
+target_include_directories(plasma-wallpaper-engine-vulkan-probe
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(plasma-wallpaper-engine-vulkan-probe
+    PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Vulkan::Vulkan
+)
+
 install(TARGETS plasma-wallpaper-engine-daemon DESTINATION ${KDE_INSTALL_LIBEXECDIR})

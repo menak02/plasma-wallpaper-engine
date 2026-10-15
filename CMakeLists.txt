@@ -67,6 +67,15 @@ if(ENABLE_REGRESSION_TESTS)
 
     find_program(PYTHON3_EXECUTABLE NAMES python3 REQUIRED)
 
+    # Vulkan-path probe: renders through the real uploadSceneImage+renderFrame
+    # GPU path and verifies exported dma-buf pixels (needs any Vulkan device,
+    # e.g. lavapipe on headless CI). Independent of the wallpaper corpus.
+    add_test(
+        NAME vulkan_path_probe
+        COMMAND plasma-wallpaper-engine-vulkan-probe
+    )
+    set_tests_properties(vulkan_path_probe PROPERTIES TIMEOUT 120)
+
     if(EXISTS "${REGRESSION_DIR}/baseline" AND
        EXISTS "${VERIFIER_OUTPUT_DIR}")
         add_test(

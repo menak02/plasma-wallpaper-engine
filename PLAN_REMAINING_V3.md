@@ -1,6 +1,6 @@
 # Remaining V3 — Competitive Analysis + Plan (post c271566, updated 2026-09-04)
 
-Batch 55✅/17⚠️/0❌. Verifier 72/72 baseline match (mae=0.000). C1–C9 from PLAN_REMAINING(_V2) all landed. Landed since: D-Bus path allowlist (S0.5), audio-reactive wiring (S1), FilmGrain GPU post-process (S2, first wired Vulkan compute pass). **Next up: S3 = T4 fullscreen pause.**
+Batch 55✅/17⚠️/0❌. Verifier 72/72 baseline match (mae=0.000). C1–C9 from PLAN_REMAINING(_V2) all landed. Landed since: D-Bus path allowlist (S0.5), audio-reactive wiring (S1), FilmGrain GPU post-process (S2, first wired Vulkan compute pass). **Rerouted per RED_TEAM_REPORT_2026-10-15.md: P0–P2 (GPU stabilization + parser/IPC hardening) before features; S3/T3–T7 frozen until then. Next up: P1 parser hardening.**
 
 ## Competitive landscape (researched 2026-09-03)
 
@@ -91,7 +91,27 @@ All script-dependent (clock/date visibility). Feed user-property values (from th
 - S0.5: DBus path allowlist (T1b) — ✅ committed
 - S1: audio wire (T1) — ✅ committed
 - S2: FilmGrain (T2) — ✅ committed (c271566)
-- S3: fullscreen pause (T4) ← NEXT
+- P0: GPU path stabilization (red team C1/C2/C5) — ✅ committed
+  - Verification (2026-10-15, headless with Intel Iris Xe + lavapipe present):
+    C1 fixed by fence-before-free on every staging/export destroy plus
+    fence-pending tracking so a failed submit can never hang a later wait;
+    C2 fixed by converting the RGBA8888 canvas to ARGB32 (B,G,R,A bytes =
+    VK_FORMAT_B8G8R8A8_UNORM / DRM_FORMAT_ARGB8888) before staging upload;
+    C5 fixed by giving every output target its own staging texture scaled to
+    its own resolution instead of copying the legacy buffer's extent.
+    New `plasma-wallpaper-engine-vulkan-probe` + `vulkan_path_probe` ctest
+    renders through the real uploadSceneImage+renderFrame path, mmaps the
+    exported dma-bufs and asserts channel order, full-extent fill (incl. a
+    200x500 output against a 320x240 legacy buffer), re-upload cycles and
+    gradient orientation — 15/15 PASS on Iris Xe. Negative-tested: with the
+    C2 fix removed the probe reports red input reading back blue, so CI now
+    catches the swap the verifier never saw. ctest green (png_regression_batch
+    not registered here: no corpus/verifier output on this host). Vulkan
+    calls on touched paths now check VkResult and fail soft; findMemoryType
+    returns UINT32_MAX instead of silently picking type 0.
+- P1: parser hardening (red team C3/H2/H5 + PKG sizing) + hostile fixtures ← NEXT
+- P2: IPC hardening (red team C4/H1/H3/H4)
+- S3: fullscreen pause (T4) — FROZEN until P0–P2
 - S4: mouse click forwarding (T3)
 - S5: autostart + install (T5)
 - S6: workshop UX (T6)

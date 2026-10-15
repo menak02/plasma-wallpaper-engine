@@ -51,6 +51,10 @@ public:
     bool uploadSceneImage(uint32_t width, uint32_t height, std::span<const uint8_t> rgbaPixels);
     void clearSceneImage();
 
+    // Blocks until the last submitted frame completes. Safe to call at any
+    // time; no-op when no submit is outstanding.
+    void waitFrameFence();
+
     std::vector<GpuDeviceInfo> getAvailableGpus() const;
     VkDevice getDevice() const { return m_device; }
     VkInstance getInstance() const { return m_instance; }
@@ -66,6 +70,7 @@ private:
     VkCommandPool m_commandPool = VK_NULL_HANDLE;
     VkCommandBuffer m_commandBuffer = VK_NULL_HANDLE;
     VkFence m_fence = VK_NULL_HANDLE;
+    bool m_fencePending = false;
 
     // Active shared render target (legacy single-output path, aliases "default" output)
     VkImage m_sharedImage = VK_NULL_HANDLE;
@@ -73,24 +78,32 @@ private:
     DmaBufBuffer m_currentBuffer;
 
     // Per-output render targets for multi-monitor (wlr-layer-shell style)
+    struct StagingBuffer {
+        VkBuffer buffer = VK_NULL_HANDLE;
+        VkDeviceMemory memory = VK_NULL_HANDLE;
+        uint32_t width = 0;
+        uint32_t height = 0;
+    };
+
     struct OutputTarget {
         VkImage image = VK_NULL_HANDLE;
         VkDeviceMemory memory = VK_NULL_HANDLE;
         DmaBufBuffer buffer;
+        StagingBuffer staging;
     };
     std::map<std::string, OutputTarget> m_outputTargets;
 
-    // Uploaded wallpaper texture staging buffer
-    VkBuffer m_stagingBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory m_stagingMemory = VK_NULL_HANDLE;
-    uint32_t m_texWidth = 0;
-    uint32_t m_texHeight = 0;
-    bool m_hasSceneImage = false;
+    // Uploaded wallpaper texture staging buffer for the legacy shared image
+    StagingBuffer m_sharedStaging;
 
     bool initInstance();
     bool selectPhysicalDevice(int preferredGpuIndex);
     bool createLogicalDevice();
     bool createCommandPool();
+
+    bool createStagingBuffer(StagingBuffer& staging, const uint8_t* bgraPixels,
+                             uint32_t width, uint32_t height, uint32_t rowStride);
+    void destroyStagingBuffer(StagingBuffer& staging);
 
     public:
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);

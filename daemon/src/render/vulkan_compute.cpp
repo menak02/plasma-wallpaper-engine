@@ -130,7 +130,13 @@ bool VulkanCompute::createImage(uint32_t width, uint32_t height, ComputeImage& o
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = m_vulkanCtx->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    const uint32_t memType = m_vulkanCtx->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (memType == UINT32_MAX) {
+        vkDestroyImage(m_device, outImage.image, nullptr);
+        outImage.image = VK_NULL_HANDLE;
+        return false;
+    }
+    allocInfo.memoryTypeIndex = memType;
 
     if (vkAllocateMemory(m_device, &allocInfo, nullptr, &outImage.memory) != VK_SUCCESS) {
         vkDestroyImage(m_device, outImage.image, nullptr);
@@ -542,8 +548,13 @@ bool VulkanCompute::ensureGrainResources(uint32_t width, uint32_t height) {
     VkMemoryAllocateInfo alloc{};
     alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     alloc.allocationSize = req.size;
-    alloc.memoryTypeIndex = m_vulkanCtx->findMemoryType(req.memoryTypeBits,
+    const uint32_t memType = m_vulkanCtx->findMemoryType(req.memoryTypeBits,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    if (memType == UINT32_MAX) {
+        destroyStagingBuffer(m_grainStaging);
+        return false;
+    }
+    alloc.memoryTypeIndex = memType;
     if (vkAllocateMemory(m_device, &alloc, nullptr, &m_grainStaging.memory) != VK_SUCCESS) {
         destroyStagingBuffer(m_grainStaging);
         return false;

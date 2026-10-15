@@ -27,7 +27,17 @@ bool VulkanContext::init(int preferredGpuIndex) {
     return true;
 }
 
+void VulkanContext::waitFrameFence() {
+    if (!m_fencePending || m_device == VK_NULL_HANDLE || m_fence == VK_NULL_HANDLE) return;
+    vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, UINT64_MAX);
+    m_fencePending = false;
+}
+
 void VulkanContext::destroyExportableBuffer() {
+    // The last submit may still reference this image; never free GPU memory
+    // that is pending on the queue (C1).
+    waitFrameFence();
+
     if (m_currentBuffer.fd >= 0) {
         close(m_currentBuffer.fd);
         m_currentBuffer.fd = -1;
@@ -44,6 +54,10 @@ void VulkanContext::destroyExportableBuffer() {
 }
 
 void VulkanContext::destroyOutputTarget(OutputTarget& target) {
+    waitFrameFence();
+
+    destroyStagingBuffer(target.staging);
+
     if (target.buffer.fd >= 0) {
         close(target.buffer.fd);
         target.buffer.fd = -1;
@@ -272,7 +286,7 @@ uint32_t VulkanContext::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlag
             return i;
         }
     }
-    return 0;
+    return UINT32_MAX;
 }
 
 bool VulkanContext::createExportableImage(uint32_t width, uint32_t height, VkImage& outImage,
@@ -313,18 +327,37 @@ bool VulkanContext::createExportableImage(uint32_t width, uint32_t height, VkIma
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.pNext = &exportAllocInfo;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    const uint32_t memType = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (memType == UINT32_MAX) {
+        vkDestroyImage(m_device, outImage, nullptr);
+        outImage = VK_NULL_HANDLE;
+        return false;
+    }
+    allocInfo.memoryTypeIndex = memType;
 
     if (vkAllocateMemory(m_device, &allocInfo, nullptr, &outMemory) != VK_SUCCESS) {
         std::cerr << "Failed to allocate Vulkan memory for export." << std::endl;
+        vkDestroyImage(m_device, outImage, nullptr);
+        outImage = VK_NULL_HANDLE;
         return false;
     }
 
-    vkBindImageMemory(m_device, outImage, outMemory, 0);
+    if (vkBindImageMemory(m_device, outImage, outMemory, 0) != VK_SUCCESS) {
+        std::cerr << "Failed to bind Vulkan memory for export." << std::endl;
+        vkDestroyImage(m_device, outImage, nullptr);
+        outImage = VK_NULL_HANDLE;
+        vkFreeMemory(m_device, outMemory, nullptr);
+        outMemory = VK_NULL_HANDLE;
+        return false;
+    }
 
     auto fpGetMemoryFdKHR = reinterpret_cast<PFN_vkGetMemoryFdKHR>(vkGetDeviceProcAddr(m_device, "vkGetMemoryFdKHR"));
     if (!fpGetMemoryFdKHR) {
         std::cerr << "vkGetMemoryFdKHR not available." << std::endl;
+        vkDestroyImage(m_device, outImage, nullptr);
+        outImage = VK_NULL_HANDLE;
+        vkFreeMemory(m_device, outMemory, nullptr);
+        outMemory = VK_NULL_HANDLE;
         return false;
     }
 
@@ -336,6 +369,10 @@ bool VulkanContext::createExportableImage(uint32_t width, uint32_t height, VkIma
     int fd = -1;
     if (fpGetMemoryFdKHR(m_device, &getFdInfo, &fd) != VK_SUCCESS) {
         std::cerr << "Failed to export memory FD." << std::endl;
+        vkDestroyImage(m_device, outImage, nullptr);
+        outImage = VK_NULL_HANDLE;
+        vkFreeMemory(m_device, outMemory, nullptr);
+        outMemory = VK_NULL_HANDLE;
         return false;
     }
 
@@ -372,38 +409,34 @@ bool VulkanContext::setResolution(uint32_t width, uint32_t height, DmaBufBuffer&
     return true;
 }
 
-void VulkanContext::clearSceneImage() {
-    if (m_stagingBuffer != VK_NULL_HANDLE) {
-        vkDestroyBuffer(m_device, m_stagingBuffer, nullptr);
-        m_stagingBuffer = VK_NULL_HANDLE;
+void VulkanContext::destroyStagingBuffer(StagingBuffer& staging) {
+    if (staging.buffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(m_device, staging.buffer, nullptr);
+        staging.buffer = VK_NULL_HANDLE;
     }
-    if (m_stagingMemory != VK_NULL_HANDLE) {
-        vkFreeMemory(m_device, m_stagingMemory, nullptr);
-        m_stagingMemory = VK_NULL_HANDLE;
+    if (staging.memory != VK_NULL_HANDLE) {
+        vkFreeMemory(m_device, staging.memory, nullptr);
+        staging.memory = VK_NULL_HANDLE;
     }
-    m_hasSceneImage = false;
-    m_texWidth = 0;
-    m_texHeight = 0;
+    staging.width = 0;
+    staging.height = 0;
 }
 
-bool VulkanContext::uploadSceneImage(uint32_t width, uint32_t height, std::span<const uint8_t> rgbaPixels) {
-    if (width == 0 || height == 0 || rgbaPixels.empty()) {
-        return false;
+void VulkanContext::clearSceneImage() {
+    // The previous frame's submit may still reference the staging buffers.
+    waitFrameFence();
+
+    destroyStagingBuffer(m_sharedStaging);
+    for (auto& [name, target] : m_outputTargets) {
+        destroyStagingBuffer(target.staging);
     }
+}
 
-    clearSceneImage();
+bool VulkanContext::createStagingBuffer(StagingBuffer& staging, const uint8_t* bgraPixels,
+                                        uint32_t width, uint32_t height, uint32_t rowStride) {
+    if (width == 0 || height == 0 || bgraPixels == nullptr) return false;
 
-    // Scale and center-crop image to match target framebuffer dimensions exactly
-    QImage srcImg(rgbaPixels.data(), width, height, width * 4, QImage::Format_RGBA8888);
-    QImage scaledImg = srcImg.scaled(m_currentBuffer.width, m_currentBuffer.height, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
-    
-    int cropX = std::max(0, (scaledImg.width() - static_cast<int>(m_currentBuffer.width)) / 2);
-    int cropY = std::max(0, (scaledImg.height() - static_cast<int>(m_currentBuffer.height)) / 2);
-    QImage finalImg = scaledImg.copy(cropX, cropY, m_currentBuffer.width, m_currentBuffer.height);
-
-    uint32_t finalWidth = finalImg.width();
-    uint32_t finalHeight = finalImg.height();
-    VkDeviceSize imageSize = finalWidth * finalHeight * 4;
+    const VkDeviceSize imageSize = VkDeviceSize(width) * height * 4;
 
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -411,62 +444,133 @@ bool VulkanContext::uploadSceneImage(uint32_t width, uint32_t height, std::span<
     bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateBuffer(m_device, &bufferInfo, nullptr, &m_stagingBuffer) != VK_SUCCESS) {
+    if (vkCreateBuffer(m_device, &bufferInfo, nullptr, &staging.buffer) != VK_SUCCESS) {
         return false;
     }
 
     VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(m_device, m_stagingBuffer, &memRequirements);
+    vkGetBufferMemoryRequirements(m_device, staging.buffer, &memRequirements);
 
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+    const uint32_t memType = findMemoryType(memRequirements.memoryTypeBits,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    if (memType == UINT32_MAX) {
+        destroyStagingBuffer(staging);
+        return false;
+    }
+    allocInfo.memoryTypeIndex = memType;
 
-    if (vkAllocateMemory(m_device, &allocInfo, nullptr, &m_stagingMemory) != VK_SUCCESS) {
+    if (vkAllocateMemory(m_device, &allocInfo, nullptr, &staging.memory) != VK_SUCCESS) {
+        destroyStagingBuffer(staging);
         return false;
     }
 
-    vkBindBufferMemory(m_device, m_stagingBuffer, m_stagingMemory, 0);
+    if (vkBindBufferMemory(m_device, staging.buffer, staging.memory, 0) != VK_SUCCESS) {
+        destroyStagingBuffer(staging);
+        return false;
+    }
 
     void* data = nullptr;
-    vkMapMemory(m_device, m_stagingMemory, 0, imageSize, 0, &data);
-    std::memcpy(data, finalImg.constBits(), imageSize);
-    vkUnmapMemory(m_device, m_stagingMemory);
+    if (vkMapMemory(m_device, staging.memory, 0, imageSize, 0, &data) != VK_SUCCESS || data == nullptr) {
+        destroyStagingBuffer(staging);
+        return false;
+    }
+    // Stride-safe copy: QImage rows may be padded beyond width * 4.
+    auto* dst = static_cast<uint8_t*>(data);
+    const size_t rowBytes = size_t(width) * 4;
+    for (uint32_t y = 0; y < height; ++y) {
+        std::memcpy(dst + size_t(y) * rowBytes, bgraPixels + size_t(y) * rowStride, rowBytes);
+    }
+    vkUnmapMemory(m_device, staging.memory);
 
-    m_texWidth = finalWidth;
-    m_texHeight = finalHeight;
-    m_hasSceneImage = true;
+    staging.width = width;
+    staging.height = height;
+    return true;
+}
 
-    std::cout << "Uploaded & Scaled Scene Texture: " << width << "x" << height << " -> " 
-              << finalWidth << "x" << finalHeight << " (" << imageSize << " bytes)" << std::endl;
+bool VulkanContext::uploadSceneImage(uint32_t width, uint32_t height, std::span<const uint8_t> rgbaPixels) {
+    if (width == 0 || height == 0 || rgbaPixels.empty()) {
+        return false;
+    }
+    if (m_currentBuffer.width == 0 || m_currentBuffer.height == 0) {
+        return false;
+    }
+
+    // Waits on the frame fence before freeing the previous staging buffers.
+    clearSceneImage();
+
+    QImage srcImg(rgbaPixels.data(), width, height, width * 4, QImage::Format_RGBA8888);
+
+    // Scale and center-crop to each target's framebuffer dimensions exactly.
+    // VK_FORMAT_B8G8R8A8_UNORM (and DRM_FORMAT_ARGB8888) store B,G,R,A bytes;
+    // the canvas is RGBA8888, so convert instead of raw-copying (C2).
+    auto uploadFor = [&](StagingBuffer& staging, uint32_t targetW, uint32_t targetH) -> bool {
+        QImage scaledImg = srcImg.scaled(targetW, targetH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+        int cropX = std::max(0, (scaledImg.width() - static_cast<int>(targetW)) / 2);
+        int cropY = std::max(0, (scaledImg.height() - static_cast<int>(targetH)) / 2);
+        QImage finalImg = scaledImg.copy(cropX, cropY, targetW, targetH)
+                               .convertToFormat(QImage::Format_ARGB32);
+        return createStagingBuffer(staging, finalImg.constBits(),
+                                   finalImg.width(), finalImg.height(), finalImg.bytesPerLine());
+    };
+
+    // Every target gets a staging texture at its own resolution so each copy
+    // covers the full extent (C5), not just the legacy buffer's corner.
+    if (!uploadFor(m_sharedStaging, m_currentBuffer.width, m_currentBuffer.height)) {
+        clearSceneImage();
+        return false;
+    }
+    for (auto& [name, target] : m_outputTargets) {
+        if (target.image == VK_NULL_HANDLE) continue;
+        if (!uploadFor(target.staging, target.buffer.width, target.buffer.height)) {
+            clearSceneImage();
+            return false;
+        }
+    }
     return true;
 }
 
 void VulkanContext::renderFrame(float time) {
     if (m_sharedImage == VK_NULL_HANDLE) return;
 
-    vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, UINT64_MAX);
+    if (m_fencePending) {
+        vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, UINT64_MAX);
+        m_fencePending = false;
+    }
     vkResetFences(m_device, 1, &m_fence);
 
     vkResetCommandBuffer(m_commandBuffer, 0);
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    vkBeginCommandBuffer(m_commandBuffer, &beginInfo);
+    if (vkBeginCommandBuffer(m_commandBuffer, &beginInfo) != VK_SUCCESS) {
+        return;
+    }
 
     // Legacy primary image first, then every registered per-output target.
-    std::vector<VkImage> targets;
+    struct FrameTarget {
+        VkImage image;
+        uint32_t width;
+        uint32_t height;
+        VkBuffer staging;
+        uint32_t texWidth;
+        uint32_t texHeight;
+    };
+    std::vector<FrameTarget> targets;
     targets.reserve(1 + m_outputTargets.size());
-    targets.push_back(m_sharedImage);
+    targets.push_back({m_sharedImage, m_currentBuffer.width, m_currentBuffer.height,
+                       m_sharedStaging.buffer, m_sharedStaging.width, m_sharedStaging.height});
     for (auto& [name, target] : m_outputTargets) {
         if (target.image != VK_NULL_HANDLE && target.image != m_sharedImage) {
-            targets.push_back(target.image);
+            targets.push_back({target.image, target.buffer.width, target.buffer.height,
+                               target.staging.buffer, target.staging.width, target.staging.height});
         }
     }
 
-    for (VkImage image : targets) {
+    for (const FrameTarget& target : targets) {
+    VkImage image = target.image;
     // Transition image layout to TRANSFER_DST
     VkImageMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -487,7 +591,7 @@ void VulkanContext::renderFrame(float time) {
         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
         0, 0, nullptr, 0, nullptr, 1, &barrier);
 
-    if (m_hasSceneImage && m_stagingBuffer != VK_NULL_HANDLE) {
+    if (target.staging != VK_NULL_HANDLE) {
         // Copy wallpaper staging buffer into shared image
         VkBufferImageCopy region{};
         region.bufferOffset = 0;
@@ -498,13 +602,15 @@ void VulkanContext::renderFrame(float time) {
         region.imageSubresource.baseArrayLayer = 0;
         region.imageSubresource.layerCount = 1;
         region.imageOffset = {0, 0, 0};
+        // Each target's staging texture is sized for that target (C5); clamp
+        // defensively so the copy can never exceed either dimension.
         region.imageExtent = {
-            std::min(m_texWidth, m_currentBuffer.width),
-            std::min(m_texHeight, m_currentBuffer.height),
+            std::min(target.texWidth, target.width),
+            std::min(target.texHeight, target.height),
             1
         };
 
-        vkCmdCopyBufferToImage(m_commandBuffer, m_stagingBuffer, image,
+        vkCmdCopyBufferToImage(m_commandBuffer, target.staging, image,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
     } else {
         // Render diagnostic pulsating color pattern
@@ -536,14 +642,23 @@ void VulkanContext::renderFrame(float time) {
         0, 0, nullptr, 0, nullptr, 1, &barrier);
     }
 
-    vkEndCommandBuffer(m_commandBuffer);
+    if (vkEndCommandBuffer(m_commandBuffer) != VK_SUCCESS) {
+        return;
+    }
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &m_commandBuffer;
 
-    vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fence);
+    if (vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fence) != VK_SUCCESS) {
+        // Keep the fence signaled so no later wait blocks forever.
+        VkSubmitInfo empty{};
+        empty.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        vkQueueSubmit(m_graphicsQueue, 1, &empty, m_fence);
+        return;
+    }
+    m_fencePending = true;
 }
 
 bool VulkanContext::setResolutionForOutput(const std::string& outputName, uint32_t width, uint32_t height, DmaBufBuffer& outBuffer) {
