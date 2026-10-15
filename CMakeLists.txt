@@ -76,6 +76,14 @@ if(ENABLE_REGRESSION_TESTS)
     )
     set_tests_properties(vulkan_path_probe PROPERTIES TIMEOUT 120)
 
+    # Hostile-input safety: parser fixtures must fail safely, not crash.
+    add_test(
+        NAME hostile_input_safety
+        COMMAND plasma-wallpaper-engine-hostile-test
+                ${CMAKE_SOURCE_DIR}/tests/fixtures/hostile
+    )
+    set_tests_properties(hostile_input_safety PROPERTIES TIMEOUT 120)
+
     if(EXISTS "${REGRESSION_DIR}/baseline" AND
        EXISTS "${VERIFIER_OUTPUT_DIR}")
         add_test(

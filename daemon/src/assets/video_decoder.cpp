@@ -1,4 +1,5 @@
 #include "video_decoder.h"
+#include <cerrno>
 #include <cstring>
 #include <iostream>
 
@@ -14,16 +15,6 @@ struct AvioContextData {
     size_t size;
     size_t pos;
 };
-
-// AVIO callback: read from memory buffer
-static int avioReadPacket(void* opaque, uint8_t* buf, int buf_size) {
-    auto* avioCtx = static_cast<AVIOContext*>(opaque);
-    auto* data = static_cast<uint8_t*>(avioCtx->opaque);
-    size_t pos = static_cast<size_t>(avioCtx->pos);
-    // avioCtx->opaque is AVIOContext itself, we stored data pointer in a custom struct
-    // Actually we need a different approach - use the AVIOContext's userdata
-    return 0; // placeholder
-}
 
 VideoDecoder::VideoDecoder() {}
 
@@ -70,8 +61,8 @@ bool VideoDecoder::openFromData(const uint8_t* data, size_t size, int targetWidt
         m_avioBuffer, avioBufSize, 0, ctxData,
         [](void* opaque, uint8_t* buf, int buf_size) -> int {
             auto* d = static_cast<AvioContextData*>(opaque);
+            if (d->pos >= d->size) return AVERROR_EOF;
             size_t remaining = d->size - d->pos;
-            if (remaining == 0) return AVERROR_EOF;
             size_t toRead = std::min(remaining, static_cast<size_t>(buf_size));
             std::memcpy(buf, d->data + d->pos, toRead);
             d->pos += toRead;
@@ -83,8 +74,21 @@ bool VideoDecoder::openFromData(const uint8_t* data, size_t size, int targetWidt
             if (whence == AVSEEK_SIZE) {
                 return static_cast<int64_t>(d->size);
             }
-            d->pos = static_cast<size_t>(pos);
-            return static_cast<int64_t>(d->pos);
+            // Resolve against the right origin and clamp to the buffer (H5):
+            // an unclamped negative or oversized pos wraps the size_t cursor
+            // and turns the next read into an out-of-bounds heap access.
+            int64_t target;
+            switch (whence & ~AVSEEK_FORCE) {
+                case SEEK_SET: target = pos; break;
+                case SEEK_CUR: target = static_cast<int64_t>(d->pos) + pos; break;
+                case SEEK_END: target = static_cast<int64_t>(d->size) + pos; break;
+                default: return AVERROR(EINVAL);
+            }
+            if (target < 0 || target > static_cast<int64_t>(d->size)) {
+                return AVERROR(EINVAL);
+            }
+            d->pos = static_cast<size_t>(target);
+            return target;
         }
     );
 
@@ -220,9 +224,10 @@ QImage VideoDecoder::decodeNextFrame() {
 
         ret = avcodec_receive_frame(m_codecCtx, m_frame);
         if (ret == 0) {
-            // Convert to RGBA
+            // Convert to RGBA; the source slice height is the decoded frame's
+            // height — m_height holds the *target* size after openInternal.
             sws_scale(m_swsCtx,
-                      m_frame->data, m_frame->linesize, 0, m_height,
+                      m_frame->data, m_frame->linesize, 0, m_frame->height,
                       m_rgbFrame->data, m_rgbFrame->linesize);
 
             // Copy to QImage

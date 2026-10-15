@@ -25,6 +25,12 @@ bool PkgReader::open(const std::filesystem::path& path) {
         return false;
     }
 
+    std::error_code sizeErr;
+    m_fileSize = std::filesystem::file_size(path, sizeErr);
+    if (sizeErr) {
+        m_fileSize = 0;
+    }
+
     try {
         std::string header = readSizedString();
         if (header.size() < 4 || header.compare(0, 4, "PKGV") != 0) {
@@ -58,6 +64,19 @@ bool PkgReader::open(const std::filesystem::path& path) {
         }
 
         m_baseOffset = static_cast<uint32_t>(m_stream.tellg());
+
+        // Drop entries whose payload does not fit inside the actual file.
+        // offset+length must be computed in 64 bits — in 32 bits a hostile
+        // pair wraps around the check and allocates against a bogus length.
+        for (auto it = m_entries.begin(); it != m_entries.end(); ) {
+            const auto& entry = it->second;
+            const uint64_t end = uint64_t(m_baseOffset) + entry.offset + entry.length;
+            if (entry.length == 0 || end < uint64_t(m_baseOffset) + entry.offset || end > m_fileSize) {
+                it = m_entries.erase(it);
+            } else {
+                ++it;
+            }
+        }
         return true;
     } catch (const std::exception& e) {
         std::cerr << "Failed to parse PKG " << path << ": " << e.what() << std::endl;
@@ -72,6 +91,7 @@ void PkgReader::close() {
     }
     m_entries.clear();
     m_baseOffset = 0;
+    m_fileSize = 0;
     m_path.clear();
 }
 
@@ -95,10 +115,19 @@ std::vector<uint8_t> PkgReader::readFile(const std::string& filename) {
     }
 
     const auto& entry = it->second;
+    const uint64_t end = uint64_t(m_baseOffset) + entry.offset + entry.length;
+    if (entry.length == 0 || end < uint64_t(m_baseOffset) + entry.offset || end > m_fileSize) {
+        return {};
+    }
+
     std::vector<uint8_t> buffer(entry.length);
 
     m_stream.seekg(m_baseOffset + entry.offset, std::ios::beg);
     m_stream.read(reinterpret_cast<char*>(buffer.data()), entry.length);
+    if (m_stream.gcount() != static_cast<std::streamsize>(entry.length)) {
+        m_stream.clear();
+        return {};
+    }
 
     return buffer;
 }

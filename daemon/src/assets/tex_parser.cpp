@@ -219,6 +219,9 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
                 if (uncompSize < 0 || uncompSize > 100 * 1024 * 1024) { // 100 MB
                     continue;
                 }
+                if (compSize > 100 * 1024 * 1024) { // keep LZ4 int casts safe
+                    continue;
+                }
 
                 Mipmap mip;
                 mip.width = mipWidth;
@@ -403,19 +406,27 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
 
             if (compSize == 0 || compSize > file.remaining()) continue;
 
+            // Same 100 MB cap as TEXB0003/0004 (H2): an uncapped uncompSize is
+            // an arbitrary-size allocation, and values above INT_MAX turn the
+            // static_cast<int> capacity for LZ4_decompress_safe negative.
+            if (uncompSize > 100 * 1024 * 1024) continue;
+            if (compSize > 100 * 1024 * 1024) continue;
+            if (compression == 1 && uncompSize == 0) continue;
+
             Mipmap mip;
             mip.width = mipWidth;
             mip.height = mipHeight;
             mip.data.resize(uncompSize > 0 ? uncompSize : compSize);
 
             if (compression == 1) {
-                LZ4_decompress_safe(
+                int decomp = LZ4_decompress_safe(
                     reinterpret_cast<const char*>(file.currentPtr()),
                     reinterpret_cast<char*>(mip.data.data()),
                     static_cast<int>(compSize),
                     static_cast<int>(uncompSize)
                 );
                 file.skip(compSize);
+                if (decomp < 0) continue;
             } else {
                 file.readBytes(mip.data.data(), compSize);
             }

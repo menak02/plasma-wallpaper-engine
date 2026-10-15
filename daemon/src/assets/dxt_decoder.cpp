@@ -1,4 +1,5 @@
 #include "dxt_decoder.h"
+#include <climits>
 #include <cstring>
 #include <algorithm>
 #include <iostream>
@@ -163,7 +164,17 @@ std::vector<uint8_t> DxtDecoder::decodeToRgba(const TexImage& image, size_t mipm
         }
     }
 
-    std::vector<uint8_t> outRgba(width * height * 4);
+    // Hostile headers can claim huge dimensions; width*height*4 computed in
+    // 32 bits wraps and the pixel loops then write past the allocation (C3).
+    // Cap at 16384 per side / 64M pixels (256 MiB RGBA) — far above any real
+    // workshop texture.
+    constexpr uint32_t kMaxDimension = 16384;
+    constexpr uint64_t kMaxPixels = 64ull * 1024 * 1024;
+    if (width > kMaxDimension || height > kMaxDimension) return {};
+    const uint64_t pixelCount = static_cast<uint64_t>(width) * height;
+    if (pixelCount > kMaxPixels) return {};
+
+    std::vector<uint8_t> outRgba(pixelCount * 4);
     uint32_t* outPixels = reinterpret_cast<uint32_t*>(outRgba.data());
 
     // Compute DXT block sizes for format detection
@@ -336,7 +347,7 @@ std::vector<uint8_t> DxtDecoder::decodeToRgba(const TexImage& image, size_t mipm
     }
 
     // 3. Unknown format: try embedded image (JPEG/PNG)
-    if (mip.data.size() > 4) {
+    if (mip.data.size() > 4 && mip.data.size() <= static_cast<size_t>(INT_MAX)) {
         QImage directImg;
         if (directImg.loadFromData(mip.data.data(), static_cast<int>(mip.data.size()))) {
             directImg = directImg.convertToFormat(QImage::Format_RGBA8888);
@@ -344,9 +355,12 @@ std::vector<uint8_t> DxtDecoder::decodeToRgba(const TexImage& image, size_t mipm
                 std::memcpy(outRgba.data(), directImg.constBits(), outRgba.size());
                 return outRgba;
             } else {
-                std::vector<uint8_t> scaledRgba(directImg.sizeInBytes());
-                std::memcpy(scaledRgba.data(), directImg.constBits(), directImg.sizeInBytes());
-                return scaledRgba;
+                // Scale to the mip's declared size so the returned buffer is
+                // always width*height*4; returning a mismatched-dimension
+                // buffer makes callers read past it.
+                QImage scaledImg = directImg.scaled(static_cast<int>(width), static_cast<int>(height));
+                std::memcpy(outRgba.data(), scaledImg.constBits(), outRgba.size());
+                return outRgba;
             }
         }
     }

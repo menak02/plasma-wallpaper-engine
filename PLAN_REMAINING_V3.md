@@ -109,8 +109,22 @@ All script-dependent (clock/date visibility). Feed user-property values (from th
     not registered here: no corpus/verifier output on this host). Vulkan
     calls on touched paths now check VkResult and fail soft; findMemoryType
     returns UINT32_MAX instead of silently picking type 0.
-- P1: parser hardening (red team C3/H2/H5 + PKG sizing) + hostile fixtures ← NEXT
-- P2: IPC hardening (red team C4/H1/H3/H4)
+- P1: parser hardening (red team C3/H2/H5 + PKG sizing) + hostile fixtures — ✅ committed
+  - Verification (2026-10-15): C3 fixed with u64 sizing + 16384/64M-pixel caps
+    in DxtDecoder (width*height*4 no longer wraps) and the embedded-image path
+    now honors the width*height*4 buffer contract; H2 fixed by capping
+    TEXB0001/0002 uncomp/comp sizes at 100 MB (matching 0003/0004) and
+    checking LZ4_decompress_safe's return; H5 fixed by clamping/resolving AVIO
+    seeks (SEEK_SET/CUR/END) against the buffer and guarding the read
+    callback against pos>size underflow; PKG entries validated against the
+    real file size in u64 (drops 4 GiB-length and wrapping offset+length
+    entries) with strict full reads. Also fixed sws_scale OOB (source slice
+    height was the target height) and removed the dead avioReadPacket stub.
+    New tests/fixtures/hostile/ (7 fixtures + deterministic generator) and
+    hostile_input_safety ctest: all 22 checks PASS. Negative-tested: with the
+    H5 clamp+guard reverted, the seek-bomb mp4s SIGSEGV the decoder (exit
+    139) — the fixtures reproduce the reported OOB read on pre-fix code.
+- P2: IPC hardening (red team C4/H1/H3/H4) ← NEXT
 - S3: fullscreen pause (T4) — FROZEN until P0–P2
 - S4: mouse click forwarding (T3)
 - S5: autostart + install (T5)

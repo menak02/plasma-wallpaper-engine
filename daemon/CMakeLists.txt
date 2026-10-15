@@ -191,4 +191,36 @@ target_link_libraries(plasma-wallpaper-engine-vulkan-probe
         Vulkan::Vulkan
 )
 
+# ---------- Hostile-input safety test ----------
+# Feeds tests/fixtures/hostile/ through the real parser entry points and
+# asserts safe failure (red team P1). See tools/hostile_input_test.cpp.
+add_executable(plasma-wallpaper-engine-hostile-test
+    src/tools/hostile_input_test.cpp
+    src/assets/pkg_reader.cpp
+    src/assets/tex_parser.cpp
+    src/assets/dxt_decoder.cpp
+    src/assets/video_decoder.cpp
+)
+
+target_include_directories(plasma-wallpaper-engine-hostile-test
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${LZ4_INCLUDE_DIRS}
+        ${AVFORMAT_INCLUDE_DIRS}
+        ${AVCODEC_INCLUDE_DIRS}
+        ${AVUTIL_INCLUDE_DIRS}
+        ${SWSCALE_INCLUDE_DIRS}
+)
+
+target_link_libraries(plasma-wallpaper-engine-hostile-test
+    PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        ${LZ4_LIBRARIES}
+        ${AVFORMAT_LIBRARIES}
+        ${AVCODEC_LIBRARIES}
+        ${AVUTIL_LIBRARIES}
+        ${SWSCALE_LIBRARIES}
+)
+
 install(TARGETS plasma-wallpaper-engine-daemon DESTINATION ${KDE_INSTALL_LIBEXECDIR})
