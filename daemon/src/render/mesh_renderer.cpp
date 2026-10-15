@@ -66,7 +66,7 @@ void MeshDeformer::deformVertices(std::vector<MeshVertex>& vertices, float time,
 
 bool MeshDeformer::boneWeightedDeform(std::vector<MeshVertex>& vertices,
                                       const std::vector<DeformBone>& bones,
-                                      float spriteW, float spriteH) {
+                                      float /*spriteW*/, float /*spriteH*/) {
     if (bones.empty() || vertices.empty()) return false;
 
     // Name -> index map for parent-chain resolution
@@ -177,7 +177,7 @@ bool MeshDeformer::boneWeightedDeform(std::vector<MeshVertex>& vertices,
 void MeshDeformer::renderDeformedMesh(QPainter& painter, const QImage& texture,
                                       const std::vector<MeshVertex>& vertices,
                                       const std::vector<MeshTriangle>& indices,
-                                      float originX, float originY, float spriteW, float spriteH) {
+                                      float /*originX*/, float /*originY*/, float spriteW, float spriteH) {
     if (texture.isNull() || vertices.empty() || indices.empty()) return;
 
     // Render deformed triangles using painter clip paths

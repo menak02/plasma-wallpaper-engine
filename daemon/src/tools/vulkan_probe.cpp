@@ -104,7 +104,18 @@ void dumpPng(const QString& dir, const QString& name, const DmaBufBuffer& buf) {
     if (!m.data) return;
     QImage img(buf.width, buf.height, QImage::Format_ARGB32);
     for (uint32_t y = 0; y < buf.height; ++y) {
-        std::memcpy(img.scanLine(y), m.data + size_t(y) * buf.stride, size_t(buf.width) * 4);
+        const uint8_t* srcRow = m.data + size_t(y) * buf.stride;
+        uint8_t* dstRow = img.scanLine(static_cast<int>(y));
+#if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+        for (uint32_t x = 0; x < buf.width * 4; x += 4) {
+            dstRow[x] = srcRow[x + 3];
+            dstRow[x + 1] = srcRow[x + 2];
+            dstRow[x + 2] = srcRow[x + 1];
+            dstRow[x + 3] = srcRow[x];
+        }
+#else
+        std::memcpy(dstRow, srcRow, size_t(buf.width) * 4);
+#endif
     }
     img.save(dir + "/" + name + ".png");
     unmapBuffer(m);

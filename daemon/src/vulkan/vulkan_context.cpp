@@ -478,10 +478,23 @@ bool VulkanContext::createStagingBuffer(StagingBuffer& staging, const uint8_t* b
         return false;
     }
     // Stride-safe copy: QImage rows may be padded beyond width * 4.
+    // The staging buffer must hold B,G,R,A bytes on every endianness, while
+    // Format_ARGB32 rows are host-order words — swap bytes on big-endian.
     auto* dst = static_cast<uint8_t*>(data);
     const size_t rowBytes = size_t(width) * 4;
     for (uint32_t y = 0; y < height; ++y) {
-        std::memcpy(dst + size_t(y) * rowBytes, bgraPixels + size_t(y) * rowStride, rowBytes);
+        const uint8_t* srcRow = bgraPixels + size_t(y) * rowStride;
+        uint8_t* dstRow = dst + size_t(y) * rowBytes;
+#if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+        for (size_t x = 0; x < rowBytes; x += 4) {
+            dstRow[x] = srcRow[x + 3];
+            dstRow[x + 1] = srcRow[x + 2];
+            dstRow[x + 2] = srcRow[x + 1];
+            dstRow[x + 3] = srcRow[x];
+        }
+#else
+        std::memcpy(dstRow, srcRow, rowBytes);
+#endif
     }
     vkUnmapMemory(m_device, staging.memory);
 

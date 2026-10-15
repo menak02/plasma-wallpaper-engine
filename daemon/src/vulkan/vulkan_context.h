@@ -16,7 +16,7 @@ struct DmaBufBuffer {
     uint32_t stride = 0;
     uint32_t format = 0; // DRM fourcc
     uint64_t modifier = 0;
-    size_t size = 0;
+    uint64_t size = 0;
 };
 
 struct GpuDeviceInfo {

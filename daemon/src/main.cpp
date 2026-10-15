@@ -15,7 +15,7 @@
 
 volatile sig_atomic_t g_quitRequested = 0;
 
-static void signalHandler(int signal) {
+static void signalHandler(int) {
     g_quitRequested = 1;
 }
 

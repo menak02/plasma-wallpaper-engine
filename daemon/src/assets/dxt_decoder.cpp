@@ -51,6 +51,21 @@ static inline void decode565(uint16_t color, uint8_t& r, uint8_t& g, uint8_t& b)
     b = (color & 0x1F) * 255 / 31;
 }
 
+// outRgba is a byte buffer with R,G,B,A order; a native word store only
+// produces that on little-endian, so canonical 0xAABBGGRR words are
+// byte-swapped at the final store on big-endian hosts.
+static inline void storeRgbaWord(uint32_t* p, uint32_t word) {
+#if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+    word = __builtin_bswap32(word);
+#endif
+    *p = word;
+}
+
+// Texel data in .tex payloads is little-endian regardless of host order.
+static inline uint16_t loadLe16(const uint8_t* p) {
+    return static_cast<uint16_t>(static_cast<uint16_t>(p[0]) | (static_cast<uint16_t>(p[1]) << 8));
+}
+
 void DxtDecoder::decodeDxt1Block(const uint8_t* block, uint32_t* outPixels, uint32_t stride) {
     uint16_t c0 = block[0] | (block[1] << 8);
     uint16_t c1 = block[2] | (block[3] << 8);
@@ -231,7 +246,7 @@ std::vector<uint8_t> DxtDecoder::decodeToRgba(const TexImage& image, size_t mipm
                         uint32_t x = bx * 4 + px;
                         if (x >= width) continue;
 
-                        outPixels[y * width + x] = blockPixels[py * 4 + px];
+                        storeRgbaWord(&outPixels[y * width + x], blockPixels[py * 4 + px]);
                     }
                 }
             }
@@ -251,7 +266,7 @@ std::vector<uint8_t> DxtDecoder::decodeToRgba(const TexImage& image, size_t mipm
         if (mip.data.size() >= width * height * 3) {
             const uint8_t* src = mip.data.data();
             for (uint32_t i = 0; i < width * height; ++i) {
-                outPixels[i] = packColor(src[i * 3], src[i * 3 + 1], src[i * 3 + 2], 255);
+                storeRgbaWord(&outPixels[i], packColor(src[i * 3], src[i * 3 + 1], src[i * 3 + 2], 255));
             }
             return outRgba;
         }
@@ -261,7 +276,7 @@ std::vector<uint8_t> DxtDecoder::decodeToRgba(const TexImage& image, size_t mipm
         if (mip.data.size() >= width * height) {
             const uint8_t* src = mip.data.data();
             for (uint32_t i = 0; i < width * height; ++i) {
-                outPixels[i] = packColor(src[i], src[i], src[i], 255);
+                storeRgbaWord(&outPixels[i], packColor(src[i], src[i], src[i], 255));
             }
             return outRgba;
         }
@@ -271,7 +286,7 @@ std::vector<uint8_t> DxtDecoder::decodeToRgba(const TexImage& image, size_t mipm
         if (mip.data.size() >= width * height * 2) {
             const uint8_t* src = mip.data.data();
             for (uint32_t i = 0; i < width * height; ++i) {
-                outPixels[i] = packColor(src[i * 2], src[i * 2 + 1], 0, 255);
+                storeRgbaWord(&outPixels[i], packColor(src[i * 2], src[i * 2 + 1], 0, 255));
             }
             return outRgba;
         }
@@ -279,13 +294,13 @@ std::vector<uint8_t> DxtDecoder::decodeToRgba(const TexImage& image, size_t mipm
 
     if (image.format == TextureFormat::RGB565) {
         if (mip.data.size() >= width * height * 2) {
-            const uint16_t* src = reinterpret_cast<const uint16_t*>(mip.data.data());
+            const uint8_t* src = mip.data.data();
             for (uint32_t i = 0; i < width * height; ++i) {
-                uint16_t c = src[i];
+                uint16_t c = loadLe16(src + i * 2);
                 uint8_t r = static_cast<uint8_t>(((c >> 11) & 0x1F) * 255 / 31);
                 uint8_t g = static_cast<uint8_t>(((c >> 5) & 0x3F) * 255 / 63);
                 uint8_t b = static_cast<uint8_t>((c & 0x1F) * 255 / 31);
-                outPixels[i] = packColor(r, g, b, 255);
+                storeRgbaWord(&outPixels[i], packColor(r, g, b, 255));
             }
             return outRgba;
         }
@@ -295,11 +310,11 @@ std::vector<uint8_t> DxtDecoder::decodeToRgba(const TexImage& image, size_t mipm
     if (image.format == TextureFormat::RG1616F) {
         // 2 channels: R=half, G=half → RGBA8888
         if (mip.data.size() >= width * height * 4) {
-            const uint16_t* src = reinterpret_cast<const uint16_t*>(mip.data.data());
+            const uint8_t* src = mip.data.data();
             for (uint32_t i = 0; i < width * height; ++i) {
-                uint8_t r = halfToUint8(src[i * 2]);
-                uint8_t g = halfToUint8(src[i * 2 + 1]);
-                outPixels[i] = packColor(r, g, g, 255);
+                uint8_t r = halfToUint8(loadLe16(src + i * 4));
+                uint8_t g = halfToUint8(loadLe16(src + i * 4 + 2));
+                storeRgbaWord(&outPixels[i], packColor(r, g, g, 255));
             }
             return outRgba;
         }
@@ -308,10 +323,10 @@ std::vector<uint8_t> DxtDecoder::decodeToRgba(const TexImage& image, size_t mipm
     if (image.format == TextureFormat::R16F) {
         // 1 channel: R=half → RGBA8888
         if (mip.data.size() >= width * height * 2) {
-            const uint16_t* src = reinterpret_cast<const uint16_t*>(mip.data.data());
+            const uint8_t* src = mip.data.data();
             for (uint32_t i = 0; i < width * height; ++i) {
-                uint8_t r = halfToUint8(src[i]);
-                outPixels[i] = packColor(r, r, r, 255);
+                uint8_t r = halfToUint8(loadLe16(src + i * 2));
+                storeRgbaWord(&outPixels[i], packColor(r, r, r, 255));
             }
             return outRgba;
         }
@@ -320,12 +335,12 @@ std::vector<uint8_t> DxtDecoder::decodeToRgba(const TexImage& image, size_t mipm
     if (image.format == TextureFormat::RGB161616F) {
         // 3 channels: R=half, G=half, B=half → RGBA8888
         if (mip.data.size() >= width * height * 6) {
-            const uint16_t* src = reinterpret_cast<const uint16_t*>(mip.data.data());
+            const uint8_t* src = mip.data.data();
             for (uint32_t i = 0; i < width * height; ++i) {
-                uint8_t r = halfToUint8(src[i * 3]);
-                uint8_t g = halfToUint8(src[i * 3 + 1]);
-                uint8_t b = halfToUint8(src[i * 3 + 2]);
-                outPixels[i] = packColor(r, g, b, 255);
+                uint8_t r = halfToUint8(loadLe16(src + i * 6));
+                uint8_t g = halfToUint8(loadLe16(src + i * 6 + 2));
+                uint8_t b = halfToUint8(loadLe16(src + i * 6 + 4));
+                storeRgbaWord(&outPixels[i], packColor(r, g, b, 255));
             }
             return outRgba;
         }
@@ -334,13 +349,13 @@ std::vector<uint8_t> DxtDecoder::decodeToRgba(const TexImage& image, size_t mipm
     if (image.format == TextureFormat::RGBA16161616F) {
         // 4 channels: R=half, G=half, B=half, A=half → RGBA8888
         if (mip.data.size() >= width * height * 8) {
-            const uint16_t* src = reinterpret_cast<const uint16_t*>(mip.data.data());
+            const uint8_t* src = mip.data.data();
             for (uint32_t i = 0; i < width * height; ++i) {
-                uint8_t r = halfToUint8(src[i * 4]);
-                uint8_t g = halfToUint8(src[i * 4 + 1]);
-                uint8_t b = halfToUint8(src[i * 4 + 2]);
-                uint8_t a = halfToUint8(src[i * 4 + 3]);
-                outPixels[i] = packColor(r, g, b, a);
+                uint8_t r = halfToUint8(loadLe16(src + i * 8));
+                uint8_t g = halfToUint8(loadLe16(src + i * 8 + 2));
+                uint8_t b = halfToUint8(loadLe16(src + i * 8 + 4));
+                uint8_t a = halfToUint8(loadLe16(src + i * 8 + 6));
+                storeRgbaWord(&outPixels[i], packColor(r, g, b, a));
             }
             return outRgba;
         }
@@ -359,6 +374,7 @@ std::vector<uint8_t> DxtDecoder::decodeToRgba(const TexImage& image, size_t mipm
                 // always width*height*4; returning a mismatched-dimension
                 // buffer makes callers read past it.
                 QImage scaledImg = directImg.scaled(static_cast<int>(width), static_cast<int>(height));
+                if (scaledImg.isNull()) return {};
                 std::memcpy(outRgba.data(), scaledImg.constBits(), outRgba.size());
                 return outRgba;
             }
@@ -375,25 +391,25 @@ std::vector<uint8_t> DxtDecoder::decodeToRgba(const TexImage& image, size_t mipm
     if (mip.data.size() == width * height * 3) {
         const uint8_t* src = mip.data.data();
         for (uint32_t i = 0; i < width * height; ++i) {
-            outPixels[i] = packColor(src[i * 3], src[i * 3 + 1], src[i * 3 + 2], 255);
+            storeRgbaWord(&outPixels[i], packColor(src[i * 3], src[i * 3 + 1], src[i * 3 + 2], 255));
         }
         return outRgba;
     }
     if (mip.data.size() == width * height * 2) {
-        const uint16_t* src = reinterpret_cast<const uint16_t*>(mip.data.data());
+        const uint8_t* src = mip.data.data();
         for (uint32_t i = 0; i < width * height; ++i) {
-            uint16_t c = src[i];
+            uint16_t c = loadLe16(src + i * 2);
             uint8_t r = static_cast<uint8_t>(((c >> 11) & 0x1F) * 255 / 31);
             uint8_t g = static_cast<uint8_t>(((c >> 5) & 0x3F) * 255 / 63);
             uint8_t b = static_cast<uint8_t>((c & 0x1F) * 255 / 31);
-            outPixels[i] = packColor(r, g, b, 255);
+            storeRgbaWord(&outPixels[i], packColor(r, g, b, 255));
         }
         return outRgba;
     }
     if (mip.data.size() == width * height * 1) {
         const uint8_t* src = mip.data.data();
         for (uint32_t i = 0; i < width * height; ++i) {
-            outPixels[i] = packColor(src[i], src[i], src[i], 255);
+            storeRgbaWord(&outPixels[i], packColor(src[i], src[i], src[i], 255));
         }
         return outRgba;
     }

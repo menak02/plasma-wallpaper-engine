@@ -80,7 +80,7 @@ QImage RenderGraph::applyBlurPass(const QImage& input, float radius, bool vertic
     return output;
 }
 
-QImage RenderGraph::applyWaterWavesPass(const QImage& input, const QImage& mask, float speed, float scale, float strength, float direction, float time) {
+QImage RenderGraph::applyWaterWavesPass(const QImage& input, const QImage& /*mask*/, float speed, float /*scale*/, float strength, float direction, float time) {
     if (input.isNull()) return input;
 
     QImage output = input.copy();
@@ -101,7 +101,7 @@ QImage RenderGraph::applyWaterWavesPass(const QImage& input, const QImage& mask,
     return output;
 }
 
-QImage RenderGraph::applyPulsePass(const QImage& input, const QImage& mask, float speed, float amount, float power, float time) {
+QImage RenderGraph::applyPulsePass(const QImage& input, const QImage& /*mask*/, float speed, float amount, float /*power*/, float time) {
     if (input.isNull()) return input;
 
     QImage output = input.copy();
