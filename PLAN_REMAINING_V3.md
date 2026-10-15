@@ -143,6 +143,28 @@ All script-dependent (clock/date visibility). Feed user-property values (from th
     end-to-end on this host (unprivileged userns is AppArmor-blocked from
     reaching the bus socket at all); the mnt-ns comparison itself is trivial
     stat() logic. ctest 2/2 green.
+- SAN: code sanitation + cross-arch hardening (2026-10-15, 3-agent audit) — ✅ committed
+  - Verification: parallel memory/streaming/portability audits over daemon+
+    viewer+plugin produced 25+ findings; all fixed. Highlights: CRITICAL TEX
+    raw-entry heap overflow (compSize>uncompSize write past mip buffer) —
+    ASan-reproduced with new tests/fixtures/hostile/texb1-size-mismatch.tex
+    ("WRITE of size 64" into 16-byte buffer) and clean post-fix under
+    ASan+UBSan (26/26 hostile checks, vulkan probe clean); audio odd-size
+    memcpy overflow; viewer dma-buf geometry u32 wrap + SIGBUS guard +
+    DMA_BUF_IOCTL_SYNC + fd ownership; endianness made explicit everywhere
+    (LE byte-wise PKG/TEX readers, storeRgbaWord/loadLe16 in DXT, BE swaps
+    at dma-buf staging/viewer/probe boundaries, s16le audio assembly);
+    unbounded TEX count loops capped; ffmpeg extract timeouts kill writers
+    before PNG reads; video-decoder alloc checks; static decoder map tied to
+    scene lifetime (H10); kill() pid guards; -Wall -Wextra now build-clean
+    line-by-line (17 warnings fixed incl. dead resolveTexture overload,
+    dead QImage stub, dead TexCache revived with a real budget).
+    Verifier CLI: real --output flag (was clobbering the workshop positional
+    — the CI corpus bug), debug-ID list removed; ctest corpus gate uses
+    ${CMAKE_BINARY_DIR}/verifier-output (no hardcoded home paths anywhere).
+  - docs/REFERENCE_LANDSCAPE.md: evidence-based comparison vs Almamu
+    linux-wallpaperengine + alternatives (nvpaper, KDE plugin, Lively, swww)
+    and the original WE internals; adopt-list mapped to plan phases.
 - S3: fullscreen pause (T4) — FROZEN until P0–P2
 - S4: mouse click forwarding (T3)
 - S5: autostart + install (T5)

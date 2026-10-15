@@ -8,6 +8,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick DBus Network Widgets)
 find_package(Vulkan REQUIRED)
 
+# Keep the tree warning-clean; regressions should fail review, not ship.
+add_compile_options(-Wall -Wextra)
+
 # ---------- Optional: KDE/Plasma plugin ----------
 # Only needed when building the Plasma wallpaper plugin.
 # The daemon and viewer are standalone — no KDE deps required.
@@ -63,7 +66,10 @@ if(ENABLE_REGRESSION_TESTS)
     enable_testing()
 
     set(REGRESSION_DIR "${CMAKE_SOURCE_DIR}/tests/regression")
-    set(VERIFIER_OUTPUT_DIR "$ENV{HOME}/.wallpaper-engine-verifier-output")
+    # Where the batch verifier wrote its snapshots (run it with a matching
+    # --output). Overridable for corpora living elsewhere.
+    set(VERIFIER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/verifier-output" CACHE PATH
+        "Directory the batch verifier wrote snapshots to")
 
     find_program(PYTHON3_EXECUTABLE NAMES python3 REQUIRED)
 

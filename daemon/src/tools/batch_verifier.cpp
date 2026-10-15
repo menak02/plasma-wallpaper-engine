@@ -21,7 +21,7 @@ struct AccumulatedTransform {
     float angle = 0.0f;
 };
 
-static AccumulatedTransform resolveParentTransform(const WallpaperEngine::Scene::SceneLayer& layer, float sceneW, float sceneH) {
+static AccumulatedTransform resolveParentTransform(const WallpaperEngine::Scene::SceneLayer& layer, float /*sceneW*/, float /*sceneH*/) {
     const WallpaperEngine::Scene::SceneLayer* chain[32];
     int count = 0;
     const WallpaperEngine::Scene::SceneLayer* cur = &layer;
@@ -61,10 +61,10 @@ static AccumulatedTransform resolveParentTransform(const WallpaperEngine::Scene:
 int main(int argc, char* argv[]) {
     QGuiApplication app(argc, argv);
 
-    // Default to user's Steam Workshop path; override with first CLI arg
+    // Default to user's Steam Workshop path; override with a positional CLI arg
     std::string workshopBase = QDir::homePath().toStdString()
         + "/.local/share/Steam/steamapps/workshop/content/431960";
-    std::string outputDir = QDir::homePath().toStdString() + "/.wallpaper-engine-verifier-output";
+    std::string outputDir = "verifier-output";
     std::string filterId;
 
     int argIndex = 1;
@@ -74,6 +74,7 @@ int main(int argc, char* argv[]) {
             std::cout << "Usage: plasma-wallpaper-engine-verifier [options] [workshopPath]\n"
                       << "Options:\n"
                       << "  --id <wallpaper_id>   Only process the specified wallpaper ID\n"
+                      << "  --output <dir>        Write snapshots/report to <dir> (default: ./verifier-output)\n"
                       << "  --help                Show this help message\n"
                       << "Arguments:\n"
                       << "  workshopPath          Path to the workshop content directory (default: Steam workshop)\n"
@@ -85,6 +86,13 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
             filterId = argv[argIndex+1];
+            argIndex += 2;
+        } else if (arg == "--output") {
+            if (argIndex + 1 >= argc) {
+                std::cerr << "Error: --output requires an argument\n";
+                return 1;
+            }
+            outputDir = argv[argIndex+1];
             argIndex += 2;
         } else {
             // Non-option argument: workshopPath
@@ -157,8 +165,8 @@ int main(int argc, char* argv[]) {
         float scaleX = 1920.0f / sceneW;
         float scaleY = 1080.0f / sceneH;
 
-        // Debug output for specific problematic wallpapers or filtered ID
-        bool debugThisWallpaper = (!filterId.empty() || id == "3432157109" || id == "3353454232" || id == "3715762023" || id == "3640755971" || id == "3504887068" || id == "3465215190" || id == "3725071796" || id == "3771397959" || id == "3591326656" || id == "2292162327" || id == "3122339805" || id == "3677082224" || id == "3604883533" || id == "3515745440" || id == "2076312085" || id == "1793513647");
+        // Verbose layer logging for the wallpaper selected via --id
+        bool debugThisWallpaper = !filterId.empty();
 
         int renderedLayers = 0;
         for (const auto& layer : sceneDesc.layers) {

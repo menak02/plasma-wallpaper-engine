@@ -8,7 +8,7 @@ if(GLSLANG_VALIDATOR)
         get_filename_component(SHADER_NAME ${SHADER} NAME_WE)
         add_custom_command(
             OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/shaders_spv_${SHADER_NAME}.h.check"
-            COMMAND ${GLSLANG_VALIDATOR} -V "${SHADER}" -o "/tmp/${SHADER_NAME}.spv"
+            COMMAND ${GLSLANG_VALIDATOR} -V "${SHADER}" -o "${CMAKE_CURRENT_BINARY_DIR}/${SHADER_NAME}.spv"
             COMMAND ${CMAKE_COMMAND} -E touch "${CMAKE_CURRENT_BINARY_DIR}/shaders_spv_${SHADER_NAME}.h.check"
             DEPENDS "${SHADER}"
             COMMENT "Validating ${SHADER_NAME}.comp"
