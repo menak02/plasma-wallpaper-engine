@@ -75,6 +75,22 @@ void testUncappedTex(const std::filesystem::path& dir) {
            "texb1-uncapped.tex rejected (no 4 GiB allocation)");
 }
 
+// Raw-entry size mismatch: compSize > uncompSize must not overflow the mip
+// buffer (heap write overflow before the fix).
+void testTexSizeMismatch(const std::filesystem::path& dir) {
+    const auto bytes = readFileBytes(dir / "texb1-size-mismatch.tex");
+    expect(!bytes.empty(), "texb1-size-mismatch.tex fixture present");
+
+    TexImage img;
+    const bool parsed = TexParser::parse(bytes, img);
+    expect(parsed, "texb1-size-mismatch.tex parses");
+    bool sized = false;
+    for (const auto& mip : img.mipmaps) {
+        if (mip.data.size() <= 16) sized = true;
+    }
+    expect(sized, "mip payload clamped to declared size (no overflow)");
+}
+
 // PKG entry length/offset must be validated against the real file size.
 void testPkg(const std::filesystem::path& dir) {
     PkgReader pkg;
@@ -118,6 +134,7 @@ int main(int argc, char* argv[]) {
 
     testOverflowTex(dir);
     testUncappedTex(dir);
+    testTexSizeMismatch(dir);
     testPkg(dir);
     testSeekBomb(dir, "seek-bomb-negative.mp4");
     testSeekBomb(dir, "seek-bomb-oversize.mp4");

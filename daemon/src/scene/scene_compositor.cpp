@@ -20,7 +20,7 @@ struct AccumulatedTransform {
 };
 
 // Walk parent chain, accumulate transforms (root first)
-static AccumulatedTransform resolveParentTransform(const SceneLayer& layer, float sceneW, float sceneH) {
+static AccumulatedTransform resolveParentTransform(const SceneLayer& layer, float /*sceneW*/, float /*sceneH*/) {
     // Build chain: root → ... → layer
     const SceneLayer* chain[32];
     int count = 0;
@@ -153,6 +153,7 @@ bool SceneCompositor::loadScene(Assets::PkgReader& pkgReader, const std::unorder
     m_isWeb = false;
     m_lastPkg = &pkgReader;
     m_lastOverrideProps = overrideProps;
+    m_videoDecoders.clear();
     SceneDescription desc;
     if (!SceneParser::parseScene(pkgReader, desc, overrideProps)) {
         return false;
@@ -224,17 +225,17 @@ void SceneCompositor::updateAndRender(float dt, float time) {
         }
     }
 
-    // Tick video decoders (~30fps, single temp decoder to avoid multi-decoder heap corruption)
+    // Tick video decoders (~30fps, single temp decoder to avoid multi-decoder heap corruption).
+    // Decoder lifetime is tied to the scene (cleared in loadScene) so a new
+    // wallpaper's colliding layer ids cannot reuse stale decoders (H10).
     static float videoAcc = 0.0f;
-    static std::unordered_map<int, std::shared_ptr<Assets::VideoDecoder>> videoDecoders;
-    static std::unordered_map<int, int> videoFramePos;
     videoAcc += dt;
     if (videoAcc > 1.0f/30.0f) {
         videoAcc = 0.0f;
         for (auto& layer : m_scene.layers) {
             if (layer.videoData.empty()) continue;
-            auto it = videoDecoders.find(layer.id);
-            if (it == videoDecoders.end()) {
+            auto it = m_videoDecoders.find(layer.id);
+            if (it == m_videoDecoders.end()) {
                 QTemporaryFile tmp(QDir::tempPath() + "/wp_XXXXXX.mp4");
                 tmp.setAutoRemove(false);
                 if (tmp.open()) {
@@ -243,8 +244,7 @@ void SceneCompositor::updateAndRender(float dt, float time) {
                     auto dec = std::make_shared<Assets::VideoDecoder>();
                     if (dec->openFromFile(tmp.fileName().toStdString(), 0, 0)) {
                         dec->decodeNextFrame(); // skip first frame already shown
-                        videoDecoders[layer.id] = dec;
-                        videoFramePos[layer.id] = 1;
+                        m_videoDecoders[layer.id] = dec;
                     }
                     QFile::remove(tmp.fileName());
                 }

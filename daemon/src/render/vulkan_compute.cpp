@@ -406,7 +406,12 @@ bool VulkanCompute::allocateDescriptorSets(ComputePipeline& pipeline) {
     alloc.descriptorSetCount = 1;
     alloc.pSetLayouts = &pipeline.descriptorSetLayout;
     pipeline.descriptorSets.resize(1);
-    if (vkAllocateDescriptorSets(m_device, &alloc, pipeline.descriptorSets.data()) != VK_SUCCESS) return false;
+    if (vkAllocateDescriptorSets(m_device, &alloc, pipeline.descriptorSets.data()) != VK_SUCCESS) {
+        // Leave the vector empty: a size-1 vector holding VK_NULL_HANDLE
+        // would defeat every `descriptorSets.empty()` guard downstream.
+        pipeline.descriptorSets.clear();
+        return false;
+    }
     return true;
 }
 

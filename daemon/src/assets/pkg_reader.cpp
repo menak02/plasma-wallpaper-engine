@@ -63,7 +63,12 @@ bool PkgReader::open(const std::filesystem::path& path) {
             };
         }
 
-        m_baseOffset = static_cast<uint32_t>(m_stream.tellg());
+        const std::streamoff base = m_stream.tellg();
+        if (base < 0) {
+            close();
+            return false;
+        }
+        m_baseOffset = static_cast<uint32_t>(base);
 
         // Drop entries whose payload does not fit inside the actual file.
         // offset+length must be computed in 64 bits — in 32 bits a hostile
@@ -122,7 +127,8 @@ std::vector<uint8_t> PkgReader::readFile(const std::string& filename) {
 
     std::vector<uint8_t> buffer(entry.length);
 
-    m_stream.seekg(m_baseOffset + entry.offset, std::ios::beg);
+    // 64-bit addition: base+offset wraps in 32 bits on >4 GiB inputs.
+    m_stream.seekg(static_cast<std::streamoff>(m_baseOffset) + entry.offset, std::ios::beg);
     m_stream.read(reinterpret_cast<char*>(buffer.data()), entry.length);
     if (m_stream.gcount() != static_cast<std::streamsize>(entry.length)) {
         m_stream.clear();
@@ -169,9 +175,14 @@ std::string PkgReader::readNullTerminatedString() {
 }
 
 uint32_t PkgReader::readUInt32() {
-    uint32_t val = 0;
-    m_stream.read(reinterpret_cast<char*>(&val), sizeof(val));
-    return val;
+    // PKG integers are little-endian on disk; assemble byte-wise so parsing
+    // does not depend on host endianness.
+    uint8_t b[4] = {0, 0, 0, 0};
+    m_stream.read(reinterpret_cast<char*>(b), sizeof(b));
+    return static_cast<uint32_t>(b[0]) |
+           (static_cast<uint32_t>(b[1]) << 8) |
+           (static_cast<uint32_t>(b[2]) << 16) |
+           (static_cast<uint32_t>(b[3]) << 24);
 }
 
 } // namespace WallpaperEngine::Assets

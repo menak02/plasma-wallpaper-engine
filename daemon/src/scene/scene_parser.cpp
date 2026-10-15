@@ -19,7 +19,7 @@
 
 namespace WallpaperEngine::Scene {
 
-static QCache<QString, Assets::TexImage> g_texCache(64);
+static QCache<QString, QImage> g_texCache(256 * 1024);
 
 static float resolveUserFloat(const QJsonValue& val, float defaultVal = 0.0f) {
     if (val.isDouble()) return static_cast<float>(val.toDouble());
@@ -711,7 +711,7 @@ bool SceneParser::resolveMaterial(Assets::PkgReader& pkgReader, const std::strin
         layer.texturePath = fullTexPath;
         QString shaderName = pass0.value(QStringLiteral("shader")).toString().toLower();
         std::vector<uint8_t> videoBytes;
-        if (resolveTexture(pkgReader, fullTexPath, layer.image, layer.videoDecoder, videoBytes)) {
+        if (resolveTexture(pkgReader, fullTexPath, layer.image, videoBytes)) {
             if (!videoBytes.empty()) layer.videoData = std::move(videoBytes);
             // GenericImage/genericimage2 shaders should NOT modify the texture.
             // The old qRgba(r,g,b,r) code used the RED channel as alpha, which
@@ -744,17 +744,15 @@ bool SceneParser::resolveTexture(Assets::PkgReader& pkgReader, const std::string
     if (bytes.empty()) return false;
 
     QString cacheKey = QString::fromStdString(texName);
-    Assets::TexImage texImg;
-    bool fromCache = false;
     if (auto* cached = g_texCache.object(cacheKey)) {
-        texImg = *cached;
-        fromCache = true;
-    } else {
-        if (!Assets::TexParser::parse(bytes, texImg)) return false;
-        auto* copy = new Assets::TexImage(texImg);
-        g_texCache.insert(cacheKey, copy, static_cast<int>(texImg.mipmaps.empty()?1:texImg.mipmaps[0].data.size()/1024));
+        outImage = *cached;
+        return true;
     }
-    if (true) {
+
+    Assets::TexImage texImg;
+    if (!Assets::TexParser::parse(bytes, texImg)) return false;
+
+    {
         auto rgba = Assets::DxtDecoder::decodeToRgba(texImg, 0);
         if (!rgba.empty()) {
             // CRITICAL: Use mip.width for QImage stride — the DXT decoder outputs
@@ -802,6 +800,9 @@ bool SceneParser::resolveTexture(Assets::PkgReader& pkgReader, const std::string
             }
 
             outImage = img;
+            // Cost budget is in kB of decoded pixels (see g_texCache).
+            g_texCache.insert(cacheKey, new QImage(outImage),
+                              std::max(1, static_cast<int>(outImage.sizeInBytes() / 1024)));
             return true;
         }
 
@@ -826,8 +827,17 @@ bool SceneParser::resolveTexture(Assets::PkgReader& pkgReader, const std::string
                             ffmpeg.start("ffmpeg", {"-y", "-i", tmpMp4.fileName(),
                                                     "-vframes", "1", "-q:v", "2",
                                                     tmpPng.fileName()});
-                            ffmpeg.waitForFinished(10000);
-                            QImage frame(tmpPng.fileName());
+                            bool finished = ffmpeg.waitForFinished(10000);
+                            if (!finished) {
+                                // Never read the PNG while ffmpeg is still
+                                // writing it — a timeout must stop the writer.
+                                ffmpeg.kill();
+                                ffmpeg.waitForFinished(1000);
+                            }
+                            QImage frame;
+                            if (finished && ffmpeg.exitStatus() == QProcess::NormalExit && ffmpeg.exitCode() == 0) {
+                                frame.load(tmpPng.fileName());
+                            }
                             if (!frame.isNull()) {
                                 outImage = frame.convertToFormat(QImage::Format_ARGB32);
                                 QFile::remove(tmpMp4.fileName());
@@ -846,11 +856,7 @@ bool SceneParser::resolveTexture(Assets::PkgReader& pkgReader, const std::string
     return false;
 }
 
-bool SceneParser::resolveTexture(Assets::PkgReader& pkgReader, const std::string& texName, QImage& outImage, std::shared_ptr<Assets::VideoDecoder>& outVideoDecoder) {
-    std::vector<uint8_t> dummy;
-    return resolveTexture(pkgReader, texName, outImage, outVideoDecoder, dummy);
-}
-bool SceneParser::resolveTexture(Assets::PkgReader& pkgReader, const std::string& texName, QImage& outImage, std::shared_ptr<Assets::VideoDecoder>& outVideoDecoder, std::vector<uint8_t>& outVideoBytes) {
+bool SceneParser::resolveTexture(Assets::PkgReader& pkgReader, const std::string& texName, QImage& outImage, std::vector<uint8_t>& outVideoBytes) {
     auto bytes = pkgReader.readFile(texName);
     if (bytes.empty()) {
         std::string nameOnly = texName;
@@ -896,8 +902,17 @@ bool SceneParser::resolveTexture(Assets::PkgReader& pkgReader, const std::string
                             ffmpeg.start("ffmpeg", {"-y", "-i", tmpMp4.fileName(),
                                                     "-vframes", "1", "-q:v", "2",
                                                     tmpPng.fileName()});
-                            ffmpeg.waitForFinished(10000);
-                            QImage frame(tmpPng.fileName());
+                            bool finished = ffmpeg.waitForFinished(10000);
+                            if (!finished) {
+                                // Never read the PNG while ffmpeg is still
+                                // writing it — a timeout must stop the writer.
+                                ffmpeg.kill();
+                                ffmpeg.waitForFinished(1000);
+                            }
+                            QImage frame;
+                            if (finished && ffmpeg.exitStatus() == QProcess::NormalExit && ffmpeg.exitCode() == 0) {
+                                frame.load(tmpPng.fileName());
+                            }
                             if (!frame.isNull()) {
                                 outImage = frame.convertToFormat(QImage::Format_ARGB32);
                                 QFile::remove(tmpMp4.fileName());

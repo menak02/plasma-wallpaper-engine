@@ -72,6 +72,21 @@ def main() -> None:
     )
     (HERE / "texb1-uncapped.tex").write_bytes(tex_file(b"TEXB0001", [uncapped_mip]))
 
+    # Heap write overflow: raw (uncompressed) entry whose payload is larger
+    # than the declared uncompressed size. Pre-fix copied compSize bytes into
+    # an uncompSize-byte buffer (heap overflow); post-fix it copies at most
+    # the buffer size and keeps the declared size.
+    mismatch_mip = (
+        u32(0)             # compFormat
+        + u32(4)           # mipWidth
+        + u32(4)           # mipHeight
+        + u32(0)           # compression = raw
+        + u32(16)          # uncompSize: destination buffer
+        + u32(64)          # compSize: 64 bytes of payload for 16 bytes of room
+        + b"\x41" * 64
+    )
+    (HERE / "texb1-size-mismatch.tex").write_bytes(tex_file(b"TEXB0001", [mismatch_mip]))
+
     # PKG: header + 3 entries against a 4-byte payload section.
     pkg = u32(4) + b"PKGV"
     pkg += u32(3)  # fileCount

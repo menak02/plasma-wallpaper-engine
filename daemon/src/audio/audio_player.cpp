@@ -114,15 +114,21 @@ void AudioPlayer::checkOtherAudioActivity() {
 
 void AudioPlayer::pause() {
     if (m_process && m_process->state() == QProcess::Running) {
-        kill(m_process->processId(), SIGSTOP);
-        m_isPaused = true;
+        // pid must be live and non-zero — kill(0, ...) would signal our own
+        // process group if the child died between check and call.
+        const qint64 pid = m_process->processId();
+        if (pid > 0 && kill(static_cast<pid_t>(pid), SIGSTOP) == 0) {
+            m_isPaused = true;
+        }
     }
 }
 
 void AudioPlayer::resume() {
     if (m_process && m_process->state() == QProcess::Running && m_isPaused) {
-        kill(m_process->processId(), SIGCONT);
-        m_isPaused = false;
+        const qint64 pid = m_process->processId();
+        if (pid > 0 && kill(static_cast<pid_t>(pid), SIGCONT) == 0) {
+            m_isPaused = false;
+        }
     }
 }
 

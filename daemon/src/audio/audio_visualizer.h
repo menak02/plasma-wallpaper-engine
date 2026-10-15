@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include <QByteArray>
 
 class QProcess;
 
@@ -96,6 +97,7 @@ private:
 
     // Audio data
     std::vector<int16_t> m_rawAudio;
+    QByteArray m_pcmRemainder;
     int m_sampleRate = 44100;
     int m_channels = 2;
     float m_volume = 1.0f;

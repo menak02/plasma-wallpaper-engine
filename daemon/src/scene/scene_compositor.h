@@ -44,6 +44,7 @@ private:
     bool m_hasCompute = false;
     Render::RenderGraph m_renderGraph;
     SceneDescription m_scene;
+    std::unordered_map<int, std::shared_ptr<Assets::VideoDecoder>> m_videoDecoders;
     ParticleEngine m_particleEngine;
     Audio::AudioVisualizer m_audioVisualizer;
     bool m_hasScene = false;

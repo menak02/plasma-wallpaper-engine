@@ -151,6 +151,10 @@ bool VideoDecoder::openInternal(int targetWidth, int targetHeight) {
     }
 
     m_codecCtx = avcodec_alloc_context3(codec);
+    if (!m_codecCtx) {
+        close();
+        return false;
+    }
     avcodec_parameters_to_context(m_codecCtx, videoStream->codecpar);
 
     // Single thread for verifier/daemon stability; 0 auto uses thread-pool that races on multi-decoder
@@ -172,6 +176,10 @@ bool VideoDecoder::openInternal(int targetWidth, int targetHeight) {
     // Allocate frames
     m_frame = av_frame_alloc();
     m_rgbFrame = av_frame_alloc();
+    if (!m_frame || !m_rgbFrame) {
+        close();
+        return false;
+    }
 
     // Setup SWS context for format conversion
     m_swsCtx = sws_getContext(
@@ -195,7 +203,15 @@ bool VideoDecoder::openInternal(int targetWidth, int targetHeight) {
     m_height = outH;
 
     int numBytes = av_image_get_buffer_size(AV_PIX_FMT_RGBA, outW, outH, 1);
-    m_rgbBuffer = static_cast<uint8_t*>(av_malloc(numBytes));
+    if (numBytes <= 0) {
+        close();
+        return false;
+    }
+    m_rgbBuffer = static_cast<uint8_t*>(av_malloc(static_cast<size_t>(numBytes)));
+    if (!m_rgbBuffer) {
+        close();
+        return false;
+    }
     av_image_fill_arrays(m_rgbFrame->data, m_rgbFrame->linesize,
                          m_rgbBuffer, AV_PIX_FMT_RGBA, outW, outH, 1);
 

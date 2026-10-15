@@ -45,6 +45,7 @@ public Q_SLOTS:
     void openPkgFile();
     void onFrameReady();
     void onWallpaperLoaded(const QString& title);
+    void onBufferResized();
 
 private:
     void ensureDaemonRunning();
@@ -54,7 +55,6 @@ private:
     QLabel* m_infoLabel = nullptr;
     QLabel* m_fpsLabel = nullptr;
     int m_frameCount = 0;
-    int m_activeFd = -1;
     QString m_pendingPath;
     QProcess* m_daemonProc = nullptr;
 };

@@ -1,5 +1,7 @@
 #include "tex_parser.h"
 #include "dxt_decoder.h"
+#include <algorithm>
+#include <climits>
 #include <cstring>
 #include <iostream>
 #include <lz4.h>
@@ -22,15 +24,18 @@ public:
     }
 
     uint32_t readUInt32() {
-        uint32_t val = 0;
-        readBytes(&val, sizeof(val));
-        return val;
+        // TEX integers are little-endian on disk; assemble byte-wise so
+        // parsing does not depend on host endianness.
+        uint8_t b[4] = {0, 0, 0, 0};
+        readBytes(b, sizeof(b));
+        return static_cast<uint32_t>(b[0]) |
+               (static_cast<uint32_t>(b[1]) << 8) |
+               (static_cast<uint32_t>(b[2]) << 16) |
+               (static_cast<uint32_t>(b[3]) << 24);
     }
 
     int32_t readInt32() {
-        int32_t val = 0;
-        readBytes(&val, sizeof(val));
-        return val;
+        return static_cast<int32_t>(readUInt32());
     }
 
     bool readMagic(char* outMagic, size_t len = 9) {
@@ -56,6 +61,10 @@ private:
 
 bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
     if (bytes.size() < 32) {
+        return false;
+    }
+    // QImage::loadFromData takes int; reject spans it cannot represent.
+    if (bytes.size() > static_cast<size_t>(INT_MAX)) {
         return false;
     }
 
@@ -150,6 +159,7 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
     }
 
     uint32_t imageCount = file.readUInt32();
+    if (imageCount > 4096) return false; // hostile counts spin the parse loops
 
     if (std::strncmp(bodyTag, "TEXB0003", 8) == 0) {
         for (uint32_t imgIdx = 0; imgIdx < imageCount; ++imgIdx) {
@@ -165,7 +175,13 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
                 uint32_t compSize = file.readUInt32();
 
                 if (compSize == 0) continue;
-                if (compSize > file.remaining()) compSize = static_cast<uint32_t>(file.remaining());
+                {
+                    // Clamp to what the stream holds (64-bit) and cap the
+                    // allocation like every other payload path.
+                    const size_t capped = std::min<size_t>(file.remaining(), 100 * 1024 * 1024);
+                    if (compSize > capped) compSize = static_cast<uint32_t>(capped);
+                }
+                if (compSize == 0) continue;
 
                 std::vector<uint8_t> rawPayload(compSize);
                 file.readBytes(rawPayload.data(), compSize);
@@ -205,6 +221,7 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
             } else {
                 // LZ4 block stream inside TEXB0003
                 int32_t compFormat = file.readInt32();
+                Q_UNUSED(compFormat);
                 uint32_t mipWidth = file.readUInt32();
                 uint32_t mipHeight = file.readUInt32();
                 uint32_t numChunks = file.readUInt32();
@@ -216,7 +233,7 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
                     continue;
                 }
                 // Validate uncompressed size to prevent excessive memory allocation
-                if (uncompSize < 0 || uncompSize > 100 * 1024 * 1024) { // 100 MB
+                if (uncompSize > 100 * 1024 * 1024) { // 100 MB
                     continue;
                 }
                 if (compSize > 100 * 1024 * 1024) { // keep LZ4 int casts safe
@@ -287,6 +304,7 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
             // True TEXB0004 with per-mipmap extras (MP4 video)
             for (uint32_t imgIdx = 0; imgIdx < imageCount; ++imgIdx) {
                 uint32_t mipmapCount = file.readUInt32();
+                if (mipmapCount > 256) continue;
 
                 for (uint32_t mipIdx = 0; mipIdx < mipmapCount; ++mipIdx) {
                     file.skip(4); // extra1
@@ -337,11 +355,12 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
 
                     if (compression == 1 && uncompressedSize > 0) {
                         mip.data.resize(static_cast<uint32_t>(uncompressedSize));
-                        LZ4_decompress_safe(
+                        int decomp = LZ4_decompress_safe(
                             reinterpret_cast<const char*>(file.currentPtr()),
                             reinterpret_cast<char*>(mip.data.data()),
                             compressedSize, uncompressedSize);
                         file.skip(static_cast<uint32_t>(compressedSize));
+                        if (decomp < 0) continue;
                     } else {
                         uint32_t dataSize = static_cast<uint32_t>(compressedSize);
                         mip.data.resize(dataSize);
@@ -357,6 +376,7 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
             //   width, height, compression, uncompressedSize, compressedSize, data
             for (uint32_t imgIdx = 0; imgIdx < imageCount; ++imgIdx) {
                 uint32_t mipmapCount = file.readUInt32();
+                if (mipmapCount > 256) continue;
 
                 for (uint32_t mipIdx = 0; mipIdx < mipmapCount; ++mipIdx) {
                     uint32_t mipWidth = file.readUInt32();
@@ -379,11 +399,12 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
 
                     if (compression == 1 && uncompressedSize > 0) {
                         mip.data.resize(static_cast<uint32_t>(uncompressedSize));
-                        LZ4_decompress_safe(
+                        int decomp = LZ4_decompress_safe(
                             reinterpret_cast<const char*>(file.currentPtr()),
                             reinterpret_cast<char*>(mip.data.data()),
                             compressedSize, uncompressedSize);
                         file.skip(static_cast<uint32_t>(compressedSize));
+                        if (decomp < 0) continue;
                     } else {
                         uint32_t dataSize = static_cast<uint32_t>(compressedSize);
                         mip.data.resize(dataSize);
@@ -428,7 +449,12 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
                 file.skip(compSize);
                 if (decomp < 0) continue;
             } else {
-                file.readBytes(mip.data.data(), compSize);
+                // Raw path: never copy more than the destination holds — a
+                // hostile compSize > uncompSize would overflow the buffer.
+                const size_t rawBytes = std::min<size_t>(compSize, mip.data.size());
+                file.readBytes(mip.data.data(), rawBytes);
+                file.skip(compSize - rawBytes);
+                mip.data.resize(rawBytes);
             }
 
             if (compFormat != 0) {

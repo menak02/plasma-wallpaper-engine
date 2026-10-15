@@ -152,9 +152,8 @@ private:
     static bool resolveMaterial(Assets::PkgReader& pkgReader, const std::string& matPath, SceneLayer& layer);
     static bool resolveModel(Assets::PkgReader& pkgReader, const std::string& modelPath, SceneLayer& layer);
     static bool resolveTexture(Assets::PkgReader& pkgReader, const std::string& texName, QImage& outImage);
-    // Overload that also returns a VideoDecoder for MP4 textures
-    static bool resolveTexture(Assets::PkgReader& pkgReader, const std::string& texName, QImage& outImage, std::shared_ptr<Assets::VideoDecoder>& outVideoDecoder);
-    static bool resolveTexture(Assets::PkgReader& pkgReader, const std::string& texName, QImage& outImage, std::shared_ptr<Assets::VideoDecoder>& outVideoDecoder, std::vector<uint8_t>& outVideoBytes);
+    // Overload that also returns the embedded video bytes for lazy decoding
+    static bool resolveTexture(Assets::PkgReader& pkgReader, const std::string& texName, QImage& outImage, std::vector<uint8_t>& outVideoBytes);
     static bool resolveParticle(Assets::PkgReader& pkgReader, const std::string& particlePath, ParticleEmitterConfig& outEmitter);
     static bool resolveEffect(Assets::PkgReader& pkgReader, const QJsonObject& effObj, LayerEffect& outEffect);
     static void generateLiveTextImage(SceneLayer& layer);

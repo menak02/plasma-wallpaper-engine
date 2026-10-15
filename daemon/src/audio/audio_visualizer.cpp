@@ -13,13 +13,17 @@ AudioVisualizer::AudioVisualizer() : m_bandCount(8), m_waveSize(2048) {}
 AudioVisualizer::~AudioVisualizer() { stopLiveCapture(); }
 
 void AudioVisualizer::init(const std::vector<uint8_t>& audioBytes, int sampleRate, int channels) {
-    m_sampleRate = sampleRate;
-    m_channels = channels;
+    m_sampleRate = std::max(1, sampleRate);
+    m_channels = std::max(1, channels);
 
-    // Convert audio bytes to PCM (simple 16-bit conversion)
+    // PCM is 16-bit little-endian; assemble samples explicitly so the
+    // conversion is endian-safe and can never write past the int16 buffer
+    // (an odd trailing byte is simply dropped).
     m_rawAudio.resize(audioBytes.size() / 2);
-    if (!audioBytes.empty()) {
-        std::memcpy(m_rawAudio.data(), audioBytes.data(), audioBytes.size());
+    for (size_t i = 0; i < m_rawAudio.size(); ++i) {
+        m_rawAudio[i] = static_cast<int16_t>(
+            static_cast<uint16_t>(audioBytes[i * 2]) |
+            (static_cast<uint16_t>(audioBytes[i * 2 + 1]) << 8));
     }
 
     // Calculate duration
@@ -231,16 +235,31 @@ bool AudioVisualizer::startLiveCapture(int sampleRate, int channels) {
         }
     }
 
-    m_sampleRate = sampleRate;
-    m_channels = channels;
+    m_sampleRate = std::max(1, sampleRate);
+    m_channels = std::max(1, channels);
     m_rawAudio.assign(m_waveSize, 0);
 
     m_isLive = true;
     QObject::connect(m_captureProcess, &QProcess::readyReadStandardOutput, m_captureProcess, [this]() {
         if (!m_captureProcess) return;
-        const QByteArray chunk = m_captureProcess->readAllStandardOutput();
-        const int16_t* samples = reinterpret_cast<const int16_t*>(chunk.constData());
-        onLiveData(std::vector<int16_t>(samples, samples + chunk.size() / sizeof(int16_t)));
+        m_pcmRemainder.append(m_captureProcess->readAllStandardOutput());
+        // s16le stream: keep the trailing half-sample across reads so a chunk
+        // ending mid-sample cannot desynchronize every later frame.
+        const qsizetype sampleBytes = (m_pcmRemainder.size() / 2) * 2;
+        if (sampleBytes == 0) return;
+        const auto* p = reinterpret_cast<const uint8_t*>(m_pcmRemainder.constData());
+        std::vector<int16_t> samples(static_cast<size_t>(sampleBytes) / 2);
+        for (size_t i = 0; i < samples.size(); ++i) {
+            samples[i] = static_cast<int16_t>(
+                static_cast<uint16_t>(p[i * 2]) |
+                (static_cast<uint16_t>(p[i * 2 + 1]) << 8));
+        }
+        m_pcmRemainder.remove(0, sampleBytes);
+        onLiveData(samples);
+    });
+    QObject::connect(m_captureProcess, &QProcess::finished, m_captureProcess, [this]() {
+        // Capture died: stop visualizing stale audio.
+        std::fill(m_rawAudio.begin(), m_rawAudio.end(), int16_t(0));
     });
     qInfo() << "AudioVisualizer: live monitor capture started for sink" << sink;
     return true;
