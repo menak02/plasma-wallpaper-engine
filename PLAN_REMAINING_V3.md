@@ -124,7 +124,25 @@ All script-dependent (clock/date visibility). Feed user-property values (from th
     hostile_input_safety ctest: all 22 checks PASS. Negative-tested: with the
     H5 clamp+guard reverted, the seek-bomb mp4s SIGSEGV the decoder (exit
     139) — the fixtures reproduce the reported OOB read on pre-fix code.
-- P2: IPC hardening (red team C4/H1/H3/H4) ← NEXT
+- P2: IPC hardening (red team C4/H1/H3/H4) — ✅ committed
+  - Verification (2026-10-15, live session bus probes): C4 fixed — every
+    state-mutating slot now authorizes the D-Bus caller (same uid + resolvable
+    PID; the trust-root, loadWallpaper, setProperty, getBufferFd* and
+    setResolution* slots additionally require an unsandboxed caller: same
+    mount namespace, rejecting Flatpak/bwrap-style sandboxed peers).
+    Live probes: /tmp trust root DENIED (world-writable), 775 private dir
+    ALLOWED, "/" DENIED, normal caller getBufferFd returns the fd. H1 fixed —
+    validateTrustRoot() (isDir + not "/" + not world-writable) now guards both
+    registerTrustedDirectory and the previously weaker addCustomLibraryPath.
+    H3 fixed — bgm written via QTemporaryFile (O_EXCL, unique name) with a
+    sanitized extension, closing the /tmp symlink clobber. H4 fixed — web
+    wallpapers run in an isolated off-the-record QWebEngineProfile with
+    LocalContentCanAccessFileUrls=false, and setProperty JSON-encodes key and
+    value into the page JS (no more quote-breakout injection; dead duplicate
+    JS builder removed). Note: sandboxed-caller denial could not be probed
+    end-to-end on this host (unprivileged userns is AppArmor-blocked from
+    reaching the bus socket at all); the mnt-ns comparison itself is trivial
+    stat() logic. ctest 2/2 green.
 - S3: fullscreen pause (T4) — FROZEN until P0–P2
 - S4: mouse click forwarding (T3)
 - S5: autostart + install (T5)

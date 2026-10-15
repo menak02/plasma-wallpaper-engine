@@ -1,6 +1,7 @@
 #include "audio_player.h"
 #include <QFile>
 #include <QDir>
+#include <QTemporaryFile>
 #include <QStandardPaths>
 #include <QDebug>
 #include <iostream>
@@ -35,14 +36,28 @@ bool AudioPlayer::play(const std::vector<uint8_t>& audioBytes, const std::string
 
     if (audioBytes.empty() || m_isMuted) return false;
 
-    QString tempPath = QDir::tempPath() + QStringLiteral("/plasma_we_bgm.") + QString::fromStdString(extension);
-    QFile tempFile(tempPath);
-    if (!tempFile.open(QIODevice::WriteOnly)) {
+    // H3: QTemporaryFile creates a unique O_EXCL file (no symlink following),
+    // so a hostile /tmp/plasma_we_bgm.* symlink can no longer clobber
+    // arbitrary files. Sanitize the extension: it comes from scene data.
+    QString suffix = QString::fromStdString(extension);
+    for (const QChar c : suffix) {
+        if (!c.isLetterOrNumber()) {
+            suffix.clear();
+            break;
+        }
+    }
+    if (suffix.size() > 8) suffix.truncate(8);
+    if (suffix.isEmpty()) suffix = QStringLiteral("bin");
+
+    QTemporaryFile tempFile(QDir::tempPath() + QStringLiteral("/plasma_we_bgm.XXXXXX.") + suffix);
+    tempFile.setAutoRemove(false);
+    if (!tempFile.open()) {
         return false;
     }
 
     tempFile.write(reinterpret_cast<const char*>(audioBytes.data()), audioBytes.size());
     tempFile.close();
+    QString tempPath = tempFile.fileName();
     m_tempFilePath = tempPath.toStdString();
 
     int effectiveVolume = m_isMuted ? 0 : m_volume;

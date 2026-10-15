@@ -13,7 +13,6 @@ public:
     ~WebWallpaper();
 
     bool load(const std::string& htmlContent, const std::string& baseUrl = {});
-    bool loadFile(const std::string& filePath);
     void setSize(uint32_t w, uint32_t h);
     QImage grabImage();
     void setProperty(const QString& key, const QVariant& value);

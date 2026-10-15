@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QDBusAbstractAdaptor>
+#include <QDBusContext>
 #include <QDBusUnixFileDescriptor>
 #include <QDBusVariant>
 #include <QVariantMap>
@@ -14,7 +15,7 @@
 
 namespace WallpaperEngine::IPC {
 
-class WallpaperService : public QObject {
+class WallpaperService : public QObject, protected QDBusContext {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "org.antigravity.WallpaperEngine")
 
@@ -93,6 +94,16 @@ private:
     QStringList m_trustedDirs;
     QString canonicalizePath(const QString& path) const;
     bool isPathAllowed(const QString& canonicalPath) const;
+
+    // D-Bus peer authorization (C4). Privileged callers must run as this
+    // uid and resolve to a real PID; requireUnconfined additionally rejects
+    // callers in a different mount namespace (Flatpak/snap/bwrap sandboxed
+    // peers), closing the sandbox -> daemon escalation chain.
+    bool authorizeCaller(const char* slot, bool requireUnconfined) const;
+
+    // H1: trust roots must exist, not be "/", and must not be writable by
+    // other users (no /tmp-style shared directories).
+    QString validateTrustRoot(const QString& dirPath) const;
 };
 
 } // namespace WallpaperEngine::IPC

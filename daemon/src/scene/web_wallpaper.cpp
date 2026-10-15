@@ -5,7 +5,10 @@
 #if __has_include(<QWebEngineView>)
 #include <QWebEngineView>
 #include <QWebEnginePage>
+#include <QWebEngineProfile>
 #include <QWebEngineSettings>
+#include <QJsonArray>
+#include <QJsonDocument>
 #define HAS_WEBENGINE 1
 #else
 #define HAS_WEBENGINE 0
@@ -47,8 +50,15 @@ bool WebWallpaper::load(const std::string& htmlContent, const std::string& baseU
     if (!m_impl->view) {
         m_impl->view = new QWebEngineView();
         m_impl->view->resize(m_w, m_h);
-        m_impl->view->page()->settings()->setAttribute(QWebEngineSettings::ShowScrollBars, false);
-        m_impl->view->page()->settings()->setAttribute(QWebEngineSettings::PlaybackRequiresUserGesture, false);
+        // H4: untrusted workshop HTML gets an isolated, off-the-record
+        // profile (no shared cookies/cache/storage with anything else in
+        // this process) and no file:// access from page scripts.
+        auto* profile = new QWebEngineProfile(m_impl->view);
+        auto* page = new QWebEnginePage(profile, m_impl->view);
+        m_impl->view->setPage(page);
+        page->settings()->setAttribute(QWebEngineSettings::ShowScrollBars, false);
+        page->settings()->setAttribute(QWebEngineSettings::PlaybackRequiresUserGesture, false);
+        page->settings()->setAttribute(QWebEngineSettings::LocalContentCanAccessFileUrls, false);
         QObject::connect(m_impl->view, &QWebEngineView::loadFinished, this, [this](bool ok){
             m_loaded = ok;
             Q_EMIT loaded(ok);
@@ -66,21 +76,6 @@ bool WebWallpaper::load(const std::string& htmlContent, const std::string& baseU
     Q_UNUSED(htmlContent); Q_UNUSED(baseUrl);
     qWarning() << "WebWallpaper: QtWebEngine not available at compile time, stub";
     m_loaded = false;
-    return false;
-#endif
-}
-
-bool WebWallpaper::loadFile(const std::string& filePath) {
-#if HAS_WEBENGINE
-    if (!m_impl->view) {
-        m_impl->view = new QWebEngineView();
-        m_impl->view->resize(m_w, m_h);
-    }
-    m_impl->view->load(QUrl::fromLocalFile(QString::fromStdString(filePath)));
-    m_loaded = true;
-    return true;
-#else
-    Q_UNUSED(filePath);
     return false;
 #endif
 }
@@ -122,22 +117,27 @@ QImage WebWallpaper::grabImage() {
 void WebWallpaper::setProperty(const QString& key, const QVariant& value) {
 #if HAS_WEBENGINE
     if (!m_impl->view || !m_impl->view->page()) return;
-    QString js = QStringLiteral("if(window.wallpaperPropertyListener){"
-                                "  var p={}; p['%1']= %2;"
-                                "  wallpaperPropertyListener.applyUserProperties(p);"
-                                "} else if(window.scriptProperties){"
-                                "  scriptProperties['%1']={value:%2};"
-                                "}")
-                   .arg(key, value.toString().isEmpty() ? QStringLiteral("null") : QStringLiteral("\"%1\"").arg(value.toString()));
-    // Try generic set
+    // H4: key and value are interpolated into page JavaScript — JSON-encode
+    // both so quotes/backslashes in D-Bus strings cannot break out of the
+    // literal and execute arbitrary script.
+    auto jsonLiteral = [](const QString& s) -> QString {
+        return QString::fromUtf8(QJsonDocument(QJsonArray{s}).toJson(QJsonDocument::Compact))
+            .mid(1).chopped(1);
+    };
     QString valStr;
-    if (value.typeId() == QMetaType::Bool) valStr = value.toBool() ? QStringLiteral("true") : QStringLiteral("false");
-    else if (value.typeId() == QMetaType::QString) valStr = QStringLiteral("\"%1\"").arg(value.toString());
-    else valStr = value.toString();
-    js = QStringLiteral("try{"
-                        "if(window.wallpaperPropertyListener) wallpaperPropertyListener.applyUserProperties({'%1':%2});"
-                        "else if(window.scriptProperties) scriptProperties['%1'].value=%2;"
-                        "}catch(e){}").arg(key, valStr);
+    switch (value.typeId()) {
+        case QMetaType::Bool: valStr = value.toBool() ? QStringLiteral("true") : QStringLiteral("false"); break;
+        case QMetaType::Int:
+        case QMetaType::UInt:
+        case QMetaType::LongLong:
+        case QMetaType::ULongLong:
+        case QMetaType::Double: valStr = value.toString(); break;
+        default: valStr = jsonLiteral(value.toString()); break;
+    }
+    const QString js = QStringLiteral("try{"
+                        "if(window.wallpaperPropertyListener) wallpaperPropertyListener.applyUserProperties({%1:%2});"
+                        "else if(window.scriptProperties) scriptProperties[%1].value=%2;"
+                        "}catch(e){}").arg(jsonLiteral(key), valStr);
     m_impl->view->page()->runJavaScript(js);
     qInfo() << "WebWallpaper: setProperty" << key << "=" << value;
 #else

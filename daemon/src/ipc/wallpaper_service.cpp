@@ -8,6 +8,11 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QDBusConnectionInterface>
+#include <QDBusReply>
+
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include <algorithm>
 
@@ -57,6 +62,64 @@ bool WallpaperService::isPathAllowed(const QString& canonicalPath) const {
                        });
 }
 
+bool WallpaperService::authorizeCaller(const char* slot, bool requireUnconfined) const {
+    // In-process calls (daemon loop, tools) are trusted by definition.
+    if (!calledFromDBus()) return true;
+
+    const QString service = message().service();
+    QDBusConnection bus = connection();
+    const QDBusReply<uint> pidReply = bus.interface()->servicePid(service);
+    const QDBusReply<uint> uidReply = bus.interface()->serviceUid(service);
+    if (!pidReply.isValid() || !uidReply.isValid()) {
+        qWarning() << "WallpaperService: denied" << slot << "- unresolvable caller" << service;
+        return false;
+    }
+    const uint callerUid = uidReply.value();
+    if (callerUid != static_cast<uint>(getuid())) {
+        qWarning() << "WallpaperService: denied" << slot
+                   << "- foreign uid" << callerUid << "pid" << pidReply.value();
+        return false;
+    }
+    if (requireUnconfined) {
+        struct stat callerNs {};
+        struct stat selfNs {};
+        const QString nsPath = QStringLiteral("/proc/%1/ns/mnt").arg(pidReply.value());
+        if (stat(qPrintable(nsPath), &callerNs) != 0 ||
+            stat("/proc/self/ns/mnt", &selfNs) != 0 ||
+            callerNs.st_ino != selfNs.st_ino || callerNs.st_dev != selfNs.st_dev) {
+            qWarning() << "WallpaperService: denied" << slot
+                       << "- caller pid" << pidReply.value()
+                       << "is sandboxed (different mount namespace)";
+            return false;
+        }
+    }
+    return true;
+}
+
+QString WallpaperService::validateTrustRoot(const QString& dirPath) const {
+    if (dirPath.isEmpty()) return {};
+    // Only existing directories may be registered — not files.
+    QFileInfo info(dirPath);
+    if (!info.isDir()) {
+        qWarning() << "WallpaperService: trust root is not a directory:" << dirPath;
+        return {};
+    }
+    const QString canon = canonicalizePath(dirPath);
+    if (canon.isEmpty()) return {};
+    // Refuse to trust the filesystem root — that would disable the gate.
+    if (canon == QStringLiteral("/")) {
+        qWarning() << "WallpaperService: refusing to trust filesystem root";
+        return {};
+    }
+    // H1: a world-writable trust root (/tmp-style) lets any local user drop
+    // content that then passes the loadWallpaper gate.
+    if (info.permissions() & QFile::WriteOther) {
+        qWarning() << "WallpaperService: refusing world-writable trust root:" << canon;
+        return {};
+    }
+    return canon;
+}
+
 void WallpaperService::updateAndRender(float dt, float time) {
     if (m_compositor.hasScene()) {
         m_compositor.updateAndRender(dt, time);
@@ -65,6 +128,7 @@ void WallpaperService::updateAndRender(float dt, float time) {
 
 QDBusUnixFileDescriptor WallpaperService::getBufferFd() {
     QDBusUnixFileDescriptor desc;
+    if (!authorizeCaller("getBufferFd", true)) return desc;
     if (m_vulkanCtx) {
         int fd = m_vulkanCtx->getCurrentBuffer().fd;
         if (fd >= 0) {
@@ -88,6 +152,7 @@ QVariantMap WallpaperService::getBufferInfo() {
 }
 
 bool WallpaperService::setResolution(uint32_t width, uint32_t height) {
+    if (!authorizeCaller("setResolution", true)) return false;
     if (!m_vulkanCtx) return false;
     Render::DmaBufBuffer newBuf;
     if (m_vulkanCtx->setResolution(width, height, newBuf)) {
@@ -99,6 +164,7 @@ bool WallpaperService::setResolution(uint32_t width, uint32_t height) {
 }
 
 bool WallpaperService::setResolutionForOutput(const QString& outputName, uint32_t width, uint32_t height) {
+    if (!authorizeCaller("setResolutionForOutput", true)) return false;
     if (!m_vulkanCtx) return false;
     Render::DmaBufBuffer newBuf;
     if (m_vulkanCtx->setResolutionForOutput(outputName.toStdString(), width, height, newBuf)) {
@@ -111,6 +177,7 @@ bool WallpaperService::setResolutionForOutput(const QString& outputName, uint32_
 
 QDBusUnixFileDescriptor WallpaperService::getBufferFdForOutput(const QString& outputName) {
     QDBusUnixFileDescriptor desc;
+    if (!authorizeCaller("getBufferFdForOutput", true)) return desc;
     if (m_vulkanCtx) {
         const auto* buf = m_vulkanCtx->getBufferForOutput(outputName.toStdString());
         if (buf && buf->fd >= 0) {
@@ -146,14 +213,17 @@ QVariantList WallpaperService::getOutputs() {
 }
 
 void WallpaperService::setMousePosition(float normX, float normY) {
+    if (!authorizeCaller("setMousePosition", false)) return;
     m_compositor.setMouseParallax(normX, normY);
 }
 
 bool WallpaperService::startAudioCapture() {
+    if (!authorizeCaller("startAudioCapture", false)) return false;
     return m_compositor.startAudioCapture();
 }
 
 void WallpaperService::stopAudioCapture() {
+    if (!authorizeCaller("stopAudioCapture", false)) return;
     m_compositor.stopAudioCapture();
 }
 
@@ -169,18 +239,22 @@ QVariantList WallpaperService::getAudioBands() {
 }
 
 void WallpaperService::setAudioVolume(int volume) {
+    if (!authorizeCaller("setAudioVolume", false)) return;
     m_audioPlayer.setVolume(volume);
 }
 
 void WallpaperService::setAudioMuted(bool muted) {
+    if (!authorizeCaller("setAudioMuted", false)) return;
     m_audioPlayer.setMuted(muted);
 }
 
 void WallpaperService::setMuteOnOtherAudio(bool enabled) {
+    if (!authorizeCaller("setMuteOnOtherAudio", false)) return;
     m_audioPlayer.setMuteOnOtherAudio(enabled);
 }
 
 void WallpaperService::setMuteOnFullscreen(bool enabled) {
+    if (!authorizeCaller("setMuteOnFullscreen", false)) return;
     m_audioPlayer.setMuteOnFullscreen(enabled);
 }
 
@@ -192,14 +266,17 @@ QVariantMap WallpaperService::getAudioSettings() {
 }
 
 void WallpaperService::pause() {
+    if (!authorizeCaller("pause", false)) return;
     m_audioPlayer.pause();
 }
 
 void WallpaperService::resume() {
+    if (!authorizeCaller("resume", false)) return;
     m_audioPlayer.resume();
 }
 
 void WallpaperService::stop() {
+    if (!authorizeCaller("stop", false)) return;
     m_audioPlayer.stop();
 }
 
@@ -219,6 +296,7 @@ QVariantList WallpaperService::getAvailableGpus() {
 }
 
 bool WallpaperService::loadWallpaper(const QString& path) {
+    if (!authorizeCaller("loadWallpaper", true)) return false;
     qInfo() << "WallpaperService: Loading wallpaper from:" << path;
 
     // Security gate: only accept wallpapers that live inside a trusted
@@ -342,10 +420,17 @@ QVariantList WallpaperService::getLibrary() {
 }
 
 void WallpaperService::scanLibrary() {
+    if (!authorizeCaller("scanLibrary", false)) return;
     m_libraryScanner.scanAll();
 }
 
 void WallpaperService::addCustomLibraryPath(const QString& path) {
+    if (!authorizeCaller("addCustomLibraryPath", true)) return;
+    // H1: same trust-root rules as registerTrustedDirectory — a custom
+    // library path is added to the loadWallpaper allowlist below.
+    if (validateTrustRoot(path).isEmpty()) {
+        return;
+    }
     m_libraryScanner.addCustomDirectory(path);
     m_libraryScanner.scanAll();
 
@@ -361,22 +446,9 @@ void WallpaperService::addCustomLibraryPath(const QString& path) {
 }
 
 bool WallpaperService::registerTrustedDirectory(const QString& dirPath) {
-    if (dirPath.isEmpty()) {
-        return false;
-    }
-    // Only existing directories may be registered — not files.
-    QFileInfo info(dirPath);
-    if (!info.isDir()) {
-        qWarning() << "WallpaperService: registerTrustedDirectory: not a directory:" << dirPath;
-        return false;
-    }
-    const QString canon = canonicalizePath(dirPath);
+    if (!authorizeCaller("registerTrustedDirectory", true)) return false;
+    const QString canon = validateTrustRoot(dirPath);
     if (canon.isEmpty()) {
-        return false;
-    }
-    // Refuse to trust the filesystem root — that would disable the gate.
-    if (canon == QStringLiteral("/")) {
-        qWarning() << "WallpaperService: refusing to trust filesystem root";
         return false;
     }
     if (!m_trustedDirs.contains(canon)) {
@@ -396,6 +468,9 @@ QVariantMap WallpaperService::getWallpaperProperties(const QString& id) {
 }
 
 void WallpaperService::setProperty(const QString& key, const QDBusVariant& value) {
+    // C4/H4: property values are interpolated into page JavaScript — only
+    // unsandboxed same-user peers may inject them.
+    if (!authorizeCaller("setProperty", true)) return;
     m_activeProperties[key] = value.variant();
     qInfo() << "Property changed:" << key << "=" << value.variant();
     std::unordered_map<std::string, QVariant> stdMap;
