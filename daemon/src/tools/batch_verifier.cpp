@@ -61,11 +61,23 @@ static AccumulatedTransform resolveParentTransform(const WallpaperEngine::Scene:
 int main(int argc, char* argv[]) {
     QGuiApplication app(argc, argv);
 
-    // Default to user's Steam Workshop path; override with a positional CLI arg
-    std::string workshopBase = QDir::homePath().toStdString()
-        + "/.local/share/Steam/steamapps/workshop/content/431960";
+    // Default workshop path: discovered from standard Steam roots (override
+    // with a positional CLI arg). No machine-specific paths are assumed.
+    std::string workshopBase;
+    {
+        const QString home = QDir::homePath();
+        const QStringList roots = {
+            home + QStringLiteral("/.steam/steam/steamapps/workshop/content/431960"),
+            home + QStringLiteral("/.steam/debian-installation/steamapps/workshop/content/431960"),
+            home + QStringLiteral("/.local/share/Steam/steamapps/workshop/content/431960"),
+        };
+        for (const QString& root : roots) {
+            if (QDir(root).exists()) { workshopBase = root.toStdString(); break; }
+        }
+    }
     std::string outputDir = "verifier-output";
     std::string filterId;
+    uint32_t forceW = 0, forceH = 0;
 
     int argIndex = 1;
     while (argIndex < argc) {
@@ -75,9 +87,11 @@ int main(int argc, char* argv[]) {
                       << "Options:\n"
                       << "  --id <wallpaper_id>   Only process the specified wallpaper ID\n"
                       << "  --output <dir>        Write snapshots/report to <dir> (default: ./verifier-output)\n"
+                      << "  --width <px>          Force render width (default: each scene's native width)\n"
+                      << "  --height <px>         Force render height (default: each scene's native height)\n"
                       << "  --help                Show this help message\n"
                       << "Arguments:\n"
-                      << "  workshopPath          Path to the workshop content directory (default: Steam workshop)\n"
+                      << "  workshopPath          Path to the workshop content directory (default: auto-detected Steam workshop)\n"
                       << std::endl;
             return 0;
         } else        if (arg == "--id") {
@@ -86,6 +100,15 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
             filterId = argv[argIndex+1];
+            argIndex += 2;
+        } else if (arg == "--width" || arg == "--height") {
+            if (argIndex + 1 >= argc) {
+                std::cerr << "Error: " << arg << " requires an argument\n";
+                return 1;
+            }
+            const unsigned long v = std::strtoul(argv[argIndex+1], nullptr, 10);
+            if (arg == "--width") forceW = static_cast<uint32_t>(v);
+            else forceH = static_cast<uint32_t>(v);
             argIndex += 2;
         } else if (arg == "--output") {
             if (argIndex + 1 >= argc) {
@@ -109,9 +132,9 @@ int main(int argc, char* argv[]) {
     // mirrors the daemon environment. A GPU-less runner (CI) skips it so the
     // snapshot pipeline still works.
     WallpaperEngine::Render::VulkanContext vulkanCtx;
-    if (vulkanCtx.init()) {
-        WallpaperEngine::Render::DmaBufBuffer dummyBuf;
-        vulkanCtx.setResolution(1920, 1080, dummyBuf);
+    const bool vulkanReady = vulkanCtx.init();
+    WallpaperEngine::Render::DmaBufBuffer dummyBuf;
+    if (vulkanReady) {
         std::cout << "Vulkan context initialized (" << vulkanCtx.getAvailableGpus().size() << " GPU(s) visible)" << std::endl;
     } else {
         std::cout << "No usable Vulkan device — continuing CPU-only (snapshot mode)" << std::endl;
@@ -165,18 +188,31 @@ int main(int argc, char* argv[]) {
             continue;
         }
 
-        // Render to offscreen canvas
-        QImage canvas(1920, 1080, QImage::Format_RGBA8888);
+        // Render offscreen at the scene's own resolution (or --width/--height
+        // when a fixed canvas is requested). Sanity-clamped so a hostile
+        // scene.json cannot request an absurd allocation.
+        float sceneW = sceneDesc.sceneWidth > 0.0f ? sceneDesc.sceneWidth : 3840.0f;
+        float sceneH = sceneDesc.sceneHeight > 0.0f ? sceneDesc.sceneHeight : 2160.0f;
+        const uint32_t canvasW = forceW > 0 ? forceW
+            : std::clamp(static_cast<uint32_t>(sceneW + 0.5f), 16u, 7680u);
+        const uint32_t canvasH = forceH > 0 ? forceH
+            : std::clamp(static_cast<uint32_t>(sceneH + 0.5f), 16u, 4320u);
+
+        QImage canvas(static_cast<int>(canvasW), static_cast<int>(canvasH), QImage::Format_RGBA8888);
         canvas.fill(sceneDesc.clearColor);
+
+        // Mirror the daemon environment: the Vulkan context tracks the
+        // current canvas size (the verifier itself paints on CPU only).
+        if (vulkanReady) {
+            vulkanCtx.setResolution(canvasW, canvasH, dummyBuf);
+        }
 
         QPainter painter(&canvas);
         painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
         painter.setRenderHint(QPainter::Antialiasing, true);
 
-        float sceneW = sceneDesc.sceneWidth > 0.0f ? sceneDesc.sceneWidth : 3840.0f;
-        float sceneH = sceneDesc.sceneHeight > 0.0f ? sceneDesc.sceneHeight : 2160.0f;
-        float scaleX = 1920.0f / sceneW;
-        float scaleY = 1080.0f / sceneH;
+        float scaleX = static_cast<float>(canvasW) / sceneW;
+        float scaleY = static_cast<float>(canvasH) / sceneH;
 
         // Verbose layer logging for the wallpaper selected via --id
         bool debugThisWallpaper = !filterId.empty();
@@ -232,11 +268,11 @@ int main(int argc, char* argv[]) {
             // Resolve parent transform chain
             AccumulatedTransform acc = resolveParentTransform(layer, sceneW, sceneH);
 
-            float centerX = (acc.origin.x() / sceneW) * 1920.0f;
-            float centerY = ((sceneH - acc.origin.y()) / sceneH) * 1080.0f;
+            float centerX = (acc.origin.x() / sceneW) * static_cast<float>(canvasW);
+            float centerY = ((sceneH - acc.origin.y()) / sceneH) * static_cast<float>(canvasH);
 
-            float spriteW = (layer.size.x() > 0.0f) ? (layer.size.x() / sceneW) * 1920.0f * acc.scale.x() : layer.image.width() * scaleX * acc.scale.x();
-            float spriteH = (layer.size.y() > 0.0f) ? (layer.size.y() / sceneH) * 1080.0f * acc.scale.y() : layer.image.height() * scaleY * acc.scale.y();
+            float spriteW = (layer.size.x() > 0.0f) ? (layer.size.x() / sceneW) * static_cast<float>(canvasW) * acc.scale.x() : layer.image.width() * scaleX * acc.scale.x();
+            float spriteH = (layer.size.y() > 0.0f) ? (layer.size.y() / sceneH) * static_cast<float>(canvasH) * acc.scale.y() : layer.image.height() * scaleY * acc.scale.y();
 
             painter.translate(centerX, centerY);
             if (acc.angle != 0.0f) painter.rotate(acc.angle);
@@ -263,8 +299,8 @@ int main(int argc, char* argv[]) {
         // Render particle engine preview (1 frame for instant diagnostic snapshot)
         WallpaperEngine::Scene::ParticleEngine particleEngine;
         particleEngine.setEmitters(sceneDesc.emitters);
-        particleEngine.update(0.016f, 1920, 1080);
-        particleEngine.render(painter, 1920, 1080);
+        particleEngine.update(0.016f, canvasW, canvasH);
+        particleEngine.render(painter, canvasW, canvasH);
         painter.end();
 
         std::string snapshotFile = outputDir + "/" + id + ".png";

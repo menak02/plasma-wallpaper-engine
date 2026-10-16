@@ -43,9 +43,19 @@ int main(int argc, char *argv[]) {
             << WallpaperEngine::Plugin::PluginRegistry::instance().pluginCount()
             << "plugins registered";
 
-    // Allocate default framebuffer for export (1920x1080)
+    // Initial framebuffer for export: the primary screen's real device-pixel
+    // size (HiDPI outputs included). Only a truly headless start falls back
+    // to 1920x1080; clients may resize via setResolution at any time.
+    uint32_t initW = 1920, initH = 1080;
+    if (QScreen* primary = QGuiApplication::primaryScreen()) {
+        const QSize px = primary->geometry().size() * primary->devicePixelRatio();
+        if (px.width() > 0 && px.height() > 0) {
+            initW = static_cast<uint32_t>(px.width());
+            initH = static_cast<uint32_t>(px.height());
+        }
+    }
     WallpaperEngine::Render::DmaBufBuffer buffer;
-    if (!vulkanCtx.setResolution(1920, 1080, buffer)) {
+    if (!vulkanCtx.setResolution(initW, initH, buffer)) {
         std::cerr << "Failed to allocate initial DmaBuf exportable buffer." << std::endl;
         return 1;
     }
@@ -58,7 +68,7 @@ int main(int argc, char *argv[]) {
             ? QStringLiteral("screen%1").arg(QGuiApplication::screens().indexOf(screen))
             : screen->name();
         WallpaperEngine::Render::DmaBufBuffer outBuf;
-        const QSize geom = screen->size();
+        const QSize geom = screen->geometry().size() * screen->devicePixelRatio();
         if (vulkanCtx.setResolutionForOutput(outputName.toStdString(),
                                              static_cast<uint32_t>(geom.width()),
                                              static_cast<uint32_t>(geom.height()),
