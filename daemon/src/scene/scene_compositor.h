@@ -52,6 +52,7 @@ private:
     std::unique_ptr<class WebWallpaper> m_web;
     Assets::PkgReader* m_lastPkg = nullptr;
     std::unordered_map<std::string, QVariant> m_lastOverrideProps;
+    QString m_lastTextKey;
 
     uint32_t m_width = 1920;
     uint32_t m_height = 1080;

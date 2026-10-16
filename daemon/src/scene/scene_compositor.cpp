@@ -217,6 +217,66 @@ void SceneCompositor::updateAndRender(float dt, float time) {
     // energies reflect the current audio window.
     m_audioVisualizer.update();
 
+    // SceneScript per-frame ticking: scripted alpha/scale/visible animate
+    // live. The engine was seeded at parse (init()/shared state already run).
+    if (m_scene.jsEngine) {
+        bool anyScripted = false;
+        for (const auto& layer : m_scene.layers) {
+            if (layer.hasScriptBinding) { anyScripted = true; break; }
+        }
+        if (anyScripted) {
+            m_scene.jsEngine->update(time, dt);
+            for (auto& layer : m_scene.layers) {
+                if (!layer.hasScriptBinding) continue;
+                layer.visible = layer.baseVisible
+                                && m_scene.jsEngine->evaluateVisibility(layer.visibleScript);
+                const double a = m_scene.jsEngine->evaluateScriptNumber(layer.alphaScript,
+                                                                       layer.alphaFallback, false);
+                layer.opacity = static_cast<float>(std::clamp(a, 0.0, 1.0));
+                if (layer.opacity <= 0.001f) layer.visible = false;
+                if (layer.scaleScript.isObject()
+                    && layer.scaleScript.toObject().contains(QStringLiteral("script"))) {
+                    const double s = m_scene.jsEngine->evaluateScriptNumber(layer.scaleScript,
+                                                                           layer.scaleFallback, false);
+                    layer.scale = QVector3D(static_cast<float>(s), static_cast<float>(s),
+                                            static_cast<float>(s));
+                    if (std::abs(s) <= 0.001) layer.visible = false;
+                }
+            }
+            // Hidden parents hide their children (same rule as parse time).
+            for (auto& layer : m_scene.layers) {
+                for (SceneLayer* p = layer.parent; p != nullptr; p = p->parent) {
+                    if (!p->visible) { layer.visible = false; break; }
+                }
+            }
+        }
+
+        // Scripted text objects re-render when their formatted string changes
+        // (clocks tick, dates roll).
+        for (auto& layer : m_scene.layers) {
+            if (!layer.textScript.isObject()) continue;
+            QString rendered = m_scene.jsEngine->evaluateScriptString(
+                layer.textScript, QString::fromStdString(layer.textContent), false);
+            if (!rendered.isEmpty() && rendered.toStdString() != layer.textContent) {
+                layer.textContent = rendered.toStdString();
+                SceneParser::generateLiveTextImage(layer);
+            }
+        }
+    }
+
+    // Live clock/date text: refresh when the displayed value changes.
+    {
+        const QString key = QDateTime::currentDateTime().toString(QStringLiteral("hh:mm|dddd, MMMM d"));
+        if (key != m_lastTextKey) {
+            m_lastTextKey = key;
+            for (auto& layer : m_scene.layers) {
+                if (layer.isClock || layer.isDate) {
+                    SceneParser::generateLiveTextImage(layer);
+                }
+            }
+        }
+    }
+
     // Web: refresh from QWebEngineView each frame (throttled)
     if (m_isWeb && m_web) {
         QImage webImg = m_web->grabImage();

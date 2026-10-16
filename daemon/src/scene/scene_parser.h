@@ -8,9 +8,11 @@
 #include <QColor>
 #include <QImage>
 #include <QJsonObject>
+#include <QJsonValue>
 #include "../assets/pkg_reader.h"
 #include "../assets/tex_parser.h"
 #include "../assets/video_decoder.h"
+#include "js_engine.h"
 
 namespace WallpaperEngine::Scene {
 
@@ -102,8 +104,25 @@ struct SceneLayer {
     bool isCompositionLayer = false;
     std::string textContent;
     std::string textFormat;
+    std::string fontFamily;
     QColor textColor{255, 255, 255, 255};
+    QColor backgroundColor{0, 0, 0, 0};
+    bool opaqueBackground = false;
+    Qt::Alignment textAlign = Qt::AlignCenter;
     float fontSize = 24.0f;
+
+    // SceneScript bindings ({script, value} blocks) re-evaluated per frame
+    // at runtime; baseVisible carries the script-independent visibility
+    // (user bindings, name heuristics) and is combined with script state.
+    QJsonValue alphaScript;
+    double alphaFallback = 1.0;
+    QJsonValue scaleScript;
+    double scaleFallback = 1.0;
+    QJsonValue visibleScript;
+    QJsonValue textScript;
+    bool visibleFallback = true;
+    bool baseVisible = true;
+    bool hasScriptBinding = false;
 
     std::vector<LayerEffect> effects;
     QImage image; // Decoded RGBA image for this layer
@@ -141,12 +160,17 @@ struct SceneDescription {
     std::vector<SceneLayer> layers;
     std::vector<ParticleEmitterConfig> emitters;
     std::string soundPath;
+    // SceneScript runtime seeded at parse time (init()/shared state); ticks
+    // per frame from the compositor so scripted properties animate live.
+    std::unique_ptr<JSEngine> jsEngine;
 };
 
 class SceneParser {
 public:
     static bool parseScene(Assets::PkgReader& pkgReader, SceneDescription& outScene);
     static bool parseScene(Assets::PkgReader& pkgReader, SceneDescription& outScene, const std::unordered_map<std::string, QVariant>& overrideProperties);
+
+    static void generateLiveTextImage(SceneLayer& layer);
 
 private:
     static bool resolveMaterial(Assets::PkgReader& pkgReader, const std::string& matPath, SceneLayer& layer);
@@ -156,7 +180,6 @@ private:
     static bool resolveTexture(Assets::PkgReader& pkgReader, const std::string& texName, QImage& outImage, std::vector<uint8_t>& outVideoBytes);
     static bool resolveParticle(Assets::PkgReader& pkgReader, const std::string& particlePath, ParticleEmitterConfig& outEmitter);
     static bool resolveEffect(Assets::PkgReader& pkgReader, const QJsonObject& effObj, LayerEffect& outEffect);
-    static void generateLiveTextImage(SceneLayer& layer);
 };
 
 } // namespace WallpaperEngine::Scene

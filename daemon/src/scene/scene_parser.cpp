@@ -5,6 +5,8 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QPainter>
+#include <QFont>
+#include <QFontDatabase>
 #include <QDateTime>
 #include <QDebug>
 #include <QProcess>
@@ -103,8 +105,8 @@ static QVector2D parseVector2D(const QJsonValue& val, const QVector2D& defaultVa
 void SceneParser::generateLiveTextImage(SceneLayer& layer) {
     int tw = layer.size.x() > 0 ? static_cast<int>(layer.size.x()) : 400;
     int th = layer.size.y() > 0 ? static_cast<int>(layer.size.y()) : 120;
-    if (tw < 100) tw = 400;
-    if (th < 50) th = 120;
+    if (tw < 2) tw = 400;
+    if (th < 2) th = 120;
 
     QImage txtImg(tw, th, QImage::Format_RGBA8888);
     txtImg.fill(Qt::transparent);
@@ -125,21 +127,74 @@ void SceneParser::generateLiveTextImage(SceneLayer& layer) {
         textToRender = QString::fromStdString(layer.name);
     }
 
-    QFont f = txtPainter.font();
-    f.setPointSizeF(std::max(layer.fontSize, 18.0f));
-    f.setBold(true);
+    if (layer.opaqueBackground && layer.backgroundColor.alpha() > 0) {
+        txtPainter.fillRect(txtImg.rect(), layer.backgroundColor);
+    }
+
+    QFont f;
+    if (!layer.fontFamily.empty()) {
+        f.setFamily(QString::fromStdString(layer.fontFamily));
+    }
+    f.setPixelSize(std::max(6, static_cast<int>(layer.fontSize)));
     txtPainter.setFont(f);
+
+    const QRect bounds = txtImg.rect().adjusted(4, 4, -4, -4);
 
     // Drop shadow
     txtPainter.setPen(QColor(0, 0, 0, 180));
-    txtPainter.drawText(txtImg.rect().translated(2, 2), Qt::AlignCenter, textToRender);
+    txtPainter.drawText(bounds.translated(2, 2), layer.textAlign, textToRender);
 
     // Foreground text
     txtPainter.setPen(layer.textColor);
-    txtPainter.drawText(txtImg.rect(), Qt::AlignCenter, textToRender);
+    txtPainter.drawText(bounds, layer.textAlign, textToRender);
     txtPainter.end();
 
     layer.image = txtImg;
+}
+
+// Load a text object's font face: first from the package (e.g. "fonts/Foo.ttf"),
+// then from a Wallpaper Engine installation's font stores (assets/fonts,
+// truetype) discovered via standard Steam roots or WALLPAPER_ENGINE_DIR.
+static void resolveTextFont(Assets::PkgReader& pkgReader, const QString& fontPath, SceneLayer& layer) {
+    if (fontPath.isEmpty()) return;
+    static std::unordered_map<std::string, QString> fontCache;
+    auto it = fontCache.find(fontPath.toStdString());
+    if (it == fontCache.end()) {
+        QString family;
+        QByteArray fontData;
+        auto bytes = pkgReader.readFile(fontPath.toStdString());
+        if (!bytes.empty()) {
+            fontData = QByteArray(reinterpret_cast<const char*>(bytes.data()), static_cast<int>(bytes.size()));
+        } else {
+            const QString baseName = QFileInfo(fontPath).fileName();
+            QStringList roots;
+            const QByteArray envRoot = qgetenv("WALLPAPER_ENGINE_DIR");
+            if (!envRoot.isEmpty()) roots << QString::fromLocal8Bit(envRoot);
+            const QString home = QDir::homePath();
+            roots << home + QStringLiteral("/.steam/steam/steamapps/common/wallpaper_engine")
+                  << home + QStringLiteral("/.steam/debian-installation/steamapps/common/wallpaper_engine")
+                  << home + QStringLiteral("/.local/share/Steam/steamapps/common/wallpaper_engine");
+            for (const QString& root : roots) {
+                for (const QString& sub : {QStringLiteral("/assets/fonts/"), QStringLiteral("/truetype/")}) {
+                    QFile f(root + sub + baseName);
+                    if (f.open(QIODevice::ReadOnly)) {
+                        fontData = f.readAll();
+                        break;
+                    }
+                }
+                if (!fontData.isEmpty()) break;
+            }
+        }
+        if (!fontData.isEmpty()) {
+            int idx = QFontDatabase::addApplicationFontFromData(fontData);
+            if (idx >= 0) {
+                const QStringList fams = QFontDatabase::applicationFontFamilies(idx);
+                if (!fams.isEmpty()) family = fams.front();
+            }
+        }
+        it = fontCache.emplace(fontPath.toStdString(), family).first;
+    }
+    if (!it->second.isEmpty()) layer.fontFamily = it->second.toStdString();
 }
 
 static void applyOpacityMasks(SceneLayer& layer) {
@@ -221,9 +276,9 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
     // Apply overrides from WallpaperService live properties
     for (auto& [k,v] : overrideProperties) propertiesMap[k] = v;
 
-    JSEngine jsEngine;
-    jsEngine.init(propertiesMap);
-    jsEngine.update(0.0f, 0.0f);
+    auto jsEngine = std::make_unique<JSEngine>();
+    jsEngine->init(propertiesMap);
+    jsEngine->update(0.0f, 0.0f);
 
     // Sound OST detection
     auto allFiles = pkgReader.listFiles();
@@ -249,7 +304,7 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
             if (!it.value().isObject()) continue;
             QJsonObject propObj = it.value().toObject();
             if (propObj.contains(QStringLiteral("script"))) {
-                jsEngine.registerScript(propObj.value(QStringLiteral("script")).toString());
+                jsEngine->registerScript(propObj.value(QStringLiteral("script")).toString());
             }
         }
     }
@@ -310,17 +365,25 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
         }
         layer.name = obj.value(QStringLiteral("name")).toString().toStdString();
         // Use JSEngine for visibility evaluation (handles script/user properties)
-        layer.visible = jsEngine.evaluateVisibility(obj.value(QStringLiteral("visible")));
+        layer.visible = jsEngine->evaluateVisibility(obj.value(QStringLiteral("visible")));
 
+        // Keep the raw bindings so the compositor can tick them per frame
+        // (SceneScript animations); values below settle to the load-time state.
+        layer.visibleScript = obj.value(QStringLiteral("visible"));
+        layer.alphaScript = obj.value(QStringLiteral("alpha"));
+        layer.scaleScript = obj.value(QStringLiteral("scale"));
+        layer.hasScriptBinding = layer.visibleScript.isObject() || layer.alphaScript.isObject()
+                                 || (layer.scaleScript.isObject()
+                                     && layer.scaleScript.toObject().contains(QStringLiteral("script")));
         // Alpha/opacity: SceneScript animates "alpha" ({script, value} blocks
         // included); layers at zero alpha are hidden. The old "opacity" key
         // does not exist in scene.json.
         {
             double alpha = 1.0;
             if (obj.contains(QStringLiteral("alpha"))) {
-                alpha = jsEngine.evaluateScriptNumber(obj.value(QStringLiteral("alpha")), 1.0);
+                alpha = jsEngine->evaluateScriptNumber(obj.value(QStringLiteral("alpha")), 1.0);
             } else if (obj.contains(QStringLiteral("opacity"))) {
-                alpha = jsEngine.evaluateScriptNumber(obj.value(QStringLiteral("opacity")), 1.0);
+                alpha = jsEngine->evaluateScriptNumber(obj.value(QStringLiteral("opacity")), 1.0);
             }
             layer.opacity = static_cast<float>(std::clamp(alpha, 0.0, 1.0));
             if (layer.opacity <= 0.001f) {
@@ -332,7 +395,7 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
         {
             QJsonValue scaleVal = obj.value(QStringLiteral("scale"));
             if (scaleVal.isObject() && scaleVal.toObject().contains(QStringLiteral("script"))) {
-                double s = jsEngine.evaluateScriptNumber(scaleVal, 1.0);
+                double s = jsEngine->evaluateScriptNumber(scaleVal, 1.0);
                 layer.scale = QVector3D(static_cast<float>(s), static_cast<float>(s), static_cast<float>(s));
                 if (std::abs(s) <= 0.001) {
                     layer.visible = false;
@@ -363,7 +426,41 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
         if (!textObj.isEmpty() || layer.isClock || layer.isDate) {
             layer.isText = true;
             layer.textContent = textObj.value(QStringLiteral("value")).toString().toStdString();
+            // Text objects are usually SceneScript modules whose update()
+            // returns the display string (24h/12h clocks, locale dates).
+            if (textObj.contains(QStringLiteral("script"))) {
+                layer.textScript = textObj;
+                layer.hasScriptBinding = true;
+                QString rendered = jsEngine->evaluateScriptString(
+                    textObj, QString::fromStdString(layer.textContent));
+                if (!rendered.isEmpty()) layer.textContent = rendered.toStdString();
+            }
             layer.fontSize = static_cast<float>(obj.value(QStringLiteral("pointsize")).toDouble(24.0));
+            if (obj.contains(QStringLiteral("color"))) {
+                QVector3D c = parseVector3D(obj.value(QStringLiteral("color")));
+                layer.textColor = QColor::fromRgbF(qBound(0.0f, c.x(), 1.0f),
+                                                  qBound(0.0f, c.y(), 1.0f),
+                                                  qBound(0.0f, c.z(), 1.0f));
+            }
+            if (obj.contains(QStringLiteral("backgroundcolor"))) {
+                QVector3D c = parseVector3D(obj.value(QStringLiteral("backgroundcolor")));
+                layer.backgroundColor = QColor::fromRgbF(qBound(0.0f, c.x(), 1.0f),
+                                                        qBound(0.0f, c.y(), 1.0f),
+                                                        qBound(0.0f, c.z(), 1.0f));
+            }
+            layer.opaqueBackground = obj.value(QStringLiteral("opaquebackground")).toBool(false);
+            {
+                const QString h = obj.value(QStringLiteral("horizontalalign")).toString();
+                const QString v = obj.value(QStringLiteral("verticalalign")).toString();
+                Qt::Alignment horiz = Qt::AlignHCenter;
+                Qt::Alignment vert = Qt::AlignVCenter;
+                if (h == QLatin1String("left")) horiz = Qt::AlignLeft;
+                else if (h == QLatin1String("right")) horiz = Qt::AlignRight;
+                if (v == QLatin1String("top")) vert = Qt::AlignTop;
+                else if (v == QLatin1String("bottom")) vert = Qt::AlignBottom;
+                layer.textAlign = horiz | vert;
+            }
+            resolveTextFont(pkgReader, obj.value(QStringLiteral("font")).toString(), layer);
             generateLiveTextImage(layer);
             outScene.totalVisualObjectsDeclared++;
             outScene.layers.push_back(std::move(layer));
@@ -395,6 +492,7 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
                         n.contains(QStringLiteral("drag")) || n.contains(QStringLiteral("interactive")) ||
                         n.contains(QStringLiteral("bar"))) {
                         layer.visible = false;
+                        layer.baseVisible = false;
                     }
                 }
             } else if (targetModel.find("composelayer") != std::string::npos || 
@@ -431,6 +529,7 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
         QString layerNameLower = QString::fromStdString(layer.name).toLower();
         if (layerNameLower.contains(QStringLiteral("bloqueo")) || layerNameLower.contains(QStringLiteral("boundary")) || layerNameLower.contains(QStringLiteral("collision"))) {
             layer.visible = false;
+            layer.baseVisible = false;
         }
 
         if (!layer.image.isNull() && !layer.isCompositionLayer) {
@@ -555,6 +654,9 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
     std::cout << "SceneParser: Parsed " << outScene.layers.size() << "/" << outScene.totalVisualObjectsDeclared 
               << " visual layers and " << outScene.emitters.size() << "/" << outScene.totalParticleEmittersDeclared 
               << " particle emitters" << std::endl;
+    // Hand the seeded script runtime to the scene so the compositor can tick
+    // scripted properties per frame (shared state and init() already run).
+    outScene.jsEngine = std::move(jsEngine);
     return true;
 }
 

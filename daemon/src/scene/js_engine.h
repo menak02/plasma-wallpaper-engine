@@ -52,8 +52,16 @@ public:
     /**
      * Evaluate a numeric property (alpha, scale, ...) honoring plain values,
      * user bindings and {"script": "..."} modules (update(value) return).
+     * settle=true lets easing animations converge (load time); settle=false
+     * performs a single update() tick (per-frame runtime).
      */
-    double evaluateScriptNumber(const QJsonValue& propVal, double fallback);
+    double evaluateScriptNumber(const QJsonValue& propVal, double fallback, bool settle = true);
+
+    /**
+     * Evaluate a string property (text objects) — script modules return the
+     * display string from update().
+     */
+    QString evaluateScriptString(const QJsonValue& propVal, const QString& fallback, bool settle = true);
 
     /**
      * Run a script module's init() early (scene pass 1) so controller

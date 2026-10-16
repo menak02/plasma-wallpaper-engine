@@ -332,7 +332,7 @@ void JSEngine::registerScript(const QString& scriptCode) {
     }
 }
 
-double JSEngine::evaluateScriptNumber(const QJsonValue& propVal, double fallback) {
+double JSEngine::evaluateScriptNumber(const QJsonValue& propVal, double fallback, bool settle) {
     if (propVal.isDouble()) return propVal.toDouble();
     if (!propVal.isObject()) return fallback;
 
@@ -352,10 +352,11 @@ double JSEngine::evaluateScriptNumber(const QJsonValue& propVal, double fallback
 
     if (obj.contains(QStringLiteral("script"))) {
         QJSValue result;
-        // Let animated scripts settle: SceneScript update() implementations
-        // ease toward a target over ticks; a few extra ticks give the state
-        // a static render would see after a second of runtime.
-        for (int i = 0; i < 8; ++i) {
+        // Let animated scripts settle at load: SceneScript update()
+        // implementations ease toward a target over ticks; a few extra ticks
+        // give the state a static render would see after a second of runtime.
+        const int ticks = settle ? 8 : 1;
+        for (int i = 0; i < ticks; ++i) {
             QJSValue r = callModule(obj[QStringLiteral("script")].toString(), QJSValue(fallback));
             if (r.isNumber() || r.isBool()) result = r;
         }
@@ -365,6 +366,34 @@ double JSEngine::evaluateScriptNumber(const QJsonValue& propVal, double fallback
     }
 
     return obj.contains(QStringLiteral("value")) ? obj[QStringLiteral("value")].toDouble(fallback) : fallback;
+}
+
+QString JSEngine::evaluateScriptString(const QJsonValue& propVal, const QString& fallback, bool settle) {
+    if (propVal.isString()) return propVal.toString();
+    if (!propVal.isObject()) return fallback;
+
+    QJsonObject obj = propVal.toObject();
+    if (obj.contains(QStringLiteral("user"))) {
+        QString propName;
+        if (obj[QStringLiteral("user")].isString()) {
+            propName = obj[QStringLiteral("user")].toString();
+        } else {
+            propName = obj[QStringLiteral("user")].toObject().value(QStringLiteral("name")).toString();
+        }
+        auto it = m_properties.find(propName.toStdString());
+        if (it != m_properties.end()) return it->second.toString();
+        return obj.contains(QStringLiteral("value")) ? obj[QStringLiteral("value")].toVariant().toString() : fallback;
+    }
+    if (obj.contains(QStringLiteral("script"))) {
+        const int ticks = settle ? 8 : 1;
+        QJSValue result;
+        for (int i = 0; i < ticks; ++i) {
+            QJSValue r = callModule(obj[QStringLiteral("script")].toString(), QJSValue(fallback));
+            if (!r.isUndefined() && !r.isNull()) result = r;
+        }
+        if (!result.isUndefined() && !result.isNull()) return result.toString();
+    }
+    return obj.contains(QStringLiteral("value")) ? obj[QStringLiteral("value")].toVariant().toString() : fallback;
 }
 
 bool JSEngine::evaluateScript(const QString& scriptCode, const QVariant& defaultValue) {
