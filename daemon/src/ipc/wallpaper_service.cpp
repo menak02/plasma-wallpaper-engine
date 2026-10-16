@@ -1,6 +1,7 @@
 #include "wallpaper_service.h"
 #include "../assets/tex_parser.h"
 #include "../assets/dxt_decoder.h"
+#include "../scene/pause_gate.h"
 #include <QDebug>
 #include <QFileInfo>
 #include <QDir>
@@ -10,11 +11,30 @@
 #include <QJsonArray>
 #include <QDBusConnectionInterface>
 #include <QDBusReply>
+#include <QStandardPaths>
 
 #include <sys/stat.h>
 #include <unistd.h>
 
 #include <algorithm>
+
+namespace {
+constexpr uint32_t kMaxOutputResolution = 16384;
+
+// Reject zero (0 is not a usable dmabuf dimension) and clamp to a sane
+// ceiling so a hostile D-Bus client cannot ask for a multi-gigabyte image.
+bool sanitizeResolution(uint32_t& width, uint32_t& height) {
+    if (width == 0 || height == 0) return false;
+    width = std::clamp(width, uint32_t{1}, kMaxOutputResolution);
+    height = std::clamp(height, uint32_t{1}, kMaxOutputResolution);
+    return true;
+}
+
+// True when canonicalChild equals canonicalDir or lives inside it.
+bool isPathWithin(const QString& canonicalChild, const QString& canonicalDir) {
+    return canonicalChild == canonicalDir || canonicalChild.startsWith(canonicalDir + u'/');
+}
+}
 
 namespace WallpaperEngine::IPC {
 
@@ -35,6 +55,19 @@ WallpaperService::WallpaperService(Render::VulkanContext* vulkanCtx,
             m_trustedDirs.append(canon);
         }
     }
+
+    // Attach a compositor backend for the pause gate. The backend is
+    // detected from the running session (Hyprland IPC, labwc wlr-IPC, X11
+    // EWMH) rather than hardcoded, so the daemon works unchanged on any of
+    // them. A backend that is present but fails to initialize is skipped in
+    // favour of the next candidate; if none is usable we get nullptr and the
+    // pause gate simply never trips (daemon keeps rendering), which is the
+    // safe fallback.
+    m_backend = Scene::makeCompositorBackend();
+
+    // T5 autostart: bring back the last active wallpaper. Runs through the
+    // ordinary load path, so trust rules and video/web detection all apply.
+    restoreLastWallpaper();
 }
 
 QString WallpaperService::canonicalizePath(const QString& path) const {
@@ -121,6 +154,18 @@ QString WallpaperService::validateTrustRoot(const QString& dirPath) const {
 }
 
 void WallpaperService::updateAndRender(float dt, float time) {
+    // Refresh compositor coverage state once per frame. Without this the
+    // Hyprland backend's monitor/workspace/client snapshots are taken once
+    // at construction and never again, so the pause gate can never see a
+    // fullscreen window arrive or leave.
+    if (m_backend) {
+        m_backend->update();
+    }
+
+    if (!shouldRenderThisFrame()) {
+        return;
+    }
+
     if (m_compositor.hasScene()) {
         m_compositor.updateAndRender(dt, time);
     }
@@ -138,6 +183,62 @@ QDBusUnixFileDescriptor WallpaperService::getBufferFd() {
     return desc;
 }
 
+bool WallpaperService::shouldRenderThisFrame() const {
+    if (!m_backend) {
+        return true;
+    }
+
+    Scene::PauseGateConfig config;
+    config.enabled = m_pauseEnabled.load();
+    config.pauseAllOutputs = m_pauseAllOutputs.load();
+    config.coverageThreshold = m_pauseCoverageThreshold.load();
+    config.muteAudioOnPause = m_pauseMuteAudio.load();
+    return Scene::shouldRender(*m_backend, config);
+}
+
+bool WallpaperService::isOutputCovered(const QString& outputName) const {
+    if (!m_backend) {
+        return false;
+    }
+    return m_backend->isOutputCovered(outputName.toStdString());
+}
+
+QVariantList WallpaperService::getPauseState() const {
+    QVariantList state;
+    QVariantMap map;
+    map[QStringLiteral("enabled")] = m_pauseEnabled.load();
+    map[QStringLiteral("pauseAllOutputs")] = m_pauseAllOutputs.load();
+    map[QStringLiteral("coverageThreshold")] = m_pauseCoverageThreshold.load();
+    map[QStringLiteral("muteAudioOnPause")] = m_pauseMuteAudio.load();
+    state.append(map);
+    return state;
+}
+
+void WallpaperService::updatePauseGate() {
+    const bool paused = !shouldRenderThisFrame();
+    m_audioPlayer.setEnginePaused(paused);
+}
+
+void WallpaperService::setPauseEnabled(bool enabled) {
+    m_pauseEnabled.store(enabled);
+    updatePauseGate();
+}
+
+void WallpaperService::setPauseAllOutputs(bool enabled) {
+    m_pauseAllOutputs.store(enabled);
+    updatePauseGate();
+}
+
+void WallpaperService::setPauseCoverageThreshold(double threshold) {
+    double clamped = std::clamp(threshold, 0.0, 1.0);
+    m_pauseCoverageThreshold.store(clamped);
+}
+
+void WallpaperService::setPauseMuteAudio(bool muted) {
+    m_pauseMuteAudio.store(muted);
+    updatePauseGate();
+}
+
 QVariantMap WallpaperService::getBufferInfo() {
     QVariantMap map;
     if (m_vulkanCtx) {
@@ -153,7 +254,7 @@ QVariantMap WallpaperService::getBufferInfo() {
 
 bool WallpaperService::setResolution(uint32_t width, uint32_t height) {
     if (!authorizeCaller("setResolution", true)) return false;
-    if (!m_vulkanCtx) return false;
+    if (!sanitizeResolution(width, height) || !m_vulkanCtx) return false;
     Render::DmaBufBuffer newBuf;
     if (m_vulkanCtx->setResolution(width, height, newBuf)) {
         m_compositor.setTargetResolution(width, height);
@@ -165,7 +266,7 @@ bool WallpaperService::setResolution(uint32_t width, uint32_t height) {
 
 bool WallpaperService::setResolutionForOutput(const QString& outputName, uint32_t width, uint32_t height) {
     if (!authorizeCaller("setResolutionForOutput", true)) return false;
-    if (!m_vulkanCtx) return false;
+    if (!sanitizeResolution(width, height) || !m_vulkanCtx) return false;
     Render::DmaBufBuffer newBuf;
     if (m_vulkanCtx->setResolutionForOutput(outputName.toStdString(), width, height, newBuf)) {
         qInfo() << "Output" << outputName << "resolution set to" << width << "x" << height;
@@ -202,8 +303,8 @@ QVariantMap WallpaperService::getBufferInfoForOutput(const QString& outputName) 
     return map;
 }
 
-QVariantList WallpaperService::getOutputs() {
-    QVariantList list;
+QStringList WallpaperService::getOutputs() {
+    QStringList list;
     if (m_vulkanCtx) {
         for (const auto& name : m_vulkanCtx->getOutputNames()) {
             list.append(QString::fromStdString(name));
@@ -212,19 +313,27 @@ QVariantList WallpaperService::getOutputs() {
     return list;
 }
 
-void WallpaperService::setMousePosition(float normX, float normY) {
+void WallpaperService::setMousePosition(double normX, double normY) {
     if (!authorizeCaller("setMousePosition", false)) return;
-    m_compositor.setMouseParallax(normX, normY);
+    m_compositor.setMouseParallax(static_cast<float>(normX), static_cast<float>(normY));
 }
 
 bool WallpaperService::startAudioCapture() {
     if (!authorizeCaller("startAudioCapture", false)) return false;
-    return m_compositor.startAudioCapture();
+    if (m_compositor.startAudioCapture()) {
+        // Audio-reactive scene: start probing for other audio activity so
+        // the mute-on-other-audio feature can duck the OST when needed.
+        m_audioPlayer.setAudioActive(true);
+        return true;
+    }
+    return false;
 }
 
 void WallpaperService::stopAudioCapture() {
     if (!authorizeCaller("stopAudioCapture", false)) return;
     m_compositor.stopAudioCapture();
+    // No more audio activity to monitor.
+    m_audioPlayer.setAudioActive(false);
 }
 
 QVariantList WallpaperService::getAudioBands() {
@@ -295,6 +404,25 @@ QVariantList WallpaperService::getAvailableGpus() {
     return list;
 }
 
+bool WallpaperService::loadWallpaperEphemeral(const QString& path) {
+    // Grant one-shot trust for this wallpaper's effective load root — the
+    // directory itself for directory loads, the containing directory for
+    // file loads — then run the ordinary load path, which consumes the
+    // grant on its first gate check. Matching the effective root (not just
+    // the file's parent) keeps a directory load from broadening the grant
+    // to the whole workshop parent. Validated against the canonicalized
+    // path so symlink aliasing cannot smuggle in a different directory.
+    const QString canonical = canonicalizePath(path);
+    if (canonical.isEmpty()) {
+        qWarning() << "WallpaperService: loadWallpaperEphemeral: unresolvable path:" << path;
+        return false;
+    }
+    const QFileInfo info(canonical);
+    m_ephemeralGrant = info.isDir() ? canonical : info.absolutePath();
+    qInfo() << "WallpaperService: ephemeral load grant for:" << m_ephemeralGrant;
+    return loadWallpaper(path);
+}
+
 bool WallpaperService::loadWallpaper(const QString& path) {
     if (!authorizeCaller("loadWallpaper", true)) return false;
     qInfo() << "WallpaperService: Loading wallpaper from:" << path;
@@ -303,7 +431,18 @@ bool WallpaperService::loadWallpaper(const QString& path) {
     // library root (Steam workshop roots, registered custom directories).
     // Canonicalizing first neutralizes symlink and '..' traversal tricks.
     const QString canonical = canonicalizePath(path);
-    if (!isPathAllowed(canonical)) {
+
+    // A one-shot grant from loadWallpaperEphemeral covers exactly this
+    // load's effective root (the wallpaper directory itself, or the parent
+    // of a loaded file); consume it here regardless of whether the load then
+    // succeeds, so a failed attempt can never leave trust behind for a
+    // later call to reuse.
+    const QFileInfo canonInfo(canonical);
+    const QString effectiveRoot = canonInfo.isDir() ? canonical : canonInfo.absolutePath();
+    const bool granted = !m_ephemeralGrant.isEmpty() && effectiveRoot == m_ephemeralGrant;
+    m_ephemeralGrant.clear();
+
+    if (!granted && !isPathAllowed(canonical)) {
         qWarning() << "WallpaperService: rejected untrusted load path:" << path
                    << "(canonical:" << canonical << ")"
                    << "— register its directory via registerTrustedDirectory first.";
@@ -332,9 +471,85 @@ bool WallpaperService::loadWallpaper(const QString& path) {
         return file.endsWith(QStringLiteral(".html")) || type == QStringLiteral("web") || type == QStringLiteral("webwallpaper");
     };
 
-    if (info.suffix().toLower() == QStringLiteral("pkg") || info.isDir()) {
+    // Standalone video wallpaper detection: project.json with "type":"video"
+    // and a loose media file next to it (no scene.pkg archive).
+
+    // A bare media file (mp4/webm/...) passed directly is also a video
+    // wallpaper without any project.json wrapper.
+    const QStringList videoSuffixes = {QStringLiteral("mp4"), QStringLiteral("webm"),
+                                       QStringLiteral("mkv"), QStringLiteral("mov"),
+                                       QStringLiteral("avi")};
+    const bool bareMediaFile = info.isFile() && videoSuffixes.contains(info.suffix().toLower());
+
+    // Standalone video wallpaper: either a bare media file or a directory /
+    // project.json whose project.json declares type=video. The media file
+    // sits next to project.json inside the workshop item directory.
+    QString videoProjectFile;
+    if (bareMediaFile) {
+        videoProjectFile = canonical;
+    } else if (info.suffix().toLower() == QStringLiteral("json")) {
+        const QString fileRef = [&]() {
+            QFile f(canonical);
+            if (!f.open(QIODevice::ReadOnly)) return QString();
+            const QJsonObject obj = QJsonDocument::fromJson(f.readAll()).object();
+            return obj.value(QStringLiteral("file")).toString();
+        }();
+        if (!fileRef.isEmpty() && videoSuffixes.contains(QFileInfo(fileRef).suffix().toLower())) {
+            // The file reference comes from attacker-controlled project.json:
+            // resolve it, canonicalize, and require it to stay inside this
+            // wallpaper's own directory before it is ever opened.
+            const QString candidate = QFileInfo(canonical).dir().filePath(fileRef);
+            const QString videoCanonical = QFileInfo(candidate).canonicalFilePath();
+            if (videoCanonical.isEmpty() || !isPathWithin(videoCanonical, QFileInfo(canonical).absolutePath())) {
+                qWarning() << "WallpaperService: video reference escapes wallpaper directory, ignoring:" << fileRef;
+            } else {
+                videoProjectFile = videoCanonical;
+            }
+        }
+    } else if (info.isDir()) {
+        const QString projPath = canonical + QStringLiteral("/project.json");
+        QFile f(projPath);
+        if (f.open(QIODevice::ReadOnly)) {
+            const QJsonObject obj = QJsonDocument::fromJson(f.readAll()).object();
+            const QString fileRef = obj.value(QStringLiteral("file")).toString();
+            const QString type = obj.value(QStringLiteral("type")).toString().toLower();
+            if (type == QStringLiteral("video") && !fileRef.isEmpty()) {
+                // Same containment rule as the project.json file-ref branch:
+                // the video must stay inside the wallpaper's own directory.
+                const QString candidate = QFileInfo(projPath).dir().filePath(fileRef);
+                const QString videoCanonical = QFileInfo(candidate).canonicalFilePath();
+                if (videoCanonical.isEmpty() || !isPathWithin(videoCanonical, canonical)) {
+                    qWarning() << "WallpaperService: video reference escapes wallpaper directory, ignoring:" << fileRef;
+                } else {
+                    videoProjectFile = videoCanonical;
+                }
+            }
+        }
+    }
+
+    if (!videoProjectFile.isEmpty() && QFile::exists(videoProjectFile)) {
+        // Pull general.properties from the wrapping project.json when present
+        // so getWallpaperProperties keeps working for video wallpapers.
+        const QString projPath = info.suffix().toLower() == QStringLiteral("json")
+                                     ? canonical
+                                     : QFileInfo(videoProjectFile).dir().filePath(QStringLiteral("project.json"));
+        QFile pf(projPath);
+        if (pf.open(QIODevice::ReadOnly)) {
+            const QJsonObject obj = QJsonDocument::fromJson(pf.readAll()).object();
+            title = obj.value(QStringLiteral("title")).toString();
+            m_activeProperties = obj.value(QStringLiteral("general")).toObject()
+                                     .value(QStringLiteral("properties")).toObject().toVariantMap();
+        }
+
+        if (m_compositor.loadVideo(videoProjectFile.toStdString())) {
+            qInfo() << "WallpaperService: video wallpaper active:" << videoProjectFile;
+        } else {
+            qWarning() << "WallpaperService: failed to open video wallpaper:" << videoProjectFile;
+            return false;
+        }
+    } else if (info.suffix().toLower() == QStringLiteral("pkg") || info.isDir()) {
         QString pkgFile = info.isDir() ? (canonical + QStringLiteral("/scene.pkg")) : canonical;
-        
+
         if (QFile::exists(pkgFile) && m_pkgReader.open(pkgFile.toStdString())) {
             // Load Project metadata
             std::string projJson = m_pkgReader.readTextFile("project.json");
@@ -407,8 +622,43 @@ bool WallpaperService::loadWallpaper(const QString& path) {
     }
 
     qInfo() << "WallpaperService: Successfully loaded wallpaper:" << title;
+    persistActiveWallpaperState();
     Q_EMIT wallpaperLoaded(title);
     return true;
+}
+
+// Session state lives in a small file under the user's config directory so
+// the daemon can restore the last wallpaper after login (T5 autostart).
+QString WallpaperService::lastWallpaperStatePath() const {
+    return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation)
+        + QStringLiteral("/last-wallpaper");
+}
+
+void WallpaperService::persistActiveWallpaperState() {
+    const QString statePath = lastWallpaperStatePath();
+    if (QDir().mkpath(QFileInfo(statePath).absolutePath())) {
+        QFile f(statePath);
+        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+            f.write(m_activeWallpaperId.toUtf8());
+        }
+    }
+}
+
+void WallpaperService::restoreLastWallpaper() {
+    QFile f(lastWallpaperStatePath());
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return;
+    }
+    const QString saved = QString::fromUtf8(f.readAll()).trimmed();
+    if (saved.isEmpty()) {
+        return;
+    }
+    qInfo() << "WallpaperService: restoring last wallpaper from session state:" << saved;
+    // loadWallpaper re-runs the full trust gate, so a stale path pointing
+    // outside the allowlist (or deleted from disk) is simply rejected.
+    if (!loadWallpaper(saved)) {
+        qWarning() << "WallpaperService: could not restore last wallpaper; starting empty";
+    }
 }
 
 void WallpaperService::requestFrame() {

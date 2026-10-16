@@ -13,6 +13,10 @@
 
 namespace WallpaperEngine::Render {
 
+namespace {
+constexpr size_t kMaxOutputTargets = 16;
+}
+
 VulkanContext::VulkanContext() = default;
 
 VulkanContext::~VulkanContext() {
@@ -106,7 +110,13 @@ bool VulkanContext::initInstance() {
     appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.pEngineName = "AGY Engine";
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.apiVersion = VK_API_VERSION_1_2;
+    // 1.3, not 1.2: the dmabuf export path uses vkCmdBlitImage2, which is core
+    // in 1.3. Asking for 1.2 left the loader free to hand back a NULL
+    // trampoline for it -- fine on the NVIDIA driver, a segfault on lavapipe.
+    // Request 1.3 but tolerate a loader that caps lower; the blit resolves
+    // through vkGetDeviceProcAddr and degrades with an error instead of a
+    // crash if it is genuinely unavailable.
+    appInfo.apiVersion = VK_API_VERSION_1_3;
 
     std::vector<const char*> extensions = {
         VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
@@ -147,7 +157,7 @@ std::vector<GpuDeviceInfo> VulkanContext::getAvailableGpus() const {
         info.name = props.deviceName;
         info.isDiscrete = (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU);
 
-        // Check for extension support
+        // Extension support check.
         uint32_t extCount = 0;
         vkEnumerateDeviceExtensionProperties(devices[i], nullptr, &extCount, nullptr);
         std::vector<VkExtensionProperties> exts(extCount);
@@ -181,7 +191,7 @@ bool VulkanContext::selectPhysicalDevice(int preferredGpuIndex) {
     if (preferredGpuIndex >= 0 && preferredGpuIndex < static_cast<int>(deviceCount)) {
         m_physicalDevice = devices[preferredGpuIndex];
     } else {
-        // Auto-select: Discrete GPU (NVIDIA / AMD) first, fallback to Integrated (Intel / AMD APU)
+        // Auto-select: discrete GPU first, fallback to integrated.
         for (const auto& dev : devices) {
             VkPhysicalDeviceProperties props;
             vkGetPhysicalDeviceProperties(dev, &props);
@@ -410,6 +420,10 @@ bool VulkanContext::setResolution(uint32_t width, uint32_t height, DmaBufBuffer&
 }
 
 void VulkanContext::destroyStagingBuffer(StagingBuffer& staging) {
+    if (staging.mapped != nullptr && staging.memory != VK_NULL_HANDLE) {
+        vkUnmapMemory(m_device, staging.memory);
+        staging.mapped = nullptr;
+    }
     if (staging.buffer != VK_NULL_HANDLE) {
         vkDestroyBuffer(m_device, staging.buffer, nullptr);
         staging.buffer = VK_NULL_HANDLE;
@@ -418,6 +432,7 @@ void VulkanContext::destroyStagingBuffer(StagingBuffer& staging) {
         vkFreeMemory(m_device, staging.memory, nullptr);
         staging.memory = VK_NULL_HANDLE;
     }
+    staging.size = 0;
     staging.width = 0;
     staging.height = 0;
 }
@@ -438,49 +453,60 @@ bool VulkanContext::createStagingBuffer(StagingBuffer& staging, const uint8_t* b
 
     const VkDeviceSize imageSize = VkDeviceSize(width) * height * 4;
 
-    VkBufferCreateInfo bufferInfo{};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = imageSize;
-    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    if (vkCreateBuffer(m_device, &bufferInfo, nullptr, &staging.buffer) != VK_SUCCESS) {
-        return false;
-    }
-
-    VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(m_device, staging.buffer, &memRequirements);
-
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    const uint32_t memType = findMemoryType(memRequirements.memoryTypeBits,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    if (memType == UINT32_MAX) {
+    // Persistent staging (H6): keep the allocation and its mapping across
+    // frames and recreate only when the target grows — the steady-state
+    // upload is just the row copy below. Callers serialize with the previous
+    // submit (waitFrameFence) before writing.
+    if (staging.buffer == VK_NULL_HANDLE || staging.mapped == nullptr || staging.size < imageSize) {
         destroyStagingBuffer(staging);
-        return false;
-    }
-    allocInfo.memoryTypeIndex = memType;
 
-    if (vkAllocateMemory(m_device, &allocInfo, nullptr, &staging.memory) != VK_SUCCESS) {
-        destroyStagingBuffer(staging);
-        return false;
+        VkBufferCreateInfo bufferInfo{};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = imageSize;
+        bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vkCreateBuffer(m_device, &bufferInfo, nullptr, &staging.buffer) != VK_SUCCESS) {
+            return false;
+        }
+
+        VkMemoryRequirements memRequirements;
+        vkGetBufferMemoryRequirements(m_device, staging.buffer, &memRequirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        const uint32_t memType = findMemoryType(memRequirements.memoryTypeBits,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        if (memType == UINT32_MAX) {
+            destroyStagingBuffer(staging);
+            return false;
+        }
+        allocInfo.memoryTypeIndex = memType;
+
+        if (vkAllocateMemory(m_device, &allocInfo, nullptr, &staging.memory) != VK_SUCCESS) {
+            destroyStagingBuffer(staging);
+            return false;
+        }
+
+        if (vkBindBufferMemory(m_device, staging.buffer, staging.memory, 0) != VK_SUCCESS) {
+            destroyStagingBuffer(staging);
+            return false;
+        }
+
+        void* data = nullptr;
+        if (vkMapMemory(m_device, staging.memory, 0, VK_WHOLE_SIZE, 0, &data) != VK_SUCCESS || data == nullptr) {
+            destroyStagingBuffer(staging);
+            return false;
+        }
+        staging.mapped = data;
+        staging.size = imageSize;
     }
 
-    if (vkBindBufferMemory(m_device, staging.buffer, staging.memory, 0) != VK_SUCCESS) {
-        destroyStagingBuffer(staging);
-        return false;
-    }
-
-    void* data = nullptr;
-    if (vkMapMemory(m_device, staging.memory, 0, imageSize, 0, &data) != VK_SUCCESS || data == nullptr) {
-        destroyStagingBuffer(staging);
-        return false;
-    }
     // Stride-safe copy: QImage rows may be padded beyond width * 4.
     // The staging buffer must hold B,G,R,A bytes on every endianness, while
     // Format_ARGB32 rows are host-order words — swap bytes on big-endian.
-    auto* dst = static_cast<uint8_t*>(data);
+    auto* dst = static_cast<uint8_t*>(staging.mapped);
     const size_t rowBytes = size_t(width) * 4;
     for (uint32_t y = 0; y < height; ++y) {
         const uint8_t* srcRow = bgraPixels + size_t(y) * rowStride;
@@ -496,7 +522,6 @@ bool VulkanContext::createStagingBuffer(StagingBuffer& staging, const uint8_t* b
         std::memcpy(dstRow, srcRow, rowBytes);
 #endif
     }
-    vkUnmapMemory(m_device, staging.memory);
 
     staging.width = width;
     staging.height = height;
@@ -511,8 +536,9 @@ bool VulkanContext::uploadSceneImage(uint32_t width, uint32_t height, std::span<
         return false;
     }
 
-    // Waits on the frame fence before freeing the previous staging buffers.
-    clearSceneImage();
+    // Persistent staging survives across frames — only wait out an in-flight
+    // submit before overwriting it (C1).
+    waitFrameFence();
 
     QImage srcImg(rgbaPixels.data(), width, height, width * 4, QImage::Format_RGBA8888);
 
@@ -532,13 +558,11 @@ bool VulkanContext::uploadSceneImage(uint32_t width, uint32_t height, std::span<
     // Every target gets a staging texture at its own resolution so each copy
     // covers the full extent (C5), not just the legacy buffer's corner.
     if (!uploadFor(m_sharedStaging, m_currentBuffer.width, m_currentBuffer.height)) {
-        clearSceneImage();
         return false;
     }
     for (auto& [name, target] : m_outputTargets) {
         if (target.image == VK_NULL_HANDLE) continue;
         if (!uploadFor(target.staging, target.buffer.width, target.buffer.height)) {
-            clearSceneImage();
             return false;
         }
     }
@@ -626,7 +650,7 @@ void VulkanContext::renderFrame(float time) {
         vkCmdCopyBufferToImage(m_commandBuffer, target.staging, image,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
     } else {
-        // Render diagnostic pulsating color pattern
+        // Diagnostic pulsating color when no scene image is available.
         VkClearColorValue clearColor{};
         clearColor.float32[0] = std::sin(time) * 0.5f + 0.5f;
         clearColor.float32[1] = std::sin(time + 2.0f) * 0.5f + 0.5f;
@@ -643,7 +667,7 @@ void VulkanContext::renderFrame(float time) {
         vkCmdClearColorImage(m_commandBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearColor, 1, &range);
     }
 
-    // Transition to GENERAL for zero-copy reading
+    // Transition to GENERAL for zero-copy reads.
     barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -678,13 +702,23 @@ bool VulkanContext::setResolutionForOutput(const std::string& outputName, uint32
     if (outputName.empty() || width == 0 || height == 0) return false;
 
     auto it = m_outputTargets.find(outputName);
-    if (it != m_outputTargets.end()) {
+    const bool isNewOutput = (it == m_outputTargets.end());
+    if (!isNewOutput) {
         const auto& buf = it->second.buffer;
         if (buf.width == width && buf.height == height && it->second.image != VK_NULL_HANDLE) {
             outBuffer = buf;
             return true; // already correct size
         }
         destroyOutputTarget(it->second);
+    }
+
+    // Cap distinct registered outputs so a hostile D-Bus client cannot grow
+    // the registry (and its per-output GPU allocations) without bound. An
+    // existing output being resized is exempt: it already has an entry.
+    if (isNewOutput && m_outputTargets.size() >= kMaxOutputTargets) {
+        std::cerr << "VulkanContext: refusing to register output '" << outputName
+                  << "': at " << kMaxOutputTargets << " output limit" << std::endl;
+        return false;
     }
 
     OutputTarget target;
@@ -722,6 +756,112 @@ std::vector<std::string> VulkanContext::getOutputNames() const {
         names.push_back(name);
     }
     return names;
+}
+
+bool VulkanContext::blitIntoSharedImage(VkImage srcImage, uint32_t srcWidth, uint32_t srcHeight) {
+    if (m_sharedImage == VK_NULL_HANDLE || srcImage == VK_NULL_HANDLE) return false;
+    if (m_currentBuffer.width == 0 || m_currentBuffer.height == 0) return false;
+
+    vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, UINT64_MAX);
+    vkResetFences(m_device, 1, &m_fence);
+    vkResetCommandBuffer(m_commandBuffer, 0);
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    vkBeginCommandBuffer(m_commandBuffer, &beginInfo);
+
+    std::vector<VkImage> targets;
+    targets.reserve(1 + m_outputTargets.size());
+    targets.push_back(m_sharedImage);
+    for (auto& [name, target] : m_outputTargets) {
+        if (target.image != VK_NULL_HANDLE && target.image != m_sharedImage) {
+            targets.push_back(target.image);
+        }
+    }
+
+    for (VkImage image : targets) {
+        // IMPORT: general (external reader layout) -> transfer dst
+        VkImageMemoryBarrier toDst{};
+        toDst.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        toDst.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+        toDst.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        toDst.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toDst.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toDst.image = image;
+        toDst.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        toDst.subresourceRange.levelCount = 1;
+        toDst.subresourceRange.layerCount = 1;
+        toDst.srcAccessMask = 0;
+        toDst.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        vkCmdPipelineBarrier(m_commandBuffer,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0, 0, nullptr, 0, nullptr, 1, &toDst);
+
+        // Src arrives in SHADER_READ_ONLY from the compositor's render pass
+        VkBlitImageInfo2 blit{};
+        blit.sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2;
+        blit.srcImage = srcImage;
+        blit.srcImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        blit.dstImage = image;
+        blit.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        blit.regionCount = 1;
+        VkImageBlit2 region{};
+        region.sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2;
+        region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.srcSubresource.layerCount = 1;
+        region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.dstSubresource.layerCount = 1;
+        region.srcOffsets[0] = {0, 0, 0};
+        region.srcOffsets[1] = {static_cast<int32_t>(srcWidth), static_cast<int32_t>(srcHeight), 1};
+        region.dstOffsets[0] = {0, 0, 0};
+        region.dstOffsets[1] = {static_cast<int32_t>(m_currentBuffer.width), static_cast<int32_t>(m_currentBuffer.height), 1};
+        blit.pRegions = &region;
+        blit.filter = VK_FILTER_LINEAR;
+
+        // vkCmdBlitImage2 is core in Vulkan 1.3, but the instance above is
+        // created as VK_API_VERSION_1_2. Calling the core symbol directly
+        // therefore dereferences a NULL loader trampoline on any driver that
+        // does not export it for a 1.2 instance -- which is exactly what
+        // lavapipe does, and it segfaulted here. Resolve it through the
+        // device instead, and refuse the frame if the driver is too old
+        // rather than crashing.
+        static PFN_vkCmdBlitImage2 fnBlitImage2 =
+            reinterpret_cast<PFN_vkCmdBlitImage2>(
+                vkGetDeviceProcAddr(m_device, "vkCmdBlitImage2"));
+        if (!fnBlitImage2) {
+            std::cerr << "VulkanContext: vkCmdBlitImage2 unavailable "
+                         "(driver lacks Vulkan 1.3); cannot export dmabuf"
+                      << std::endl;
+            return false;
+        }
+        fnBlitImage2(m_commandBuffer, &blit);
+
+        // EXPORT: back to GENERAL for zero-copy dmabuf consumers
+        VkImageMemoryBarrier toGeneral{};
+        toGeneral.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        toGeneral.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        toGeneral.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        toGeneral.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toGeneral.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toGeneral.image = image;
+        toGeneral.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        toGeneral.subresourceRange.levelCount = 1;
+        toGeneral.subresourceRange.layerCount = 1;
+        toGeneral.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        toGeneral.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        vkCmdPipelineBarrier(m_commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+            0, 0, nullptr, 0, nullptr, 1, &toGeneral);
+    }
+
+    vkEndCommandBuffer(m_commandBuffer);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &m_commandBuffer;
+    vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fence);
+    return true;
 }
 
 } // namespace WallpaperEngine::Render

@@ -13,9 +13,9 @@
 
 static QDBusInterface* serviceInterface() {
     auto* iface = new QDBusInterface(
-        QStringLiteral("org.antigravity.WallpaperEngine"),
+        QStringLiteral("org.plasmawallpaperengine.Daemon"),
         QStringLiteral("/WallpaperEngine"),
-        QStringLiteral("org.antigravity.WallpaperEngine"),
+        QStringLiteral("org.plasmawallpaperengine.Daemon"),
         QDBusConnection::sessionBus());
     if (!iface->isValid()) {
         delete iface;
@@ -24,9 +24,6 @@ static QDBusInterface* serviceInterface() {
     return iface;
 }
 
-// The daemon only loads wallpapers from trusted library roots; registering
-// the target file's directory keeps arbitrary CLI paths working while the
-// allowlist still blocks unregistered locations.
 static void ensureDirectoryTrusted(QDBusInterface* iface, const QString& path) {
     const QString dir = QFileInfo(path).absolutePath();
     if (!dir.isEmpty()) {
@@ -49,7 +46,7 @@ static QVariant parsePropertyValue(const QString& raw) {
 static int runListProperties(const QString& id) {
     QDBusInterface* iface = serviceInterface();
     if (!iface) {
-        std::cerr << "Error: daemon not reachable on DBus (org.antigravity.WallpaperEngine)." << std::endl;
+        std::cerr << "Error: daemon not reachable on DBus (org.plasmawallpaperengine.Daemon)." << std::endl;
         return 1;
     }
     QDBusReply<QVariantMap> reply = iface->call(QStringLiteral("getWallpaperProperties"), id);
@@ -89,11 +86,10 @@ static int runSetProperty(const QString& keyValue, const QString& optionalPath) 
 
     QDBusInterface* iface = serviceInterface();
     if (!iface) {
-        std::cerr << "Error: daemon not reachable on DBus (org.antigravity.WallpaperEngine)." << std::endl;
+        std::cerr << "Error: daemon not reachable on DBus (org.plasmawallpaperengine.Daemon)." << std::endl;
         return 1;
     }
 
-    // Optionally load a wallpaper first so the property applies to it live.
     if (!optionalPath.isEmpty()) {
         ensureDirectoryTrusted(iface, optionalPath);
         QDBusReply<bool> loadReply = iface->call(QStringLiteral("loadWallpaper"), optionalPath);
@@ -120,15 +116,18 @@ static int runSetProperty(const QString& keyValue, const QString& optionalPath) 
 }
 
 int main(int argc, char* argv[]) {
+    // Widgets application so QFileDialog can open native dialogs; QQuickView
+    // runs fine under QApplication as well.
     QApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("plasma-wallpaper-engine-viewer"));
     app.setApplicationVersion(QStringLiteral("1.0.0"));
 
     QCommandLineParser parser;
-    parser.setApplicationDescription(QStringLiteral("Plasma Wallpaper Engine - Interactive Standalone Viewer"));
+    parser.setApplicationDescription(QStringLiteral("Plasma Wallpaper Engine - Native Viewer"));
     parser.addHelpOption();
     parser.addVersionOption();
-    parser.addPositionalArgument(QStringLiteral("file"), QStringLiteral("Optional path to .pkg, project.json, or workshop directory."));
+    parser.addPositionalArgument(QStringLiteral("file"),
+                                QStringLiteral("Optional path to .pkg, project.json, or workshop directory."));
 
     QCommandLineOption listPropsOption(
         QStringList() << QStringLiteral("list-properties"),
@@ -150,7 +149,7 @@ int main(int argc, char* argv[]) {
         initialFile = args.first();
     }
 
-    // CLI modes: talk to the daemon over DBus and exit without the GUI.
+    // CLI-only modes: talk to daemon over D-Bus and exit without GUI.
     if (parser.isSet(listPropsOption)) {
         return runListProperties(parser.value(listPropsOption));
     }
@@ -158,9 +157,8 @@ int main(int argc, char* argv[]) {
         return runSetProperty(parser.value(setPropOption), initialFile);
     }
 
+    // GUI mode: show a QML window connected to the daemon.
     ViewerWindow window;
-    window.show();
-
     if (!initialFile.isEmpty()) {
         window.loadPath(initialFile);
     }

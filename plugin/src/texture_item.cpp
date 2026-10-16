@@ -17,9 +17,9 @@ QSGNode *TextureItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
         node = window()->createRectangleNode();
         node->setColor(Qt::black); // Placeholder black screen
     }
-    
+
     // In Phase 2, this will be replaced with a texture node holding the dmabuf FD
     node->setRect(boundingRect());
-    
+
     return node;
 }

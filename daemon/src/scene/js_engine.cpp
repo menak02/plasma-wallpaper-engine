@@ -76,9 +76,9 @@ bool JSEngine::evaluateVisibility(const QVariant& visibleVal) {
     if (visibleVal.typeId() == QMetaType::QJsonValue) {
         return evaluateVisibility(visibleVal.value<QJsonValue>());
     }
-    // Simple boolean / numeric
+    // Boolean / numeric evaluation.
     if (visibleVal.isNull() || !visibleVal.isValid()) return true;
-    // For QVariant bool/int/string
+    // Handles QVariant bool/int/string.
     if (visibleVal.typeId() == QMetaType::Bool) return visibleVal.toBool();
     if (visibleVal.typeId() == QMetaType::QString) {
         QString s = visibleVal.toString().toLower();
@@ -122,7 +122,7 @@ bool JSEngine::evaluateVisibility(const QJsonValue& visibleVal) {
             condVar = userObj[QStringLiteral("condition")].toInt(-1);
         QString propName = userObj[QStringLiteral("name")].toString();
         QVariant defaultValue = obj.contains(QStringLiteral("value")) ? obj[QStringLiteral("value")].toVariant() : QVariant(true);
-        // Build a QJsonObject for evaluateConditionUser compat
+        // Wrap condition into the shape evaluateConditionUser expects.
         QJsonObject tmp;
         tmp[QStringLiteral("name")] = propName;
         tmp[QStringLiteral("condition")] = QJsonValue::fromVariant(condVar);
@@ -165,8 +165,8 @@ QVariant JSEngine::evaluateProperty(const QVariant& propVal) {
     if (obj.contains("user") && obj["user"].isObject()) {
         QVariant userObj = obj["user"].toVariant();
         QVariant defaultValue = obj.contains("value") ? obj["value"].toVariant() : QVariant();
-        // For simplicity, return default for now
-        // Full implementation would need combo logic
+        // Return default until full evaluation is wired.
+        // TBD: combine multiple conditions.
         Q_UNUSED(userObj);
         return defaultValue;
     }
@@ -203,9 +203,7 @@ bool JSEngine::evaluateConditionUser(const QVariant& userObj, const QVariant& de
     if (propVal.canConvert<int>() || propVal.typeId() == QMetaType::Int) {
         int intValue = propVal.toInt();
         return (intValue == condition);
-    }
-
-    // For boolean properties, condition "1" means true
+    }        // Boolean property: condition "1" means true.
     if (propVal.canConvert<bool>()) {
         bool boolVal = propVal.toBool();
         return (condition == 1 && boolVal) || (condition == 0 && !boolVal);

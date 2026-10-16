@@ -30,17 +30,9 @@ void VideoDecoder::close() {
     if (m_swsCtx) { sws_freeContext(m_swsCtx); m_swsCtx = nullptr; }
     if (m_codecCtx) { avcodec_free_context(&m_codecCtx); m_codecCtx = nullptr; }
     if (m_formatCtx) {
-        // Detach custom AVIO before close to avoid double-free on some FFmpeg builds
-        if (m_avioCtx) m_formatCtx->pb = nullptr;
         avformat_close_input(&m_formatCtx);
         m_formatCtx = nullptr;
     }
-    if (m_avioCtx) {
-        avio_context_free(&m_avioCtx);
-        m_avioCtx = nullptr;
-    }
-    m_avioBuffer = nullptr;
-    if (m_avioOpaque) { delete static_cast<AvioContextData*>(m_avioOpaque); m_avioOpaque = nullptr; }
     m_open = false;
 }
 
@@ -169,6 +161,7 @@ bool VideoDecoder::openInternal(int targetWidth, int targetHeight) {
 
     m_width = m_codecCtx->width;
     m_height = m_codecCtx->height;
+    m_sourceHeight = m_codecCtx->height;
 
     std::cerr << "VideoDecoder: Opened " << m_width << "x" << m_height
               << " " << codec->name << std::endl;
@@ -266,6 +259,16 @@ void VideoDecoder::seekToStart() {
     if (!m_open || !m_formatCtx) return;
     av_seek_frame(m_formatCtx, m_videoStreamIdx, 0, AVSEEK_FLAG_BACKWARD);
     avcodec_flush_buffers(m_codecCtx);
+}
+
+double VideoDecoder::framesPerSecond() const {
+    if (!m_open || !m_formatCtx || m_videoStreamIdx < 0) return 30.0;
+    AVStream* st = m_formatCtx->streams[m_videoStreamIdx];
+    AVRational fr = st->avg_frame_rate;
+    if (fr.num <= 0 || fr.den <= 0) fr = st->r_frame_rate;
+    if (fr.num <= 0 || fr.den <= 0) return 30.0;
+    const double fps = av_q2d(fr);
+    return (fps > 0.0 && fps <= 240.0) ? fps : 30.0;
 }
 
 } // namespace WallpaperEngine::Assets

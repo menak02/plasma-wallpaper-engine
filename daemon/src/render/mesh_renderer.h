@@ -48,7 +48,7 @@ public:
 
     // Puppet-warp bone deformation stub. Builds world-space bone matrices
     // (parent chain composed), assigns each grid vertex to its nearest bone(s)
-    // with distance-based weights, and applies identity transform in rest pose
+    // distance-based weights; identity transform in rest pose.
     // so output is bit-identical to an undeformed grid. No GPU/GL involved.
     // Returns false when there are no bones (caller should use the plain path).
     static bool boneWeightedDeform(std::vector<MeshVertex>& vertices,

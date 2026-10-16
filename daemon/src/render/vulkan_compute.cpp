@@ -12,7 +12,7 @@ bool VulkanCompute::init(VulkanContext* vulkanCtx) {
     m_vulkanCtx = vulkanCtx;
     m_device = vulkanCtx->getDevice();
 
-    // In this basic version, we query queue details from context
+    // Query queue details from context..
     m_computeQueueFamily = 0; // assuming graphics/compute queue is 0 (graphics contains compute)
     vkGetDeviceQueue(m_device, m_computeQueueFamily, 0, &m_computeQueue);
 
@@ -144,7 +144,13 @@ bool VulkanCompute::createImage(uint32_t width, uint32_t height, ComputeImage& o
         return false;
     }
 
-    vkBindImageMemory(m_device, outImage.image, outImage.memory, 0);
+    if (vkBindImageMemory(m_device, outImage.image, outImage.memory, 0) != VK_SUCCESS) {
+        vkFreeMemory(m_device, outImage.memory, nullptr);
+        vkDestroyImage(m_device, outImage.image, nullptr);
+        outImage.image = VK_NULL_HANDLE;
+        outImage.memory = VK_NULL_HANDLE;
+        return false;
+    }
 
     // Create Image View
     VkImageViewCreateInfo viewInfo{};

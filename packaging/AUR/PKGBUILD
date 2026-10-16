@@ -1,0 +1,38 @@
+# Maintainer: menak02
+# AUR package for plasma-wallpaper-engine (git build).
+# Install with: makepkg -si  (or via your AUR helper once published)
+
+pkgname=plasma-wallpaper-engine-git
+pkgver=r$(git rev-list --count HEAD 2>/dev/null || echo 0).$(git rev-parse --short HEAD 2>/dev/null || echo 0)
+pkgrel=1
+pkgdesc="Wallpaper Engine for Linux: Vulkan daemon + dmabuf clients (Hyprland layer-shell, Qt viewer, Plasma plugin)"
+arch=('x86_64')
+url="https://github.com/menak02/plasma-wallpaper-engine"
+license=('GPL3')
+depends=('qt6-base' 'qt6-declarative' 'vulkan-icd-loader' 'lz4' 'ffmpeg' 'libpulse')
+makedepends=('git' 'cmake' 'vulkan-headers' 'ninja')
+optdepends=('layer-shell-qt: Hyprland/wlroots desktop layer client'
+            'qt6-webengine: web wallpapers'
+            'qt6-multimedia: extended media support')
+provides=('plasma-wallpaper-engine')
+conflicts=('plasma-wallpaper-engine')
+source=("git+$url.git")
+sha256sums=('SKIP')
+
+pkgver() {
+    cd plasma-wallpaper-engine
+    printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+    cmake -B build -S plasma-wallpaper-engine \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -GNinja
+    cmake --build build
+}
+
+package() {
+    DESTDIR="$pkgdir" cmake --install build
+    install -Dm644 plasma-wallpaper-engine/README.md -t "$pkgdir/usr/share/doc/$pkgname/"
+}

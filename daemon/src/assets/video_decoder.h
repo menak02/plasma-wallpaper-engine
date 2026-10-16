@@ -20,17 +20,21 @@ public:
     VideoDecoder();
     ~VideoDecoder();
 
-    // Open video from raw data (MP4 bytes in memory)
-    bool openFromData(const uint8_t* data, size_t size, int targetWidth, int targetHeight);
-
     // Open video from file path
     bool openFromFile(const std::string& path, int targetWidth, int targetHeight);
+
+    // Open video from an in-memory buffer through custom AVIO callbacks
+    // (the callbacks must clamp seeks — they are what hostile fixtures target)
+    bool openFromData(const uint8_t* data, size_t size, int targetWidth, int targetHeight);
 
     // Decode next frame → QImage (Format_ARGB32). Returns null QImage if no new frame.
     QImage decodeNextFrame();
 
     // Seek to beginning (loop)
     void seekToStart();
+
+    /** Source frame rate; 30 when the container does not say. */
+    double framesPerSecond() const;
 
     // Properties
     int width() const { return m_width; }
@@ -50,13 +54,14 @@ private:
     int m_videoStreamIdx = -1;
     int m_width = 0;
     int m_height = 0;
-    bool m_open = false;
+    int m_sourceHeight = 0;      // decoded frame height; m_height is the scaled output height
+    bool m_open = false;         // Decoder successfully opened.
 
-    // For memory-backed input
+    // Custom AVIO state for openFromData (owned here; cleaned up in close())
     std::vector<uint8_t> m_dataCopy;
-    AVIOContext* m_avioCtx = nullptr;
     unsigned char* m_avioBuffer = nullptr;
-    void* m_avioOpaque = nullptr; // AvioContextData for custom I/O
+    void* m_avioOpaque = nullptr;
+    AVIOContext* m_avioCtx = nullptr;
 };
 
 } // namespace WallpaperEngine::Assets

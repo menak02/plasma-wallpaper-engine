@@ -1,5 +1,5 @@
 qt_add_qml_module(plasma_wallpaper_engine_plugin
-    URI org.antigravity.plasma.wallpaperengine
+    URI org.plasmawallpaperengine
     VERSION 1.0
     SOURCES
         src/texture_item.cpp
@@ -14,5 +14,5 @@ target_link_libraries(plasma_wallpaper_engine_plugin
 )
 target_include_directories(plasma_wallpaper_engine_plugin PRIVATE src)
 
-install(TARGETS plasma_wallpaper_engine_plugin DESTINATION ${KDE_INSTALL_QMLDIR}/org/antigravity/plasma/wallpaperengine)
-install(DIRECTORY package/ DESTINATION ${KDE_INSTALL_DATADIR}/plasma/wallpapers/org.antigravity.plasma.wallpaperengine)
+install(TARGETS plasma_wallpaper_engine_plugin DESTINATION ${KDE_INSTALL_QMLDIR}/org/plasmawallpaperengine)
+install(DIRECTORY package/ DESTINATION ${KDE_INSTALL_DATADIR}/plasma/wallpapers/org.plasmawallpaperengine)

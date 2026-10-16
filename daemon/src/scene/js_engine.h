@@ -80,7 +80,7 @@ public:
     void update(float currentTime, float deltaTime);
 
     /**
-     * Get current hour (0-23) for time-based scripts.
+     * Current hour (0-23) for time-based scripts.
      */
     int getCurrentHour() const { return m_currentHour; }
 

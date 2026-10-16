@@ -163,9 +163,166 @@ bool SceneCompositor::loadScene(Assets::PkgReader& pkgReader, const std::unorder
     m_renderGraph.clear();
     scanPostEffects();
     m_hasScene = true;
-    std::cout << "SceneCompositor: Loaded scene '" << m_scene.title 
-              << "' with " << m_scene.layers.size() << " layers" << std::endl;
+    // GPU/CPU decision is per-scene at load time, never mid-frame.
+    m_gpuCompositing = tryInitGpuCompositing();
+    std::cout << "SceneCompositor: Loaded scene '" << m_scene.title
+              << "' with " << m_scene.layers.size() << " layers"
+              << " [renderer: " << (m_gpuCompositing ? "gpu" : "cpu") << "]" << std::endl;
     return true;
+}
+
+bool SceneCompositor::sceneSupportsGpuCompositing() const {
+    // Mesh-deformation effects (waterwaves/waterripple/wind/foliagesway)
+    // render on the GPU via the deform_quad.vert grid pipeline, matching the
+    // CPU MeshDeformer::deformVertices math. Puppet bones still force the
+    // CPU path; per-layer opacity masks are baked into layer images by the
+    // parser, so they are GPU-safe.
+    for (const auto& layer : m_scene.layers) {
+        if (!layer.bones.empty()) return false;
+    }
+    return true;
+}
+
+bool SceneCompositor::tryInitGpuCompositing() {
+    m_gpuGrain = false;
+    if (!m_vulkanCtx || m_vulkanCtx->getDevice() == VK_NULL_HANDLE) return false;
+    if (!sceneSupportsGpuCompositing()) return false;
+
+    if (!m_gpuCompositor.isInitialized()) {
+        if (!m_gpuCompositor.init(m_vulkanCtx, m_width, m_height)) {
+            std::cerr << "SceneCompositor: GPU compositor init failed (" << m_gpuCompositor.lastError()
+                      << "), staying on QPainter" << std::endl;
+            return false;
+        }
+    }
+    // Film grain moves to the GPU pass for scenes that have it.
+    m_gpuGrain = m_hasFilmGrain;
+    return true;
+}
+
+void SceneCompositor::buildGpuFrame(std::vector<Render::GpuLayer>& gpuLayers,
+                                    std::vector<Render::GpuParticle>& gpuParticles,
+                                    float time) {
+    gpuLayers.clear();
+    gpuParticles.clear();
+
+    float parallaxOffsetX = (m_mouseX - 0.5f) * 35.0f;
+    float parallaxOffsetY = (m_mouseY - 0.5f) * 35.0f;
+    float sceneW = m_scene.sceneWidth > 0.0f ? m_scene.sceneWidth : 3840.0f;
+    float sceneH = m_scene.sceneHeight > 0.0f ? m_scene.sceneHeight : 2160.0f;
+    float scaleX = static_cast<float>(m_width) / sceneW;
+    float scaleY = static_cast<float>(m_height) / sceneH;
+
+    auto mapBlend = [](BlendMode b) -> uint32_t {
+        switch (b) {
+            case BlendMode::Additive: return 1;
+            case BlendMode::Opaque: return 2;
+            default: return 0; // translucent + all unhandled modes (multiply,
+                               // screen, etc.) render as translucent — same
+                               // degradation the CPU path documents.
+        }
+    };
+
+    for (const auto& layer : m_scene.layers) {
+        if (!layer.visible || layer.image.isNull()) continue;
+        float effectiveOpacity = layer.opacity;
+        if (layer.isInteractive) {
+            float mouseDist = std::hypot(m_mouseX - 0.5f, m_mouseY - 0.5f);
+            if (layer.name.find("zombie") != std::string::npos || layer.name.find("mutated") != std::string::npos) {
+                effectiveOpacity *= std::clamp(1.0f - (mouseDist * 2.0f), 0.0f, 1.0f);
+            }
+        }
+        if (effectiveOpacity <= 0.0f) continue;
+
+        // Per-layer animation effects (breath/pulse/shake) — same math as the
+        // CPU painter path so both renderers animate identically.
+        float animOffsetX = 0.0f, animOffsetY = 0.0f, animScale = 1.0f;
+        // Mesh-deform params: the CPU painter applies the LAST visible deform
+        // effect (each one overwrites the flags), so mirror that here.
+        bool hasMeshDeform = false;
+        float deformSpeed = 1.0f, deformStrength = 0.0f, deformDirection = 0.0f;
+        for (const auto& eff : layer.effects) {
+            if (!eff.visible) continue;
+            switch (eff.type) {
+                case EffectType::Breath: {
+                    float breathPhase = time * eff.speed * 2.0f;
+                    animScale *= (1.0f + 0.02f * std::sin(breathPhase));
+                    animOffsetY += std::sin(breathPhase) * 4.0f;
+                    break;
+                }
+                case EffectType::Pulse: {
+                    const float band = m_audioVisualizer.isLive() ? m_audioVisualizer.getBand(0) : 0.0f;
+                    const float pulsePhase = time * eff.speed * 3.0f;
+                    animScale *= (1.0f + eff.strength * std::sin(pulsePhase) + eff.strength * 2.0f * band);
+                    break;
+                }
+                case EffectType::Wind:
+                case EffectType::WaterWaves:
+                case EffectType::WaterRipple:
+                case EffectType::FoliageSway:
+                    hasMeshDeform = true;
+                    deformSpeed = eff.speed;
+                    deformStrength = eff.strength;
+                    deformDirection = eff.direction;
+                    break;
+                case EffectType::Shake: {
+                    float shakePhase = time * eff.speed * 10.0f;
+                    animOffsetX += std::sin(shakePhase * 1.3f) * eff.strength * 5.0f;
+                    animOffsetY += std::cos(shakePhase * 1.7f) * eff.strength * 5.0f;
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+
+        AccumulatedTransform acc = resolveParentTransform(layer, sceneW, sceneH);
+        float finalX = (acc.origin.x() / sceneW) * m_width + parallaxOffsetX * layer.parallaxDepth.x() + animOffsetX;
+        float finalY = ((sceneH - acc.origin.y()) / sceneH) * m_height + parallaxOffsetY * layer.parallaxDepth.y() + animOffsetY;
+
+        float spriteW, spriteH;
+        if (layer.size.x() > 0.0f && layer.size.y() > 0.0f) {
+            spriteW = (layer.size.x() / sceneW) * m_width * acc.scale.x() * animScale;
+            spriteH = (layer.size.y() / sceneH) * m_height * acc.scale.y() * animScale;
+        } else {
+            spriteW = layer.image.width() * scaleX * acc.scale.x() * animScale;
+            spriteH = layer.image.height() * scaleY * acc.scale.y() * animScale;
+        }
+
+        Render::GpuLayer gl;
+        gl.textureIndex = m_gpuCompositor.getOrCreateTexture(layer.image, layer.id);
+        if (gl.textureIndex == UINT32_MAX) continue;
+        gl.centerX = finalX;
+        gl.centerY = finalY;
+        gl.width = spriteW;
+        gl.height = spriteH;
+        gl.rotationRad = acc.angle * 3.14159265f / 180.0f;
+        gl.opacity = std::clamp(effectiveOpacity, 0.0f, 1.0f);
+        gl.blendMode = mapBlend(layer.blending);
+        gl.deformed = hasMeshDeform;
+        gl.deformSpeed = deformSpeed;
+        gl.deformStrength = deformStrength;
+        gl.deformDirection = deformDirection;
+        gpuLayers.push_back(gl);
+    }
+
+    // Particles: the engine owns simulation; the GPU path only translates
+    // its particle list into billboard instances (glow sprite, never a
+    // per-particle texture — same as the CPU default sprite path).
+    const auto& particles = m_particleEngine.particles();
+    const auto& emitters = m_particleEngine.emitters();
+    gpuParticles.reserve(particles.size());
+    for (const auto& p : particles) {
+        if (p.emitterIndex < 0 || p.emitterIndex >= static_cast<int>(emitters.size())) continue;
+        Render::GpuParticle gp;
+        gp.centerX = p.x;
+        gp.centerY = p.y;
+        gp.size = p.size;
+        gp.rotationRad = p.rotation * 3.14159265f / 180.0f;
+        gp.r = p.color.redF(); gp.g = p.color.greenF(); gp.b = p.color.blueF(); gp.a = p.alpha;
+        gp.blendMode = emitters[p.emitterIndex].blending == BlendMode::Additive ? 1 : 0;
+        gpuParticles.push_back(gp);
+    }
 }
 bool SceneCompositor::reloadWithProperties(const std::unordered_map<std::string, QVariant>& props) {
     if (!m_lastPkg) return false;
@@ -206,6 +363,46 @@ bool SceneCompositor::loadWeb(const std::string& html) {
 }
 
 bool SceneCompositor::isWeb() const { return m_isWeb; }
+
+bool SceneCompositor::loadVideo(const std::string& videoFilePath) {
+    auto decoder = std::make_shared<Assets::VideoDecoder>();
+    if (!decoder->openFromFile(videoFilePath, 0, 0)) {
+        std::cerr << "SceneCompositor: failed to open video wallpaper " << videoFilePath << std::endl;
+        return false;
+    }
+
+    m_hasScene = true;
+    m_isWeb = false;
+    m_isVideo = true;
+    m_video = std::move(decoder);
+    m_videoAcc = 0.0f;
+
+    m_scene = SceneDescription{};
+    m_scene.title = "Video Wallpaper";
+    m_scene.sceneWidth = static_cast<float>(m_width);
+    m_scene.sceneHeight = static_cast<float>(m_height);
+
+    // First frame becomes the initial layer image; later frames replace it
+    // in the ~30fps video tick below.
+    QImage first = m_video->decodeNextFrame();
+    if (first.isNull()) {
+        first = QImage(static_cast<int>(m_width), static_cast<int>(m_height), QImage::Format_ARGB32);
+        first.fill(Qt::black);
+    }
+    SceneLayer layer;
+    layer.name = "Video";
+    layer.type = "video";
+    layer.image = std::move(first);
+    layer.visible = true;
+    layer.opacity = 1.0f;
+    layer.origin = QVector3D(m_scene.sceneWidth / 2.0f, m_scene.sceneHeight / 2.0f, 0);
+    layer.size = QVector2D(m_scene.sceneWidth, m_scene.sceneHeight);
+    m_scene.layers.push_back(std::move(layer));
+    m_scene.totalVisualObjectsDeclared = 1;
+
+    std::cout << "SceneCompositor: Loaded video wallpaper " << videoFilePath << std::endl;
+    return true;
+}
 void SceneCompositor::setWebProperty(const QString& key, const QVariant& value) {
     if (m_web) m_web->setProperty(key, value);
 }
@@ -285,6 +482,34 @@ void SceneCompositor::updateAndRender(float dt, float time) {
         }
     }
 
+    // Standalone video wallpaper: advance by wall-clock video time and decode
+    // as many frames as the elapsed time covers. A fixed decode cadence plays
+    // high-fps sources in slow motion. Loop by seeking back to the start on
+    // EOF so the wallpaper plays forever.
+    if (m_isVideo && m_video && !m_scene.layers.empty()) {
+        const double fps = std::max(1.0, m_video->framesPerSecond());
+        m_videoAcc += dt;
+        int steps = static_cast<int>(m_videoAcc * fps);
+        if (steps > 8) {
+            steps = 8; // cap catch-up work after a stall and drop the backlog
+            m_videoAcc = 0.0f;
+        } else if (steps > 0) {
+            m_videoAcc -= static_cast<float>(steps / fps);
+        }
+        for (int i = 0; i < steps; ++i) {
+            QImage next = m_video->decodeNextFrame();
+            if (!next.isNull()) {
+                m_scene.layers[0].image = std::move(next);
+            } else {
+                m_video->seekToStart();
+                QImage retry = m_video->decodeNextFrame();
+                if (!retry.isNull()) {
+                    m_scene.layers[0].image = std::move(retry);
+                }
+            }
+        }
+    }
+
     // Tick video decoders (~30fps, single temp decoder to avoid multi-decoder heap corruption).
     // Decoder lifetime is tied to the scene (cleared in loadScene) so a new
     // wallpaper's colliding layer ids cannot reuse stale decoders (H10).
@@ -321,6 +546,34 @@ void SceneCompositor::updateAndRender(float dt, float time) {
                 }
             }
         }
+    }
+
+    // GPU path: simulate particles, build instances, render on GPU, blit
+    // straight into the dmabuf. Skips the CPU canvas entirely (no QPainter
+    // composite, no 8MB staging upload per frame).
+    if (m_gpuCompositing && m_gpuCompositor.isInitialized()) {
+        m_particleEngine.update(dt, m_width, m_height);
+
+        std::vector<Render::GpuLayer> gpuLayers;
+        std::vector<Render::GpuParticle> gpuParticles;
+        buildGpuFrame(gpuLayers, gpuParticles, time);
+
+        const float clearColor[4] = {
+            m_scene.clearColor.redF(), m_scene.clearColor.greenF(),
+            m_scene.clearColor.blueF(), 1.0f
+        };
+        Render::GpuGrainParams grain;
+        grain.enabled = m_gpuGrain;
+        grain.power = m_grainPower;
+        grain.scale = m_grainScale;
+        grain.frame = std::floor(time);
+
+        if (m_gpuCompositor.renderFrame(gpuLayers, gpuParticles, clearColor, grain, time)
+            && m_gpuCompositor.blitIntoShared()) {
+            return; // dmabuf written; CPU canvas skipped this frame
+        }
+        std::cerr << "SceneCompositor: GPU frame failed, falling back to CPU composite" << std::endl;
+        m_gpuCompositing = false; // don't retry mid-scene; re-decided at next load
     }
 
     // 1. Clear background canvas
@@ -388,7 +641,7 @@ void SceneCompositor::updateAndRender(float dt, float time) {
         // Resolve parent transform chain (accumulated origin/scale/angle)
         AccumulatedTransform acc = resolveParentTransform(layer, sceneW, sceneH);
 
-        // scene-space (center-based, Y-UP) → screen-space (top-left-based, Y-DOWN)
+        // scene-space (center-based, Y-UP) to screen-space (top-left, Y-DOWN).
         float finalX = (acc.origin.x() / sceneW) * m_width + parallaxOffsetX * layer.parallaxDepth.x();
         float finalY = ((sceneH - acc.origin.y()) / sceneH) * m_height + parallaxOffsetY * layer.parallaxDepth.y();
 
@@ -426,7 +679,7 @@ void SceneCompositor::updateAndRender(float dt, float time) {
                 }
                 case EffectType::Pulse: {
                     // Live audio modulates the pulse when capture is active;
-                    // otherwise the deterministic time-based pulse (batch-safe).
+                    // deterministic time-based pulse (batch-safe).
                     const float band = m_audioVisualizer.isLive()
                         ? m_audioVisualizer.getBand(0)
                         : 0.0f;
@@ -510,10 +763,10 @@ void SceneCompositor::updateAndRender(float dt, float time) {
             if (eff.visible && (eff.type == EffectType::GodRays || eff.type == EffectType::Shine)) {
                 painter.save();
                 painter.setCompositionMode(QPainter::CompositionMode_Plus);
-                
+
                 float rayPulse = 0.8f + 0.2f * std::sin(time * eff.speed * 1.5f);
                 float rayRadius = std::max(spriteW, spriteH) * eff.length * rayPulse;
-                
+
                 QRadialGradient rayGrad(0, 0, rayRadius);
                 QColor centerCol = eff.color;
                 centerCol.setAlphaF(std::clamp(eff.intensity * 0.4f * rayPulse, 0.0f, 1.0f));

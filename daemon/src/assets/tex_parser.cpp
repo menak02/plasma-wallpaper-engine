@@ -159,7 +159,9 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
     }
 
     uint32_t imageCount = file.readUInt32();
-    if (imageCount > 4096) return false; // hostile counts spin the parse loops
+    // Bound the work a crafted header can request: a huge count just spins
+    // the parse loop at EOF without consuming input.
+    if (imageCount > 256) return false;
 
     // Ground-truth layout (Almamu parseContainer + parseMipmap): after the
     // body tag and imageCount, TEXB0003 carries one FreeImage format and

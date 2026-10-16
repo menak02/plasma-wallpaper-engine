@@ -13,10 +13,16 @@ compile_commands.json
 
 # Claude session/cache artifacts
 .claude/
+.knowledge/
+.commandcode/
+.cache/
 
 # Verifier output
 *.png.out
 analysis_results.md
+
+# Runtime logs
+nohup.out
 
 # Editor / OS noise
 *.swp

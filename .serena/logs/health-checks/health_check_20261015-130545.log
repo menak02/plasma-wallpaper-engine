@@ -1,0 +1,195 @@
+INFO  2026-10-15 13:05:45,432 serena.cli:health_check:1055 - Starting health check for project: /home/mena/Projects/plasma-wallpaper-engine
+INFO  2026-10-15 13:05:45,432 serena.cli:health_check:1059 - Creating SerenaAgent with disabled dashboard...
+INFO  2026-10-15 13:05:45,433 serena.util.file_system:_load_gitignore_files:306 - Processing .gitignore file: /home/mena/Projects/plasma-wallpaper-engine/.serena/.gitignore
+INFO  2026-10-15 13:05:45,434 serena.util.file_system:stop:336 - Loading of .gitignore files completed in 0.003 seconds
+INFO  2026-10-15 13:05:45,435 serena.project:stop:336 - Gathering ignore spec for project plasma-wallpaper-engine completed in 0.004 seconds
+INFO  2026-10-15 13:05:45,443 serena.agent:__init__:647 - Will record tool usage statistics with token count estimator: CHAR_COUNT.
+INFO  2026-10-15 13:05:45,445 serena.agent:__init__:651 - Starting Serena server (version=2.0.0, process id=35111, parent process id=35109; language backend=LSP); Python version=3.14.4, platform=Linux-7.0.0-38-generic-x86_64-with-glibc2.43
+INFO  2026-10-15 13:05:45,445 serena.agent:__init__:655 - Configuration file: /home/mena/.serena/serena_config.yml
+INFO  2026-10-15 13:05:45,445 serena.agent:__init__:656 - Available projects: plasma-wallpaper-engine
+INFO  2026-10-15 13:05:45,445 serena.agent:__init__:657 - Loaded tools (53): create_text_file, replace_content, replace_in_files, delete_lines, replace_lines, insert_at_line, replace_symbol_body, insert_after_symbol, insert_before_symbol, read_file, list_dir, find_file, search_for_pattern, restart_language_server, get_symbols_overview, find_symbol, find_referencing_symbols, find_implementations, find_declaration, get_diagnostics_for_file, get_diagnostics_for_symbol, rename_symbol, safe_delete_symbol, write_memory, read_memory, list_memories, delete_memory, rename_memory, edit_memory, execute_shell_command, open_dashboard, activate_project, remove_project, get_current_config, onboarding, initial_instructions, serena_info, jet_brains_find_symbol, jet_brains_move, jet_brains_safe_delete, jet_brains_inline_symbol, jet_brains_find_referencing_symbols, jet_brains_get_symbols_overview, jet_brains_type_hierarchy, jet_brains_find_declaration, jet_brains_find_implementations, jet_brains_rename, jet_brains_debug, jet_brains_run_inspections, jet_brains_list_inspections, list_queryable_projects, query_project, serena_repl
+INFO  2026-10-15 13:05:45,445 serena.config.serena_config:determine_language_backend:1575 - Using language backend from global configuration: LSP
+INFO  2026-10-15 13:05:45,445 serena.config.serena_config:determine_agent_interface:1564 - Using agent interface 'REPL' (global configuration)
+INFO  2026-10-15 13:05:45,458 serena.config.serena_config:start:329 - Loading project instance for RegisteredProject[project_root=/home/mena/Projects/plasma-wallpaper-engine, project_config=ProjectConfig[project_name=plasma-wallpaper-engine]] starting ...
+INFO  2026-10-15 13:05:45,458 serena.project:__init__:54 - Serena project data folder: /home/mena/Projects/plasma-wallpaper-engine/.serena
+INFO  2026-10-15 13:05:45,458 serena.project:start:329 - Gathering ignore spec for project plasma-wallpaper-engine starting ...
+INFO  2026-10-15 13:05:45,459 serena.config.serena_config:stop:336 - Loading project instance for RegisteredProject[project_root=/home/mena/Projects/plasma-wallpaper-engine, project_config=ProjectConfig[project_name=plasma-wallpaper-engine]] completed in 0.000 seconds
+INFO  2026-10-15 13:05:45,459 serena.project:_gather_ignorespec:102 - Using 1 ignored paths from the global configuration.
+INFO  2026-10-15 13:05:45,459 serena.util.file_system:start:329 - Loading of .gitignore files starting ...
+INFO  2026-10-15 13:05:45,459 serena.agent:activate_project_from_path_or_name:1535 - Found registered project 'plasma-wallpaper-engine' at path /home/mena/Projects/plasma-wallpaper-engine
+INFO  2026-10-15 13:05:45,459 serena.agent:_activate_project:1423 - Activating plasma-wallpaper-engine at /home/mena/Projects/plasma-wallpaper-engine
+INFO  2026-10-15 13:05:45,459 serena.task_executor:issue_task:219 - Scheduling Task-1:init_project_services
+INFO  2026-10-15 13:05:45,459 serena.agent:_update_active_modes:1287 - Active modes (2): editing, interactive
+INFO  2026-10-15 13:05:45,459 serena.agent:__init__:708 - Number of exposed tools: 3. Exposed tools: ['activate_project', 'initial_instructions', 'serena_repl']
+INFO  2026-10-15 13:05:45,459 serena.agent:_update_active_tools:1310 - Active tools (3): activate_project, initial_instructions, serena_repl
+INFO  2026-10-15 13:05:45,459 serena.util.file_system:_load_gitignore_files:306 - Processing .gitignore file: /home/mena/Projects/plasma-wallpaper-engine/.gitignore
+INFO  2026-10-15 13:05:45,460 serena.cli:health_check:1062 - SerenaAgent created successfully
+INFO  2026-10-15 13:05:45,460 serena.cli:health_check:1065 - Searching for analyzable files...
+INFO  2026-10-15 13:05:45,461 serena.util.file_system:_load_gitignore_files:306 - Processing .gitignore file: /home/mena/Projects/plasma-wallpaper-engine/.serena/.gitignore
+INFO  2026-10-15 13:05:45,463 serena.cli:health_check:1074 - Found analyzable file: daemon/src/main.cpp
+INFO  2026-10-15 13:05:45,463 serena.cli:health_check:1085 - Testing get_symbols_overview on file: daemon/src/main.cpp
+INFO  2026-10-15 13:05:45,463 serena.task_executor:issue_task:219 - Scheduling Task-2:<lambda>
+INFO  2026-10-15 13:05:45,463 serena.util.file_system:stop:336 - Loading of .gitignore files completed in 0.005 seconds
+INFO  2026-10-15 13:05:45,464 serena.project:stop:336 - Gathering ignore spec for project plasma-wallpaper-engine completed in 0.005 seconds
+INFO  2026-10-15 13:05:45,546 serena.task_executor:_process_task_queue:141 - Starting execution of Task-1:init_project_services
+INFO  2026-10-15 13:05:45,546 serena.task_executor:start:329 - Task-1:init_project_services starting ...
+INFO  2026-10-15 13:05:45,546 serena.lsp.lsp_backend:start:329 - Language server initialization starting ...
+INFO  2026-10-15 13:05:45,547 serena.project:create_language_server_manager:667 - Creating language server manager for /home/mena/Projects/plasma-wallpaper-engine
+INFO  2026-10-15 13:05:45,547 sensai.util.logging:start:329 - Language server startup (ls_id=cpp) starting ...
+INFO  2026-10-15 13:05:45,547 serena.ls_manager:create_language_server:60 - Creating language server instance for /home/mena/Projects/plasma-wallpaper-engine, language=cpp.
+INFO  2026-10-15 13:05:45,579 solidlsp.ls:start:3209 - Starting language server cpp for /home/mena/Projects/plasma-wallpaper-engine
+INFO  2026-10-15 13:05:45,580 solidlsp.language_servers.clangd_language_server:_start_server:393 - Starting Clangd server process
+INFO  2026-10-15 13:05:45,580 solidlsp.ls_process:_start:528 - Starting language server process via command: ['/home/mena/.serena/language_servers/static/ClangdLanguageServer/clangd/clangd_19.1.2/bin/clangd', '--background-index']
+INFO  2026-10-15 13:05:45,596 solidlsp.initialize_params:_apply_updates:76 - Workspace folders: ['/home/mena/Projects/plasma-wallpaper-engine']
+INFO  2026-10-15 13:05:45,596 solidlsp.language_servers.clangd_language_server:_start_server:397 - Sending initialize request from LSP client to LSP server and awaiting response
+INFO  2026-10-15 13:05:45,598 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.598] clangd version 19.1.2 (https://github.com/llvm/llvm-project 7ba7d8e2f7b6445b60679da826210cdde29eaf8b)
+
+INFO  2026-10-15 13:05:45,598 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.598] Features: linux+grpc
+
+INFO  2026-10-15 13:05:45,599 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.598] PID: 35123
+
+INFO  2026-10-15 13:05:45,599 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.598] Working directory: /home/mena/Projects/plasma-wallpaper-engine
+
+INFO  2026-10-15 13:05:45,599 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.598] argv[0]: /home/mena/.serena/language_servers/static/ClangdLanguageServer/clangd/clangd_19.1.2/bin/clangd
+
+INFO  2026-10-15 13:05:45,599 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.598] argv[1]: --background-index
+
+INFO  2026-10-15 13:05:45,599 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.598] Starting LSP over stdin/stdout
+
+INFO  2026-10-15 13:05:45,599 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.598] <-- initialize(1)
+
+INFO  2026-10-15 13:05:45,599 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.599] --> reply:initialize(1) 0 ms
+
+INFO  2026-10-15 13:05:45,599 sensai.util.logging:stop:336 - Language server startup (ls_id=cpp) completed in 0.052 seconds
+INFO  2026-10-15 13:05:45,599 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.599] <-- initialized
+
+INFO  2026-10-15 13:05:45,599 sensai.util.logging:start:329 - Initialising file change notifier (polling for baseline) starting ...
+INFO  2026-10-15 13:05:45,601 sensai.util.logging:stop:336 - Initialising file change notifier (polling for baseline) completed in 0.002 seconds
+INFO  2026-10-15 13:05:45,601 serena.lsp.lsp_backend:stop:336 - Language server initialization completed in 0.055 seconds
+INFO  2026-10-15 13:05:45,601 serena.task_executor:stop:336 - Task-1:init_project_services completed in 0.055 seconds
+INFO  2026-10-15 13:05:45,601 serena.task_executor:_process_task_queue:141 - Starting execution of Task-2:<lambda>
+INFO  2026-10-15 13:05:45,602 serena.task_executor:start:329 - Task-2:<lambda> starting ...
+INFO  2026-10-15 13:05:45,602 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.602] <-- textDocument/didOpen
+
+INFO  2026-10-15 13:05:45,602 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.602] <-- textDocument/documentSymbol(2)
+
+INFO  2026-10-15 13:05:45,603 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.603] Failed to find compilation database for /home/mena/Projects/plasma-wallpaper-engine/daemon/src/main.cpp
+
+INFO  2026-10-15 13:05:45,603 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.603] ASTWorker building file /home/mena/Projects/plasma-wallpaper-engine/daemon/src/main.cpp version 0 with command clangd fallback
+
+INFO  2026-10-15 13:05:45,603 solidlsp.ls_process:_read_ls_process_stderr:654 - [/home/mena/Projects/plasma-wallpaper-engine/daemon/src]
+
+INFO  2026-10-15 13:05:45,603 solidlsp.ls_process:_read_ls_process_stderr:654 - /usr/bin/clang -resource-dir=/home/mena/.serena/language_servers/static/ClangdLanguageServer/clangd/clangd_19.1.2/lib/clang/19 -- /home/mena/Projects/plasma-wallpaper-engine/daemon/src/main.cpp
+
+INFO  2026-10-15 13:05:45,947 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.947] Built preamble of size 5439852 for file /home/mena/Projects/plasma-wallpaper-engine/daemon/src/main.cpp version 0 in 0.33 seconds
+
+INFO  2026-10-15 13:05:45,947 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.947] Indexing c++17 standard library in the context of /home/mena/Projects/plasma-wallpaper-engine/daemon/src/main.cpp
+
+ERROR 2026-10-15 13:05:45,965 solidlsp.ls_process:_read_ls_process_stderr:654 - E[13:05:45.965] IncludeCleaner: Failed to get an entry for resolved path : No such file or directory
+
+ERROR 2026-10-15 13:05:45,965 solidlsp.ls_process:_read_ls_process_stderr:654 - E[13:05:45.965] IncludeCleaner: Failed to get an entry for resolved path : No such file or directory
+
+ERROR 2026-10-15 13:05:45,965 solidlsp.ls_process:_read_ls_process_stderr:654 - E[13:05:45.965] IncludeCleaner: Failed to get an entry for resolved path : No such file or directory
+
+ERROR 2026-10-15 13:05:45,965 solidlsp.ls_process:_read_ls_process_stderr:654 - E[13:05:45.965] IncludeCleaner: Failed to get an entry for resolved path : No such file or directory
+
+ERROR 2026-10-15 13:05:45,965 solidlsp.ls_process:_read_ls_process_stderr:654 - E[13:05:45.965] IncludeCleaner: Failed to get an entry for resolved path : No such file or directory
+
+ERROR 2026-10-15 13:05:45,965 solidlsp.ls_process:_read_ls_process_stderr:654 - E[13:05:45.965] IncludeCleaner: Failed to get an entry for resolved path : No such file or directory
+
+ERROR 2026-10-15 13:05:45,965 solidlsp.ls_process:_read_ls_process_stderr:654 - E[13:05:45.965] IncludeCleaner: Failed to get an entry for resolved path : No such file or directory
+
+ERROR 2026-10-15 13:05:45,965 solidlsp.ls_process:_read_ls_process_stderr:654 - E[13:05:45.965] IncludeCleaner: Failed to get an entry for resolved path : No such file or directory
+
+INFO  2026-10-15 13:05:45,966 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.966] --> textDocument/publishDiagnostics
+
+INFO  2026-10-15 13:05:45,966 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.966] --> reply:textDocument/documentSymbol(2) 363 ms
+
+INFO  2026-10-15 13:05:45,966 serena.task_executor:stop:336 - Task-2:<lambda> completed in 0.365 seconds
+INFO  2026-10-15 13:05:45,967 serena.cli:health_check:1087 - get_symbols_overview returned: {"Variable": ["g_quitRequested"], "Function": ["signalHandler", "main"]}
+INFO  2026-10-15 13:05:45,967 serena.cli:health_check:1102 - Using symbol for testing: signalHandler (kind: Function)
+INFO  2026-10-15 13:05:45,967 serena.cli:health_check:1105 - Testing find_symbol for symbol: signalHandler
+INFO  2026-10-15 13:05:45,967 serena.task_executor:issue_task:219 - Scheduling Task-3:<lambda>
+INFO  2026-10-15 13:05:45,967 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.966] <-- textDocument/didClose
+
+INFO  2026-10-15 13:05:45,967 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:45.966] --> textDocument/publishDiagnostics
+
+INFO  2026-10-15 13:05:46,067 serena.task_executor:_process_task_queue:141 - Starting execution of Task-3:<lambda>
+INFO  2026-10-15 13:05:46,067 serena.task_executor:start:329 - Task-3:<lambda> starting ...
+INFO  2026-10-15 13:05:46,068 serena.task_executor:stop:336 - Task-3:<lambda> completed in 0.001 seconds
+INFO  2026-10-15 13:05:46,068 serena.cli:health_check:1111 - find_symbol found 1 matches for symbol signalHandler
+INFO  2026-10-15 13:05:46,068 serena.cli:health_check:1116 - Testing find_referencing_symbols for symbol: signalHandler
+INFO  2026-10-15 13:05:46,068 serena.task_executor:issue_task:219 - Scheduling Task-4:<lambda>
+INFO  2026-10-15 13:05:46,168 serena.task_executor:_process_task_queue:141 - Starting execution of Task-4:<lambda>
+INFO  2026-10-15 13:05:46,168 serena.task_executor:start:329 - Task-4:<lambda> starting ...
+INFO  2026-10-15 13:05:46,168 serena.ls_manager:sync_file_system_changes:281 - Polling file system for changes to source files ...
+INFO  2026-10-15 13:05:46,170 serena.ls_manager:sync_file_system_changes:283 - File system polling complete; 0 change events sent to language servers.
+INFO  2026-10-15 13:05:46,170 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:46.170] <-- textDocument/didOpen
+
+INFO  2026-10-15 13:05:46,171 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:46.171] Failed to find compilation database for /home/mena/Projects/plasma-wallpaper-engine/daemon/src/main.cpp
+
+INFO  2026-10-15 13:05:46,171 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:46.171] ASTWorker building file /home/mena/Projects/plasma-wallpaper-engine/daemon/src/main.cpp version 0 with command clangd fallback
+
+INFO  2026-10-15 13:05:46,171 solidlsp.ls_process:_read_ls_process_stderr:654 - [/home/mena/Projects/plasma-wallpaper-engine/daemon/src]
+
+INFO  2026-10-15 13:05:46,171 solidlsp.ls_process:_read_ls_process_stderr:654 - /usr/bin/clang -resource-dir=/home/mena/.serena/language_servers/static/ClangdLanguageServer/clangd/clangd_19.1.2/lib/clang/19 -- /home/mena/Projects/plasma-wallpaper-engine/daemon/src/main.cpp
+
+INFO  2026-10-15 13:05:46,440 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:46.440] Built preamble of size 5439852 for file /home/mena/Projects/plasma-wallpaper-engine/daemon/src/main.cpp version 0 in 0.27 seconds
+
+ERROR 2026-10-15 13:05:46,459 solidlsp.ls_process:_read_ls_process_stderr:654 - E[13:05:46.459] IncludeCleaner: Failed to get an entry for resolved path : No such file or directory
+
+ERROR 2026-10-15 13:05:46,459 solidlsp.ls_process:_read_ls_process_stderr:654 - E[13:05:46.459] IncludeCleaner: Failed to get an entry for resolved path : No such file or directory
+
+ERROR 2026-10-15 13:05:46,459 solidlsp.ls_process:_read_ls_process_stderr:654 - E[13:05:46.459] IncludeCleaner: Failed to get an entry for resolved path : No such file or directory
+
+ERROR 2026-10-15 13:05:46,459 solidlsp.ls_process:_read_ls_process_stderr:654 - E[13:05:46.459] IncludeCleaner: Failed to get an entry for resolved path : No such file or directory
+
+ERROR 2026-10-15 13:05:46,459 solidlsp.ls_process:_read_ls_process_stderr:654 - E[13:05:46.459] IncludeCleaner: Failed to get an entry for resolved path : No such file or directory
+
+ERROR 2026-10-15 13:05:46,459 solidlsp.ls_process:_read_ls_process_stderr:654 - E[13:05:46.459] IncludeCleaner: Failed to get an entry for resolved path : No such file or directory
+
+ERROR 2026-10-15 13:05:46,459 solidlsp.ls_process:_read_ls_process_stderr:654 - E[13:05:46.459] IncludeCleaner: Failed to get an entry for resolved path : No such file or directory
+
+ERROR 2026-10-15 13:05:46,459 solidlsp.ls_process:_read_ls_process_stderr:654 - E[13:05:46.459] IncludeCleaner: Failed to get an entry for resolved path : No such file or directory
+
+INFO  2026-10-15 13:05:46,459 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:46.459] --> textDocument/publishDiagnostics
+
+INFO  2026-10-15 13:05:46,969 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:46.969] Indexed c++17 standard library (incomplete due to errors): 14410 symbols, 2005 filtered
+
+INFO  2026-10-15 13:05:48,171 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:48.171] <-- textDocument/references(3)
+
+INFO  2026-10-15 13:05:48,172 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:48.172] --> reply:textDocument/references(3) 0 ms
+
+INFO  2026-10-15 13:05:48,172 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:48.172] <-- textDocument/didClose
+
+INFO  2026-10-15 13:05:48,173 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:48.172] --> textDocument/publishDiagnostics
+
+INFO  2026-10-15 13:05:48,174 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:48.174] <-- textDocument/didOpen
+
+INFO  2026-10-15 13:05:48,175 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:48.175] Failed to find compilation database for /home/mena/Projects/plasma-wallpaper-engine/daemon/src/main.cpp
+
+INFO  2026-10-15 13:05:48,176 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:48.175] ASTWorker building file /home/mena/Projects/plasma-wallpaper-engine/daemon/src/main.cpp version 0 with command clangd fallback
+
+INFO  2026-10-15 13:05:48,176 solidlsp.ls_process:_read_ls_process_stderr:654 - [/home/mena/Projects/plasma-wallpaper-engine/daemon/src]
+
+INFO  2026-10-15 13:05:48,176 solidlsp.ls_process:_read_ls_process_stderr:654 - /usr/bin/clang -resource-dir=/home/mena/.serena/language_servers/static/ClangdLanguageServer/clangd/clangd_19.1.2/lib/clang/19 -- /home/mena/Projects/plasma-wallpaper-engine/daemon/src/main.cpp
+
+INFO  2026-10-15 13:05:48,176 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:48.175] <-- textDocument/didClose
+
+INFO  2026-10-15 13:05:48,176 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:48.175] --> textDocument/publishDiagnostics
+
+INFO  2026-10-15 13:05:48,176 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:48.176] <-- textDocument/didOpen
+
+INFO  2026-10-15 13:05:48,176 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:48.176] Failed to find compilation database for /home/mena/Projects/plasma-wallpaper-engine/daemon/src/main.cpp
+
+INFO  2026-10-15 13:05:48,176 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:48.176] ASTWorker building file /home/mena/Projects/plasma-wallpaper-engine/daemon/src/main.cpp version 0 with command clangd fallback
+
+INFO  2026-10-15 13:05:48,176 solidlsp.ls_process:_read_ls_process_stderr:654 - [/home/mena/Projects/plasma-wallpaper-engine/daemon/src]
+
+INFO  2026-10-15 13:05:48,176 solidlsp.ls_process:_read_ls_process_stderr:654 - /usr/bin/clang -resource-dir=/home/mena/.serena/language_servers/static/ClangdLanguageServer/clangd/clangd_19.1.2/lib/clang/19 -- /home/mena/Projects/plasma-wallpaper-engine/daemon/src/main.cpp
+
+INFO  2026-10-15 13:05:48,178 serena.task_executor:stop:336 - Task-4:<lambda> completed in 2.010 seconds
+INFO  2026-10-15 13:05:48,178 solidlsp.ls_process:_read_ls_process_stderr:654 - I[13:05:48.177] <-- textDocument/didClose
+
+INFO  2026-10-15 13:05:48,178 serena.cli:health_check:1123 - find_referencing_symbols found 2 references for symbol signalHandler
+INFO  2026-10-15 13:05:48,179 serena.cli:health_check:1132 - Health check completed successfully

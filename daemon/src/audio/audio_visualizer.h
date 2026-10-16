@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <QByteArray>
 
-class QProcess;
+#include "common/managed_process.h"
 
 namespace WallpaperEngine::Audio {
 
@@ -19,14 +19,6 @@ class AudioVisualizer {
 public:
     AudioVisualizer();
     ~AudioVisualizer();
-
-    /**
-     * Initialize with audio data.
-     * @param audioBytes Raw audio bytes
-     * @param sampleRate Sample rate (e.g., 44100)
-     * @param channels Number of channels (1=mono, 2=stereo)
-     */
-    void init(const std::vector<uint8_t>& audioBytes, int sampleRate = 44100, int channels = 2);
 
     /**
      * Get spectrum data for a specific band.
@@ -113,8 +105,8 @@ private:
     float m_duration = 0.0f;
     size_t m_playbackPos = 0;
 
-    // Live capture state (parec subprocess reading the default sink monitor)
-    QProcess* m_captureProcess = nullptr;
+    // Live capture state: owned subprocess for the default sink monitor.
+    Common::ManagedProcess m_captureProcess;
     bool m_isLive = false;
 };
 

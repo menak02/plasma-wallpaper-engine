@@ -80,7 +80,7 @@ int main(int argc, char* argv[]) {
                       << "  workshopPath          Path to the workshop content directory (default: Steam workshop)\n"
                       << std::endl;
             return 0;
-        } else if (arg == "--id") {
+        } else        if (arg == "--id") {
             if (argIndex + 1 >= argc) {
                 std::cerr << "Error: --id requires an argument\n";
                 return 1;
@@ -105,17 +105,30 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Starting Strict Automated Wallpaper Batch Diagnostic Engine..." << std::endl;
 
+    // The batch verifier paints with QPainter only; the Vulkan context just
+    // mirrors the daemon environment. A GPU-less runner (CI) skips it so the
+    // snapshot pipeline still works.
     WallpaperEngine::Render::VulkanContext vulkanCtx;
-    vulkanCtx.init();
-    WallpaperEngine::Render::DmaBufBuffer dummyBuf;
-    vulkanCtx.setResolution(1920, 1080, dummyBuf);
+    if (vulkanCtx.init()) {
+        WallpaperEngine::Render::DmaBufBuffer dummyBuf;
+        vulkanCtx.setResolution(1920, 1080, dummyBuf);
+        std::cout << "Vulkan context initialized (" << vulkanCtx.getAvailableGpus().size() << " GPU(s) visible)" << std::endl;
+    } else {
+        std::cout << "No usable Vulkan device — continuing CPU-only (snapshot mode)" << std::endl;
+    }
 
     std::vector<std::string> itemDirs;
-    for (const auto& entry : fs::directory_iterator(workshopBase)) {
-        if (entry.is_directory()) {
-            std::string pkgPath = entry.path().string() + "/scene.pkg";
-            if (fs::exists(pkgPath)) {
-                itemDirs.push_back(entry.path().string());
+    // Either a steam workshop root containing per-item directories, or a
+    // single item directory itself (handy for --id runs and CI fixtures).
+    if (fs::exists(workshopBase + "/scene.pkg")) {
+        itemDirs.push_back(workshopBase);
+    } else {
+        for (const auto& entry : fs::directory_iterator(workshopBase)) {
+            if (entry.is_directory()) {
+                std::string pkgPath = entry.path().string() + "/scene.pkg";
+                if (fs::exists(pkgPath)) {
+                    itemDirs.push_back(entry.path().string());
+                }
             }
         }
     }
@@ -253,7 +266,7 @@ int main(int argc, char* argv[]) {
         particleEngine.update(0.016f, 1920, 1080);
         particleEngine.render(painter, 1920, 1080);
         painter.end();
-        
+
         std::string snapshotFile = outputDir + "/" + id + ".png";
         canvas.save(QString::fromStdString(snapshotFile), "PNG");
 
@@ -288,17 +301,17 @@ int main(int argc, char* argv[]) {
         std::string titleSafe = sceneDesc.title;
         std::replace(titleSafe.begin(), titleSafe.end(), '|', '/');
 
-        report << "| `" << id << "` | " << (titleSafe.empty() ? id : titleSafe) << " | " 
-               << renderedLayers << "/" << totalDeclared << " | " 
-               << sceneDesc.emitters.size() << "/" << sceneDesc.totalParticleEmittersDeclared << " | " 
+        report << "| `" << id << "` | " << (titleSafe.empty() ? id : titleSafe) << " | "
+               << renderedLayers << "/" << totalDeclared << " | "
+               << sceneDesc.emitters.size() << "/" << sceneDesc.totalParticleEmittersDeclared << " | "
                << (!sceneDesc.soundPath.empty() ? "🎵 Yes" : "No") << " | "
                << "![" << id << "](" << snapshotFile << ") | "
                << status << " |\n";
         report.flush();
 
-        std::cout << "[" << (i+1) << "/" << itemDirs.size() << "] ID " << id 
-                  << " ('" << sceneDesc.title << "'): " 
-                  << renderedLayers << "/" << totalDeclared << " layers, " 
+        std::cout << "[" << (i+1) << "/" << itemDirs.size() << "] ID " << id
+                  << " ('" << sceneDesc.title << "'): "
+                  << renderedLayers << "/" << totalDeclared << " layers, "
                   << sceneDesc.emitters.size() << "/" << sceneDesc.totalParticleEmittersDeclared << " emitters -> " << status << std::endl;
     }
 

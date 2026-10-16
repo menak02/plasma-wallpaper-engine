@@ -235,6 +235,7 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
     return parseScene(pkgReader, outScene, {});
 }
 bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& outScene, const std::unordered_map<std::string, QVariant>& overrideProperties) {
+    m_unresolvedParentWarnings = 0;
     std::string sceneJsonStr = pkgReader.readTextFile("scene.json");
     if (sceneJsonStr.empty()) {
         return false;
@@ -353,11 +354,11 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
         }
 
         SceneLayer layer;
-        // Parse unique integer ID and parent ID for hierarchy
+        // Parse unique integer ID and parent ID for hierarchy.
         layer.id = obj.value(QStringLiteral("id")).toInt(-1);
         layer.parentId = obj.value(QStringLiteral("parent")).toInt(-1);
         layer.attachpoint = obj.value(QStringLiteral("attachpoint")).toString().toStdString();
-        
+
         if (obj.contains(QStringLiteral("sort"))) {
             layer.zOrder = obj.value(QStringLiteral("sort")).toInt(zOrder++);
         } else {
@@ -486,7 +487,7 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
 
                 if (r < 0.01f && g < 0.01f && b < 0.01f) {
                     QString n = QString::fromStdString(layer.name).toLower();
-                    if (n.contains(QStringLiteral("bloqueo")) || n.contains(QStringLiteral("boundary")) || 
+                    if (n.contains(QStringLiteral("bloqueo")) || n.contains(QStringLiteral("boundary")) ||
                         n.contains(QStringLiteral("collision")) ||
                         n.contains(QStringLiteral("clouds")) || n.contains(QStringLiteral("mask")) ||
                         n.contains(QStringLiteral("drag")) || n.contains(QStringLiteral("interactive")) ||
@@ -495,7 +496,7 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
                         layer.baseVisible = false;
                     }
                 }
-            } else if (targetModel.find("composelayer") != std::string::npos || 
+            } else if (targetModel.find("composelayer") != std::string::npos ||
                 targetModel.find("projectlayer") != std::string::npos ||
                 targetModel.find("fullscreenlayer") != std::string::npos ||
                 targetModel.find("solid_instance_model") != std::string::npos) {
@@ -538,12 +539,12 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
         } else if (!layer.image.isNull()) {
             outScene.layers.push_back(std::move(layer));
         } else if (!layer.isText) {
-            std::cout << "SceneParser: Failed to load image for visual layer '" << layer.name 
+            std::cout << "SceneParser: Failed to load image for visual layer '" << layer.name
                       << "' with targetModel '" << targetModel << "'" << std::endl;
         }
     }
 
-    // Build id -> layer lookup map for hierarchy resolution
+    // Build id -> layer lookup for hierarchy resolution.
     std::unordered_map<int, SceneLayer*> idToLayer;
     idToLayer.reserve(outScene.layers.size());
     for (auto& layer : outScene.layers) {
@@ -560,13 +561,22 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
                 layer.parent = it->second;
                 it->second->children.push_back(&layer);
             } else {
-                std::cout << "SceneParser: Layer '" << layer.name << "' references non-existent parent ID " << layer.parentId << std::endl;
+                // Known-dead parent references are common in real workshop
+                // scenes (disabled/removed ancestors) — not actionable, so
+                // log once per scene instead of once per layer.
+                if (m_unresolvedParentWarnings < kMaxUnresolvedParentWarnings) {
+                    ++m_unresolvedParentWarnings;
+                    std::cout << "SceneParser: Layer '" << layer.name << "' references non-existent parent ID " << layer.parentId << std::endl;
+                    if (m_unresolvedParentWarnings == kMaxUnresolvedParentWarnings) {
+                        std::cout << "SceneParser: further unresolved-parent warnings suppressed for this scene" << std::endl;
+                    }
+                }
             }
         }
     }
 
     // Topological sort: parents before children, then by zOrder
-    // This ensures composition layers render before their children
+    // Ensures composition layers render before children.
     std::vector<SceneLayer*> sortedLayers;
     sortedLayers.reserve(outScene.layers.size());
     std::unordered_set<int> visited;
@@ -651,8 +661,8 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
         }
     }
 
-    std::cout << "SceneParser: Parsed " << outScene.layers.size() << "/" << outScene.totalVisualObjectsDeclared 
-              << " visual layers and " << outScene.emitters.size() << "/" << outScene.totalParticleEmittersDeclared 
+    std::cout << "SceneParser: Parsed " << outScene.layers.size() << "/" << outScene.totalVisualObjectsDeclared
+              << " visual layers and " << outScene.emitters.size() << "/" << outScene.totalParticleEmittersDeclared
               << " particle emitters" << std::endl;
     // Hand the seeded script runtime to the scene so the compositor can tick
     // scripted properties per frame (shared state and init() already run).
@@ -742,7 +752,7 @@ bool SceneParser::resolveEffect(Assets::PkgReader& pkgReader, const QJsonObject&
             outEffect.center = parseVector2D(consts.value(QStringLiteral("center")), outEffect.center);
         }
 
-        // Parse mask texture if present
+        // Parse mask texture when present.
         QJsonArray texArr = passObj.value(QStringLiteral("textures")).toArray();
         for (const auto& t : texArr) {
             if (t.isString()) {
@@ -861,9 +871,9 @@ bool SceneParser::resolveMaterial(Assets::PkgReader& pkgReader, const std::strin
         if (resolveTexture(pkgReader, fullTexPath, layer.image, videoBytes)) {
             if (!videoBytes.empty()) layer.videoData = std::move(videoBytes);
             // GenericImage/genericimage2 shaders should NOT modify the texture.
-            // The old qRgba(r,g,b,r) code used the RED channel as alpha, which
+            // Old qRgba(r,g,b,r) used RED channel as alpha, which
             // destroyed images (made dark-red areas transparent, changed colors).
-            // The texture's own alpha channel is already correct from decoding.
+            // Texture's own alpha channel is already correct from decoding.
             return true;
         }
     }
@@ -1142,7 +1152,7 @@ bool SceneParser::resolveParticle(Assets::PkgReader& pkgReader, const std::strin
 
     QJsonObject obj = doc.object();
     outEmitter.name = particlePath;
-    
+
     float rate = static_cast<float>(obj.value(QStringLiteral("rate")).toDouble(3.0));
     QJsonArray emitterArr = obj.value(QStringLiteral("emitter")).toArray();
     if (!emitterArr.isEmpty()) {

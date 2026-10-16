@@ -1,0 +1,287 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [master, feat/hyprland-pause]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake qt6-base-dev qt6-declarative-dev qt6-tools-dev-tools \
+          qt6-image-formats-plugins vulkan-tools libvulkan-dev \
+          liblz4-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
+          libpulse-dev libxcb1-dev libwayland-dev \
+          mesa-vulkan-drivers
+
+    - name: Configure
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+
+    - name: Verify D-Bus interface XML
+      run: bash scripts/verify_dbus_interface.sh
+
+    - name: Build
+      run: cmake --build build -j"$(nproc)"
+
+    - name: Test
+      run: ctest --test-dir build --output-on-failure
+
+    # The GPU probes exit 77 when no Vulkan device is present, which in a ctest
+    # summary is indistinguishable from a pass -- so a real GPU regression would
+    # show green. lavapipe is a software Vulkan ICD: no GPU required. Force it so
+    # the run does not depend on which ICDs happen to be installed.
+    - name: Select software Vulkan (lavapipe)
+      run: |
+        # Glob rather than hardcode the filename: the arch suffix differs
+        # between distros (Gentoo ships lvp_icd.x86_64.json, Ubuntu's naming
+        # has changed across releases).
+        # Prefer the 64-bit ICD. A bare lvp_icd*.json glob would sort i686
+        # before x86_64 and pick the 32-bit driver, which cannot load in a
+        # 64-bit process.
+        ICD="$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp_icd*.json' 2>/dev/null | sort | grep -E '64' | head -1)"
+        if [ -z "$ICD" ]; then
+          ICD="$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp_icd*.json' 2>/dev/null | sort | head -1)"
+        fi
+        if [ -z "$ICD" ]; then
+          echo "::error::no lavapipe ICD found -- GPU probes would skip and CI would go green on a real regression"
+          echo "ICD directory contents:"
+          ls -l /usr/share/vulkan/icd.d/ 2>&1 || echo "(directory missing)"
+          exit 1
+        fi
+        echo "Using lavapipe ICD: $ICD"
+        echo "VK_ICD_FILENAMES=$ICD" >> "$GITHUB_ENV"
+        echo "VK_DRIVER_FILES=$ICD" >> "$GITHUB_ENV"
+
+    - name: GPU probes must run, not skip
+      run: |
+        failed=0
+        for probe in gpu_deform_probe blit_shared_probe gpu_quad_placement_probe gpu_scene_e2e; do
+          if [ ! -x "build/daemon/$probe" ]; then
+            echo "::error::$probe was not built"
+            failed=1
+            continue
+          fi
+          out="$(QT_QPA_PLATFORM=offscreen "build/daemon/$probe" \
+            tests/regression/fixture_test_scene/scene.pkg 2>&1)" || rc=$?
+          rc=${rc:-0}
+          echo "$out"
+          case "$rc" in
+            0)  echo "$probe: PASS" ;;
+            77)
+              if echo "$out" | grep -q UNSUPPORTED; then
+                echo "$probe: UNSUPPORTED (no DRM render node; dmabuf export untestable here)"
+                echo "  Expected: lavapipe is displayless and GitHub runners have no"
+                echo "  /dev/dri, so the dmabuf export path cannot run. It is still"
+                echo "  exercised on real hardware -- do not use this to skip locally."
+              else
+                echo "::error::$probe SKIPPED (no Vulkan device) -- a skip must not pass CI"
+                failed=1
+              fi ;;
+            *)  echo "::error::$probe FAILED (exit $rc)"
+                failed=1 ;;
+          esac
+          unset rc
+        done
+        [ "$failed" = 0 ] || exit 1
+
+  fixture-regression:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake qt6-base-dev qt6-declarative-dev qt6-tools-dev-tools \
+          qt6-image-formats-plugins vulkan-tools libvulkan-dev \
+          liblz4-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
+          libpulse-dev python3-pil python3-numpy libxcb1-dev libwayland-dev
+
+    - name: Configure
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build verifier
+      run: cmake --build build -j"$(nproc)" --target plasma-wallpaper-engine-verifier
+
+    - name: Run fixture regression
+      run: ctest --test-dir build -R fixture_regression --output-on-failure
+
+  dbus-interface:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Qt D-Bus tooling
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y qt6-tools-dev-tools
+
+    - name: Verify D-Bus interface XML
+      run: bash scripts/verify_dbus_interface.sh
+
+  repo-quality:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies and analyzers
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake qt6-base-dev qt6-declarative-dev qt6-tools-dev-tools \
+          qt6-image-formats-plugins vulkan-tools libvulkan-dev \
+          liblz4-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
+          libpulse-dev libxcb1-dev libwayland-dev cppcheck clang-tidy
+
+    # Compile database feeds clang-tidy; -Wall -Wextra surfaces warnings the
+    # default build does not print.
+    - name: Configure
+      run: |
+        cmake -B build -S . -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_CXX_FLAGS="-Wall -Wextra" \
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+    - name: Build
+      run: |
+        cmake --build build -j"$(nproc)" 2>&1 | tee build.log
+        exit "${PIPESTATUS[0]}"
+
+    - name: Compiler warnings (reported; hard-gate once count is zero)
+      run: |
+        n="$(grep -c 'warning:' build.log || true)"
+        echo "== compiler warnings: ${n}" | tee -a repo-quality-report.txt
+        grep 'warning:' build.log | sed 's/^/  /' | sort -u | head -40 | tee -a repo-quality-report.txt
+        exit 0
+
+    - name: Hygiene checks (artifacts, whitespace, bare printf)
+      env:
+        PWE_REQUIRE_GPU_TESTS: "0"
+      run: |
+        bash scripts/check_repo_quality.sh 2>&1 | tee -a repo-quality-report.txt
+        exit "${PIPESTATUS[0]}"
+
+    # Error-class findings form the gate (calibrated clean; Qt's Q_SLOTS
+    # family is not configurable in cppcheck, hence unknownMacro suppressed).
+    # A new finding must be fixed, or explicitly inline-suppressed with a
+    # why-comment. Style nits are advisory in the next step: a gate that
+    # fails on trivia is a gate people learn to ignore.
+    - name: Static analysis - cppcheck (gate)
+      run: |
+        cppcheck --enable=warning,performance,portability --check-level=exhaustive \
+          --force --inline-suppr --suppress=missingIncludeSystem \
+          --suppress=unknownMacro --error-exitcode=1 -I daemon/src \
+          daemon layerclient viewer plugin tools tests 2>&1 | tee -a repo-quality-report.txt
+        exit "${PIPESTATUS[0]}"
+
+    - name: Static analysis - cppcheck style (advisory)
+      run: |
+        cppcheck --enable=style --check-level=exhaustive --force \
+          --inline-suppr --suppress=missingIncludeSystem -I daemon/src \
+          daemon layerclient viewer plugin tools tests 2>&1 | tee -a repo-quality-report.txt
+        exit 0
+
+    # Advisory: bug-finding checks over the parsing/IPC core, reported in the
+    # sticky PR comment. Promoted to a gate once findings are triaged.
+    - name: Static analysis - clang-tidy (advisory)
+      run: |
+        for f in daemon/src/assets/*.cpp daemon/src/ipc/*.cpp daemon/src/common/*.cpp; do
+          echo "== clang-tidy $f"
+          clang-tidy -p build --checks='-*,bugprone-*,clang-analyzer-*,performance-*,-bugprone-easily-swappable-parameters' "$f" || true
+        done 2>&1 | tee -a repo-quality-report.txt
+        exit 0
+
+    # Sticky PR comment: one per PR, found via the hidden marker in its
+    # first line and edited in place. Failures refresh the findings; later
+    # passing runs flip the same comment to a clean status so stale findings
+    # never linger on a merged PR.
+    - name: Report findings as PR comment
+      if: failure() && github.event_name == 'pull_request'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: bash scripts/update_repo_quality_comment.sh report repo-quality-report.txt
+
+    - name: Clear PR comment on pass
+      if: success() && github.event_name == 'pull_request'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: bash scripts/update_repo_quality_comment.sh clean
+
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake qt6-base-dev qt6-declarative-dev qt6-tools-dev-tools \
+          qt6-image-formats-plugins vulkan-tools libvulkan-dev \
+          liblz4-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
+          libpulse-dev libxcb1-dev libwayland-dev \
+          mesa-vulkan-drivers
+
+    - name: Configure ASan + UBSan
+      run: |
+        cmake -B build-asan -S . -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g" \
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+    - name: Build
+      run: cmake --build build-asan -j"$(nproc)"
+
+    - name: Select software Vulkan (lavapipe)
+      run: |
+        ICD="$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp_icd*.json' 2>/dev/null | sort | grep -E '64' | head -1)"
+        if [ -z "$ICD" ]; then
+          ICD="$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp_icd*.json' 2>/dev/null | sort | head -1)"
+        fi
+        if [ -z "$ICD" ]; then
+          echo "::error::no lavapipe ICD found -- GPU probes would skip and go green on a real regression"
+          exit 1
+        fi
+        echo "Using lavapipe ICD: $ICD"
+        echo "VK_ICD_FILENAMES=$ICD" >> "$GITHUB_ENV"
+        echo "VK_DRIVER_FILES=$ICD" >> "$GITHUB_ENV"
+
+    # UB must stop the run, not print and continue. Leak check ON: these logic
+    # tests link no GPU drivers, so a leak here is ours.
+    - name: Logic tests under ASan/UBSan (leaks fatal)
+      env:
+        UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+      run: |
+        ctest --test-dir build-asan -R 'pause_gate|dxt_decoder|x11_ewmh|hyprland' --output-on-failure
+
+    # Leak check OFF only for Qt Gui / driver paths: lavapipe and Qt allocate
+    # through static destructors LSan cannot prove dead, and third-party noise
+    # would drown a real finding. ASan/UBSan memory-error detection stays on.
+    - name: Rendering + GPU probes under ASan/UBSan (leaks off)
+      env:
+        UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        ASAN_OPTIONS: detect_leaks=0
+      run: |
+        ctest --test-dir build-asan -R 'png_regression|fixture_regression|gpu_|blit_' --output-on-failure
+
+  workflow-lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: actionlint
+      run: |
+        bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+        ./actionlint

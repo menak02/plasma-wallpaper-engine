@@ -58,7 +58,15 @@ public:
     std::vector<GpuDeviceInfo> getAvailableGpus() const;
     VkDevice getDevice() const { return m_device; }
     VkInstance getInstance() const { return m_instance; }
+    VkPhysicalDevice getPhysicalDevice() const { return m_physicalDevice; }
+    VkQueue getGraphicsQueue() const { return m_graphicsQueue; }
+    uint32_t getGraphicsQueueFamily() const { return m_graphicsQueueFamily; }
     const DmaBufBuffer& getCurrentBuffer() const { return m_currentBuffer; }
+
+    // GPU-compositor handoff: copies a composited image (in SHADER_READ_ONLY
+    // layout) into the exportable dmabuf target(s), leaving them in GENERAL
+    // — the same end state as the staging-upload renderFrame() path.
+    bool blitIntoSharedImage(VkImage srcImage, uint32_t srcWidth, uint32_t srcHeight);
 
 private:
     VkInstance m_instance = VK_NULL_HANDLE;
@@ -81,6 +89,8 @@ private:
     struct StagingBuffer {
         VkBuffer buffer = VK_NULL_HANDLE;
         VkDeviceMemory memory = VK_NULL_HANDLE;
+        void* mapped = nullptr;      // persistent host mapping (H6)
+        VkDeviceSize size = 0;       // allocated capacity in bytes
         uint32_t width = 0;
         uint32_t height = 0;
     };

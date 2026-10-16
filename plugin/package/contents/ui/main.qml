@@ -1,6 +1,6 @@
 import QtQuick
 import org.kde.plasma.plasmoid
-import org.antigravity.plasma.wallpaperengine 1.0
+import org.plasmawallpaperengine 1.0
 
 WallpaperItem {
     id: root
