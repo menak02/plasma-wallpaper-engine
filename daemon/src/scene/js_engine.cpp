@@ -214,95 +214,184 @@ bool JSEngine::evaluateConditionUser(const QVariant& userObj, const QVariant& de
     return defaultValue.toBool();
 }
 
-bool JSEngine::evaluateScript(const QString& scriptCode, const QVariant& defaultValue) {
-    if (scriptCode.isEmpty()) return defaultValue.toBool();
+void JSEngine::ensureEngine() {
+    if (m_engineReady) return;
+    m_engineReady = true;
 
-    QString code = scriptCode;
+    m_shared = m_js.newObject();
+    m_js.globalObject().setProperty(QStringLiteral("shared"), m_shared);
 
-    // Fast path: direct let visibility = true/false
-    QRegularExpression visRegex(QStringLiteral("let\\s+visibility\\s*=\\s*(true|false)"));
-    auto m = visRegex.match(code);
-    if (m.hasMatch()) return m.captured(1) == QStringLiteral("true");
+    m_engineObj = m_js.newObject();
+    m_js.globalObject().setProperty(QStringLiteral("engine"), m_engineObj);
 
-    // Prepare mock QJSEngine with wallpaper globals
-    QJSEngine js;
-
-    // Inject engine.timeOfDay (0.0-1.0) and engine.time
-    float timeOfDay = static_cast<float>(m_currentHour) / 24.0f + static_cast<float>(m_currentMinute) / 1440.0f;
-    QJSValue engineObj = js.newObject();
-    engineObj.setProperty(QStringLiteral("timeOfDay"), timeOfDay);
-    engineObj.setProperty(QStringLiteral("time"), timeOfDay * 24.0f);
-    engineObj.setProperty(QStringLiteral("currentTime"), timeOfDay);
-    js.globalObject().setProperty(QStringLiteral("engine"), engineObj);
-
-    // Inject shared (persistent cross-script object)
-    QJSValue sharedObj = js.newObject();
-    js.globalObject().setProperty(QStringLiteral("shared"), sharedObj);
-
-    // Inject scriptProperties from m_properties (unwrap for JS)
-    QJSValue propsObj = js.newObject();
+    // Property bag: project.json user properties first; script-declared
+    // createScriptProperties() defaults merge in via the builder mock below.
+    QJSValue propsObj = m_js.newObject();
     for (auto& [k, v] : m_properties) {
         QString key = QString::fromStdString(k);
         if (v.typeId() == QMetaType::Bool) propsObj.setProperty(key, v.toBool());
         else if (v.typeId() == QMetaType::Int) propsObj.setProperty(key, v.toInt());
         else if (v.typeId() == QMetaType::Double) propsObj.setProperty(key, v.toDouble());
-        else if (v.typeId() == QMetaType::QString) propsObj.setProperty(key, v.toString());
         else propsObj.setProperty(key, v.toString());
-        // Also set .value style: scriptProperties.foo.value access compatibility
-        QJSValue wrapper = js.newObject();
-        wrapper.setProperty(QStringLiteral("value"), propsObj.property(key));
-        // Keep bare value too
     }
-    js.globalObject().setProperty(QStringLiteral("scriptProperties"), propsObj);
+    m_js.globalObject().setProperty(QStringLiteral("scriptProperties"), propsObj);
+    m_js.globalObject().setProperty(QStringLiteral("userProperties"), propsObj);
+    m_js.globalObject().setProperty(QStringLiteral("thisObject"), m_js.newObject());
 
-    // Minimal thisObject/userProperties mocks
-    js.globalObject().setProperty(QStringLiteral("thisObject"), js.newObject());
-    js.globalObject().setProperty(QStringLiteral("userProperties"), propsObj);
+    // SceneScript property-declaration builder. finish() merges declared
+    // defaults under the existing (user-provided) property values.
+    m_js.evaluate(QStringLiteral(
+        "function createScriptProperties() {"
+        "  var user = scriptProperties;"
+        "  var decls = [];"
+        "  var b = {};"
+        "  var add = function(o) { decls.push(o); return b; };"
+        "  b.addCheckbox = add; b.addSlider = add; b.addCombo = add;"
+        "  b.addTextinput = add; b.addTextInput = add; b.addFile = add;"
+        "  b.addDirectory = add; b.addColor = add;"
+        "  b.finish = function() {"
+        "    var out = {};"
+        "    for (var i = 0; i < decls.length; i++) {"
+        "      var d = decls[i];"
+        "      out[d.name] = (user && user[d.name] !== undefined) ? user[d.name] : d.value;"
+        "    }"
+        "    return out;"
+        "  };"
+        "  return b;"
+        "}"));
+}
 
-    // Clean code: strip 'use strict', export keywords, and workshopId line (has side effects)
-    QString cleaned = code;
+QJSValue JSEngine::loadModule(const QString& scriptCode) {
+    ensureEngine();
+
+    const std::string key = scriptCode.toStdString();
+    auto it = m_modules.find(key);
+    if (it != m_modules.end()) return it->second;
+
+    QString cleaned = scriptCode;
     cleaned.remove(QStringLiteral("'use strict';"));
     cleaned.remove(QStringLiteral("\"use strict\";"));
-    // Remove export keywords but keep declarations
     cleaned.replace(QRegularExpression(QStringLiteral("\\bexport\\s+")), QStringLiteral(""));
-    // Remove __workshopId line (syntax ok but irrelevant)
-    cleaned.remove(QRegularExpression(QStringLiteral("let\\s+__workshopId[^;]*;")));
+    cleaned.remove(QRegularExpression(QStringLiteral("(let|var|const)\\s+__workshopId[^;]*;")));
 
-    // Try to handle createScriptProperties().addCheckbox().finish() pattern
-    // Replace the whole chain with a no-op that keeps propsObj intact
-    cleaned.replace(QRegularExpression(QStringLiteral("createScriptProperties\\(\\)[\\s\\S]*?\\.finish\\(\\)")), QStringLiteral("({})"));
+    // Each module runs in its own function scope so `let` names cannot
+    // collide across scripts, while globals (shared/scriptProperties/engine)
+    // stay common — exactly SceneScript's isolation model.
+    const QString wrapped = QStringLiteral(
+        "(function() {\n%1\n"
+        "  return {"
+        "    init: typeof init === 'function' ? init : null,"
+        "    update: typeof update === 'function' ? update : null,"
+        "    visibility: typeof visibility !== 'undefined' ? visibility : undefined"
+        "  };\n})()").arg(cleaned);
 
-    // Evaluate cleaned script
-    QJSValue evalRes = js.evaluate(cleaned);
-    if (evalRes.isError()) {
-        // Error → fall back to default (not true) to avoid false visible
-        return defaultValue.toBool();
+    QJSValue mod = m_js.evaluate(wrapped);
+    if (mod.isError() || !mod.isObject()) {
+        m_modules[key] = QJSValue();
+        return QJSValue();
+    }
+    m_modules[key] = mod;
+    return mod;
+}
+
+QJSValue JSEngine::callModule(const QString& scriptCode, const QJSValue& valueArg) {
+    QJSValue mod = loadModule(scriptCode);
+    if (!mod.isObject()) return QJSValue();
+
+    const std::string key = scriptCode.toStdString();
+    if (m_initedModules.find(key) == m_initedModules.end()) {
+        m_initedModules.insert(key);
+        QJSValue initFn = mod.property(QStringLiteral("init"));
+        if (initFn.isCallable()) initFn.call();
     }
 
-    // Try to read global `visibility` variable set by script
-    QJSValue visVal = js.globalObject().property(QStringLiteral("visibility"));
-    if (visVal.isBool()) return visVal.toBool();
-    if (visVal.isNumber()) return visVal.toNumber() != 0;
+    QJSValue updateFn = mod.property(QStringLiteral("update"));
+    if (updateFn.isCallable()) {
+        QJSValue result = valueArg.isUndefined() ? updateFn.call() : updateFn.call({valueArg});
+        if (!result.isError()) return result;
+    }
+    return QJSValue();
+}
 
-    // Try to call init/update then re-read visibility if script defines them
-    QJSValue initFn = js.globalObject().property(QStringLiteral("init"));
-    if (initFn.isCallable()) {
-        QJSValue r = initFn.call();
-        Q_UNUSED(r);
-        visVal = js.globalObject().property(QStringLiteral("visibility"));
-        if (visVal.isBool()) return visVal.toBool();
-        // Also check shared.currentTODState for day/night wallpapers
-        QJSValue sharedTOD = js.globalObject().property(QStringLiteral("shared")).property(QStringLiteral("currentTODState"));
-        if (sharedTOD.isString()) {
-            QString s = sharedTOD.toString().toLower();
-            // If layer's script sets shared state, default visible logic is handled elsewhere; return true for now
-            Q_UNUSED(s);
+void JSEngine::registerScript(const QString& scriptCode) {
+    if (scriptCode.isEmpty()) return;
+    // Fast path for literal declarations never needs the engine.
+    if (scriptCode.contains(QStringLiteral("createScriptProperties"))) {
+        loadModule(scriptCode);
+    } else {
+        loadModule(scriptCode);
+    }
+    QJSValue mod = loadModule(scriptCode);
+    if (mod.isObject()) {
+        const std::string key = scriptCode.toStdString();
+        if (m_initedModules.find(key) == m_initedModules.end()) {
+            m_initedModules.insert(key);
+            QJSValue initFn = mod.property(QStringLiteral("init"));
+            if (initFn.isCallable()) initFn.call();
         }
     }
+}
 
-    // Last resort: evaluate "visibility" expression explicitly
-    QJSValue result = js.evaluate(QStringLiteral("typeof visibility !== 'undefined' ? visibility : undefined"));
+double JSEngine::evaluateScriptNumber(const QJsonValue& propVal, double fallback) {
+    if (propVal.isDouble()) return propVal.toDouble();
+    if (!propVal.isObject()) return fallback;
+
+    QJsonObject obj = propVal.toObject();
+
+    if (obj.contains(QStringLiteral("user"))) {
+        QString propName;
+        if (obj[QStringLiteral("user")].isString()) {
+            propName = obj[QStringLiteral("user")].toString();
+        } else {
+            propName = obj[QStringLiteral("user")].toObject().value(QStringLiteral("name")).toString();
+        }
+        auto it = m_properties.find(propName.toStdString());
+        if (it != m_properties.end()) return it->second.toDouble();
+        return obj.contains(QStringLiteral("value")) ? obj[QStringLiteral("value")].toDouble(fallback) : fallback;
+    }
+
+    if (obj.contains(QStringLiteral("script"))) {
+        QJSValue result;
+        // Let animated scripts settle: SceneScript update() implementations
+        // ease toward a target over ticks; a few extra ticks give the state
+        // a static render would see after a second of runtime.
+        for (int i = 0; i < 8; ++i) {
+            QJSValue r = callModule(obj[QStringLiteral("script")].toString(), QJSValue(fallback));
+            if (r.isNumber() || r.isBool()) result = r;
+        }
+        if (result.isNumber()) return result.toNumber();
+        if (result.isBool()) return result.toBool() ? 1.0 : 0.0;
+        return obj.contains(QStringLiteral("value")) ? obj[QStringLiteral("value")].toDouble(fallback) : fallback;
+    }
+
+    return obj.contains(QStringLiteral("value")) ? obj[QStringLiteral("value")].toDouble(fallback) : fallback;
+}
+
+bool JSEngine::evaluateScript(const QString& scriptCode, const QVariant& defaultValue) {
+    if (scriptCode.isEmpty()) return defaultValue.toBool();
+
+    // Fast path: direct let visibility = true/false
+    QRegularExpression visRegex(QStringLiteral("let\\s+visibility\\s*=\\s*(true|false)"));
+    auto m = visRegex.match(scriptCode);
+    if (m.hasMatch()) return m.captured(1) == QStringLiteral("true");
+
+    QJSValue mod = loadModule(scriptCode);
+    if (!mod.isObject()) return defaultValue.toBool();
+
+    // Propagate time globals used by SceneScript modules.
+    float timeOfDay = static_cast<float>(m_currentHour) / 24.0f + static_cast<float>(m_currentMinute) / 1440.0f;
+    m_engineObj.setProperty(QStringLiteral("timeOfDay"), timeOfDay);
+    m_engineObj.setProperty(QStringLiteral("time"), timeOfDay * 24.0f);
+    m_engineObj.setProperty(QStringLiteral("currentTime"), timeOfDay);
+
+    QJSValue result = callModule(scriptCode, QJSValue(defaultValue.toDouble()));
     if (result.isBool()) return result.toBool();
+    if (result.isNumber()) return result.toNumber() != 0;
+
+    // Fall back to a `visibility` binding the module may have set.
+    QJSValue visVal = mod.property(QStringLiteral("visibility"));
+    if (visVal.isBool()) return visVal.toBool();
+    if (visVal.isNumber()) return visVal.toNumber() != 0;
 
     return defaultValue.toBool();
 }

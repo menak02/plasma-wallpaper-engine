@@ -239,6 +239,21 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
     outScene.totalVisualObjectsDeclared = 0;
     outScene.totalParticleEmittersDeclared = 0;
 
+    // SceneScript pass 1: register and init() every property script in scene
+    // order so controller scripts can seed `shared` state (day/night modes,
+    // UI toggles) before any layer evaluates visibility against it.
+    for (const auto& objVal : objects) {
+        if (!objVal.isObject()) continue;
+        QJsonObject scriptObj = objVal.toObject();
+        for (auto it = scriptObj.begin(); it != scriptObj.end(); ++it) {
+            if (!it.value().isObject()) continue;
+            QJsonObject propObj = it.value().toObject();
+            if (propObj.contains(QStringLiteral("script"))) {
+                jsEngine.registerScript(propObj.value(QStringLiteral("script")).toString());
+            }
+        }
+    }
+
     for (const auto& objVal : objects) {
         if (!objVal.isObject()) continue;
         QJsonObject obj = objVal.toObject();
@@ -296,10 +311,40 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
         layer.name = obj.value(QStringLiteral("name")).toString().toStdString();
         // Use JSEngine for visibility evaluation (handles script/user properties)
         layer.visible = jsEngine.evaluateVisibility(obj.value(QStringLiteral("visible")));
-        layer.opacity = resolveUserFloat(obj.value(QStringLiteral("opacity")), 1.0f);
+
+        // Alpha/opacity: SceneScript animates "alpha" ({script, value} blocks
+        // included); layers at zero alpha are hidden. The old "opacity" key
+        // does not exist in scene.json.
+        {
+            double alpha = 1.0;
+            if (obj.contains(QStringLiteral("alpha"))) {
+                alpha = jsEngine.evaluateScriptNumber(obj.value(QStringLiteral("alpha")), 1.0);
+            } else if (obj.contains(QStringLiteral("opacity"))) {
+                alpha = jsEngine.evaluateScriptNumber(obj.value(QStringLiteral("opacity")), 1.0);
+            }
+            layer.opacity = static_cast<float>(std::clamp(alpha, 0.0, 1.0));
+            if (layer.opacity <= 0.001f) {
+                layer.visible = false;
+            }
+        }
+
+        // Scale scripts hide layers by animating scale to zero.
+        {
+            QJsonValue scaleVal = obj.value(QStringLiteral("scale"));
+            if (scaleVal.isObject() && scaleVal.toObject().contains(QStringLiteral("script"))) {
+                double s = jsEngine.evaluateScriptNumber(scaleVal, 1.0);
+                layer.scale = QVector3D(static_cast<float>(s), static_cast<float>(s), static_cast<float>(s));
+                if (std::abs(s) <= 0.001) {
+                    layer.visible = false;
+                }
+            }
+        }
 
         layer.origin = parseVector3D(obj.value(QStringLiteral("origin")), QVector3D(outScene.sceneWidth / 2.0f, outScene.sceneHeight / 2.0f, 0.0f));
-        layer.scale = parseVector3D(obj.value(QStringLiteral("scale")), QVector3D(1.0f, 1.0f, 1.0f));
+        if (!(obj.value(QStringLiteral("scale")).isObject()
+              && obj.value(QStringLiteral("scale")).toObject().contains(QStringLiteral("script")))) {
+            layer.scale = parseVector3D(obj.value(QStringLiteral("scale")), QVector3D(1.0f, 1.0f, 1.0f));
+        }
         layer.angles = parseVector3D(obj.value(QStringLiteral("angles")), QVector3D(0.0f, 0.0f, 0.0f));
         layer.size = parseVector2D(obj.value(QStringLiteral("size")), QVector2D(0.0f, 0.0f));
         layer.parallaxDepth = parseVector3D(obj.value(QStringLiteral("parallaxDepth")), QVector3D(0.0f, 0.0f, 0.0f));
