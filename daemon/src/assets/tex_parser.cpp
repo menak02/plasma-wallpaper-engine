@@ -161,308 +161,104 @@ bool TexParser::parse(std::span<const uint8_t> bytes, TexImage& outImage) {
     uint32_t imageCount = file.readUInt32();
     if (imageCount > 4096) return false; // hostile counts spin the parse loops
 
-    if (std::strncmp(bodyTag, "TEXB0003", 8) == 0) {
-        for (uint32_t imgIdx = 0; imgIdx < imageCount; ++imgIdx) {
-            int32_t fif = file.readInt32();
+    // Ground-truth layout (Almamu parseContainer + parseMipmap): after the
+    // body tag and imageCount, TEXB0003 carries one FreeImage format and
+    // TEXB0004 adds an MP4 flag — both at container level. Per image comes
+    // mipmapCount, then per mip: [TEXB0004 extras] width, height,
+    // [0002/0003/0004] compression, uncompressedSize, compressedSize, data.
+    // TEXB0001 mips have no compression/uncompressedSize fields. The texture
+    // format comes from the TEXI header only — never from mip data.
+    bool isVideoMp4 = false;
+    if (std::strncmp(bodyTag, "TEXB0004", 8) == 0) {
+        file.skip(4); // freeImageFormat
+        isVideoMp4 = file.readUInt32() == 1;
+    } else if (std::strncmp(bodyTag, "TEXB0003", 8) == 0) {
+        file.skip(4); // freeImageFormat
+    }
+    const bool hasTexb4Extras = isVideoMp4;
+    const bool isTexb1 = std::strncmp(bodyTag, "TEXB0001", 8) == 0;
 
-            if (fif == 2 || fif == 13) {
-                // FreeImage JPEG (2) or PNG (13) stream
-                uint32_t fmt = file.readUInt32();
-                Q_UNUSED(fmt);
-                uint32_t mipWidth = file.readUInt32();
-                uint32_t mipHeight = file.readUInt32();
-                file.skip(8); // flags & extra
-                uint32_t compSize = file.readUInt32();
+    for (uint32_t imgIdx = 0; imgIdx < imageCount; ++imgIdx) {
+        uint32_t mipmapCount = file.readUInt32();
+        if (mipmapCount > 256) break;
 
-                if (compSize == 0) continue;
-                {
-                    // Clamp to what the stream holds (64-bit) and cap the
-                    // allocation like every other payload path.
-                    const size_t capped = std::min<size_t>(file.remaining(), 100 * 1024 * 1024);
-                    if (compSize > capped) compSize = static_cast<uint32_t>(capped);
+        for (uint32_t mipIdx = 0; mipIdx < mipmapCount; ++mipIdx) {
+            if (hasTexb4Extras) {
+                file.skip(4); // extra1
+                file.skip(4); // extra2
+                // Null-terminated JSON sidecar string
+                while (file.remaining() > 0 && *file.currentPtr() != 0) {
+                    file.skip(1);
                 }
-                if (compSize == 0) continue;
+                if (file.remaining() > 0) file.skip(1);
+                file.skip(4); // extra3
+            }
 
-                std::vector<uint8_t> rawPayload(compSize);
-                file.readBytes(rawPayload.data(), compSize);
+            uint32_t mipWidth = file.readUInt32();
+            uint32_t mipHeight = file.readUInt32();
 
-                size_t imgOffset = 0;
-                const uint8_t pngMagic[] = {0x89, 'P', 'N', 'G'};
-                const uint8_t jpgMagic[] = {0xFF, 0xD8, 0xFF};
-                for (size_t k = 0; k + 4 <= rawPayload.size(); ++k) {
-                    if (std::memcmp(rawPayload.data() + k, pngMagic, 4) == 0 ||
-                        std::memcmp(rawPayload.data() + k, jpgMagic, 3) == 0) {
-                        imgOffset = k;
-                        break;
-                    }
-                }
+            uint32_t compression = 0;
+            int32_t uncompressedSize = 0;
+            if (!isTexb1) {
+                compression = file.readUInt32();
+                uncompressedSize = file.readInt32();
+            }
+            int32_t compressedSize = file.readInt32();
 
+            if (compression == 0) uncompressedSize = compressedSize;
+            if (mipWidth == 0 || mipHeight == 0 || compressedSize <= 0) continue;
+            // Validate uncompressed size to prevent excessive memory allocation and negative values
+            if (uncompressedSize < 0 || uncompressedSize > 100 * 1024 * 1024) {
+                continue;
+            }
+            if (mipWidth == 0 || mipHeight == 0 || compressedSize <= 0) continue;
+            if (static_cast<uint32_t>(compressedSize) > file.remaining()) continue;
+
+            Mipmap mip;
+            mip.width = mipWidth;
+            mip.height = mipHeight;
+
+            if (compression == 1 && uncompressedSize > 0) {
+                mip.data.resize(static_cast<uint32_t>(uncompressedSize));
+                int decomp = LZ4_decompress_safe(
+                    reinterpret_cast<const char*>(file.currentPtr()),
+                    reinterpret_cast<char*>(mip.data.data()),
+                    compressedSize, uncompressedSize);
+                file.skip(static_cast<uint32_t>(compressedSize));
+                if (decomp < 0) continue;
+            } else {
+                uint32_t dataSize = static_cast<uint32_t>(compressedSize);
+                mip.data.resize(dataSize);
+                file.readBytes(mip.data.data(), dataSize);
+            }
+
+            // FreeImage PNG/JPEG payloads (TEXB0003 FIF streams) are decoded
+            // eagerly and normalized to RGBA8888 so consumers see real pixels.
+            if (mip.data.size() > 4 &&
+                ((mip.data[0] == 0xFF && mip.data[1] == 0xD8) || (mip.data[0] == 0x89 && mip.data[1] == 'P'))) {
                 QImage decoded;
-                if (decoded.loadFromData(rawPayload.data() + imgOffset, static_cast<int>(rawPayload.size() - imgOffset))) {
+                if (decoded.loadFromData(mip.data.data(), static_cast<int>(mip.data.size()))) {
                     decoded = decoded.convertToFormat(QImage::Format_RGBA8888);
-                    outImage.width = decoded.width();
-                    outImage.height = decoded.height();
-                    outImage.textureWidth = decoded.width();
-                    outImage.textureHeight = decoded.height();
-                    Mipmap mip;
                     mip.width = decoded.width();
                     mip.height = decoded.height();
                     mip.data.resize(decoded.sizeInBytes());
                     std::memcpy(mip.data.data(), decoded.constBits(), decoded.sizeInBytes());
                     outImage.format = TextureFormat::ARGB8888;
-                    outImage.mipmaps.push_back(std::move(mip));
-                } else {
-                    Mipmap mip;
-                    mip.width = mipWidth;
-                    mip.height = mipHeight;
-                    mip.data = std::move(rawPayload);
-                    outImage.mipmaps.push_back(std::move(mip));
-                }
-            } else {
-                // LZ4 block stream inside TEXB0003
-                int32_t compFormat = file.readInt32();
-                Q_UNUSED(compFormat);
-                uint32_t mipWidth = file.readUInt32();
-                uint32_t mipHeight = file.readUInt32();
-                uint32_t numChunks = file.readUInt32();
-                Q_UNUSED(numChunks);
-                uint32_t uncompSize = file.readUInt32();
-                uint32_t compSize = file.readUInt32();
-
-                if (mipWidth == 0 || mipHeight == 0 || compSize == 0 || compSize > file.remaining()) {
-                    continue;
-                }
-                // Validate uncompressed size to prevent excessive memory allocation
-                if (uncompSize > 100 * 1024 * 1024) { // 100 MB
-                    continue;
-                }
-                if (compSize > 100 * 1024 * 1024) { // keep LZ4 int casts safe
-                    continue;
-                }
-
-                Mipmap mip;
-                mip.width = mipWidth;
-                mip.height = mipHeight;
-                mip.data.resize(uncompSize > 0 ? uncompSize : compSize);
-
-                if (uncompSize > 0 && compSize != uncompSize) {
-                    int decomp = LZ4_decompress_safe(
-                        reinterpret_cast<const char*>(file.currentPtr()),
-                        reinterpret_cast<char*>(mip.data.data()),
-                        static_cast<int>(compSize),
-                        static_cast<int>(uncompSize)
-                    );
-                    file.skip(compSize);
-                    if (decomp < 0) continue;
-                } else {
-                    file.readBytes(mip.data.data(), compSize);
-                }
-
-                // Check for embedded PNG/JPEG payload
-                if (mip.data.size() > 4 && ((mip.data[0] == 0xFF && mip.data[1] == 0xD8) || (mip.data[0] == 0x89 && mip.data[1] == 'P'))) {
-                    QImage decoded;
-                    if (decoded.loadFromData(mip.data.data(), static_cast<int>(mip.data.size()))) {
-                        decoded = decoded.convertToFormat(QImage::Format_RGBA8888);
-                        mip.width = decoded.width();
-                        mip.height = decoded.height();
-                        mip.data.resize(decoded.sizeInBytes());
-                        std::memcpy(mip.data.data(), decoded.constBits(), decoded.sizeInBytes());
-                        outImage.format = TextureFormat::ARGB8888;
+                    // Only mip0 defines the image size — later mips would
+                    // overwrite the dims with their own (smaller) values.
+                    if (outImage.mipmaps.empty()) {
+                        outImage.width = decoded.width();
+                        outImage.height = decoded.height();
+                        outImage.textureWidth = decoded.width();
+                        outImage.textureHeight = decoded.height();
                     }
-                }
-                // NOTE: In TEXB0003, the field we read as compFormat is actually
-                // Almamu's "compression" flag (0=none, 1=LZ4), NOT a texture format.
-                // Texture format comes from the TEXI header only. Do NOT override.
-
-                outImage.mipmaps.push_back(std::move(mip));
-            }
-        }
-    } else if (std::strncmp(bodyTag, "TEXB0004", 8) == 0) {
-        // TEXB0004 has two extra fields after imageCount (per Almamu's parseContainer):
-        //   freeImageFormat (uint32, FIF enum)
-        //   isVideoMp4 (uint32, 1 if MP4 video)
-        uint32_t fif = file.readUInt32();
-        uint32_t isVideoMp4 = file.readUInt32();
-        Q_UNUSED(fif);
-        Q_UNUSED(isVideoMp4);
-
-        // CRITICAL: Almamu's logic — if FIF is not MP4, downgrade to TEXB0003
-        // structure (no per-mipmap extras). Only actual MP4 video textures keep
-        // the TEXB0004 per-mipmap extras (extra1, extra2, json, extra3).
-        bool hasTexb4Extras = (isVideoMp4 == 1);
-
-        // TEXB0003-style structure (no per-mipmap extras):
-        //   For each image:
-        //     For each mipmap:
-        //       width, height, compression, uncompressedSize, compressedSize, data
-        // TEXB0004-style structure (MP4 video only):
-        //   For each image:
-        //     mipmapCount
-        //     For each mipmap:
-        //       extra1, extra2, json, extra3, width, height, compression, ...
-        if (hasTexb4Extras) {
-            // True TEXB0004 with per-mipmap extras (MP4 video)
-            for (uint32_t imgIdx = 0; imgIdx < imageCount; ++imgIdx) {
-                uint32_t mipmapCount = file.readUInt32();
-                if (mipmapCount > 256) continue;
-
-                for (uint32_t mipIdx = 0; mipIdx < mipmapCount; ++mipIdx) {
-                    file.skip(4); // extra1
-                    file.skip(4); // extra2
-                    // Null-terminated JSON string - check for path traversal
-                    bool hasPathTraversal = false;
-                    char prev = 0;
-                    while (file.remaining() > 0) {
-                        uint8_t ch = *file.currentPtr();
-                        file.skip(1);
-                        if (ch == 0) break;
-                        if (ch == '.' && prev == '.') {
-                            hasPathTraversal = true;
-                        }
-                        prev = ch;
-                    }
-
-                    if (hasPathTraversal) {
-                        // Skip the rest of this mipmap: extra3, width, height, compression, uncompressedSize, compressedSize
-                        file.skip(4); // extra3
-                        file.skip(4); // width
-                        file.skip(4); // height
-                        file.skip(4); // compression
-                        file.skip(4); // uncompressedSize
-                        file.skip(4); // compressedSize
-                        continue;
-                    }
-
-                    file.skip(4); // extra3
-
-                    uint32_t mipWidth = file.readUInt32();
-                    uint32_t mipHeight = file.readUInt32();
-                    uint32_t compression = file.readUInt32();
-                    int32_t uncompressedSize = file.readInt32();
-                    int32_t compressedSize = file.readInt32();
-
-                    if (compression == 0) uncompressedSize = compressedSize;
-                    // Validate uncompressed size to prevent excessive memory allocation and negative values
-                    if (uncompressedSize < 0 || uncompressedSize > 100 * 1024 * 1024) {
-                        continue;
-                    }
-                    if (mipWidth == 0 || mipHeight == 0 || compressedSize <= 0) continue;
-                    if (static_cast<uint32_t>(compressedSize) > file.remaining()) continue;
-
-                    Mipmap mip;
-                    mip.width = mipWidth;
-                    mip.height = mipHeight;
-
-                    if (compression == 1 && uncompressedSize > 0) {
-                        mip.data.resize(static_cast<uint32_t>(uncompressedSize));
-                        int decomp = LZ4_decompress_safe(
-                            reinterpret_cast<const char*>(file.currentPtr()),
-                            reinterpret_cast<char*>(mip.data.data()),
-                            compressedSize, uncompressedSize);
-                        file.skip(static_cast<uint32_t>(compressedSize));
-                        if (decomp < 0) continue;
-                    } else {
-                        uint32_t dataSize = static_cast<uint32_t>(compressedSize);
-                        mip.data.resize(dataSize);
-                        file.readBytes(mip.data.data(), dataSize);
-                    }
-
-                    outImage.mipmaps.push_back(std::move(mip));
                 }
             }
-        } else {
-            // Downgraded to TEXB0003 structure: NO per-mipmap extras.
-            // Per-Almamu: for each image → for each mipmap:
-            //   width, height, compression, uncompressedSize, compressedSize, data
-            for (uint32_t imgIdx = 0; imgIdx < imageCount; ++imgIdx) {
-                uint32_t mipmapCount = file.readUInt32();
-                if (mipmapCount > 256) continue;
 
-                for (uint32_t mipIdx = 0; mipIdx < mipmapCount; ++mipIdx) {
-                    uint32_t mipWidth = file.readUInt32();
-                    uint32_t mipHeight = file.readUInt32();
-                    uint32_t compression = file.readUInt32();
-                    int32_t uncompressedSize = file.readInt32();
-                    int32_t compressedSize = file.readInt32();
-
-                    if (compression == 0) uncompressedSize = compressedSize;
-                    // Validate uncompressed size to prevent excessive memory allocation and negative values
-                    if (uncompressedSize < 0 || uncompressedSize > 100 * 1024 * 1024) {
-                        continue;
-                    }
-                    if (mipWidth == 0 || mipHeight == 0 || compressedSize <= 0) continue;
-                    if (static_cast<uint32_t>(compressedSize) > file.remaining()) continue;
-
-                    Mipmap mip;
-                    mip.width = mipWidth;
-                    mip.height = mipHeight;
-
-                    if (compression == 1 && uncompressedSize > 0) {
-                        mip.data.resize(static_cast<uint32_t>(uncompressedSize));
-                        int decomp = LZ4_decompress_safe(
-                            reinterpret_cast<const char*>(file.currentPtr()),
-                            reinterpret_cast<char*>(mip.data.data()),
-                            compressedSize, uncompressedSize);
-                        file.skip(static_cast<uint32_t>(compressedSize));
-                        if (decomp < 0) continue;
-                    } else {
-                        uint32_t dataSize = static_cast<uint32_t>(compressedSize);
-                        mip.data.resize(dataSize);
-                        file.readBytes(mip.data.data(), dataSize);
-                    }
-
-                    outImage.mipmaps.push_back(std::move(mip));
-                }
-            }
-        }
-    } else {
-        // TEXB0001 / TEXB0002
-        for (uint32_t imgIdx = 0; imgIdx < imageCount; ++imgIdx) {
-            uint32_t compFormat = file.readUInt32();
-            uint32_t mipWidth = file.readUInt32();
-            uint32_t mipHeight = file.readUInt32();
-            uint32_t compression = file.readUInt32();
-            uint32_t uncompSize = file.readUInt32();
-            uint32_t compSize = file.readUInt32();
-
-            if (compSize == 0 || compSize > file.remaining()) continue;
-
-            // Same 100 MB cap as TEXB0003/0004 (H2): an uncapped uncompSize is
-            // an arbitrary-size allocation, and values above INT_MAX turn the
-            // static_cast<int> capacity for LZ4_decompress_safe negative.
-            if (uncompSize > 100 * 1024 * 1024) continue;
-            if (compSize > 100 * 1024 * 1024) continue;
-            if (compression == 1 && uncompSize == 0) continue;
-
-            Mipmap mip;
-            mip.width = mipWidth;
-            mip.height = mipHeight;
-            mip.data.resize(uncompSize > 0 ? uncompSize : compSize);
-
-            if (compression == 1) {
-                int decomp = LZ4_decompress_safe(
-                    reinterpret_cast<const char*>(file.currentPtr()),
-                    reinterpret_cast<char*>(mip.data.data()),
-                    static_cast<int>(compSize),
-                    static_cast<int>(uncompSize)
-                );
-                file.skip(compSize);
-                if (decomp < 0) continue;
-            } else {
-                // Raw path: never copy more than the destination holds — a
-                // hostile compSize > uncompSize would overflow the buffer.
-                const size_t rawBytes = std::min<size_t>(compSize, mip.data.size());
-                file.readBytes(mip.data.data(), rawBytes);
-                file.skip(compSize - rawBytes);
-                mip.data.resize(rawBytes);
-            }
-
-            if (compFormat != 0) {
-                outImage.format = static_cast<TextureFormat>(compFormat);
-            }
             outImage.mipmaps.push_back(std::move(mip));
         }
     }
+
 
     if (!outImage.mipmaps.empty()) {
         if (outImage.width == 0) outImage.width = outImage.mipmaps[0].width;

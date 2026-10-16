@@ -743,7 +743,11 @@ bool SceneParser::resolveTexture(Assets::PkgReader& pkgReader, const std::string
 
     if (bytes.empty()) return false;
 
-    QString cacheKey = QString::fromStdString(texName);
+    // Key by pkg + name: the verifier loads many wallpapers in one process and
+    // generic texture paths ("materials/x.png") collide across packages with
+    // different content.
+    QString cacheKey = QString::fromStdString(pkgReader.getPath().string())
+        + u'\n' + QString::fromStdString(texName);
     if (auto* cached = g_texCache.object(cacheKey)) {
         outImage = *cached;
         return true;
@@ -771,6 +775,15 @@ bool SceneParser::resolveTexture(Assets::PkgReader& pkgReader, const std::string
             QImage img(rgba.data(), decodedWidth, decodedHeight,
                        static_cast<qsizetype>(decodedWidth) * 4, QImage::Format_RGBA8888);
             img = img.copy();
+            // WE pads textures to power-of-two sizes with the visible image
+            // in the top-left (e.g. 1920x1080 in a 2048x2048 texture); crop to
+            // the declared image area so layers show the artwork, not padding.
+            if (texImg.width > 0 && texImg.height > 0 &&
+                (texImg.width < decodedWidth || texImg.height < decodedHeight)) {
+                img = img.copy(0, 0,
+                               static_cast<int>(std::min(texImg.width, decodedWidth)),
+                               static_cast<int>(std::min(texImg.height, decodedHeight)));
+            }
             img = img.convertToFormat(QImage::Format_ARGB32);
 
             // Grayscale mask detection
@@ -942,6 +955,15 @@ bool SceneParser::resolveTexture(Assets::PkgReader& pkgReader, const std::string
             QImage img(rgba.data(), decodedWidth, decodedHeight,
                        static_cast<qsizetype>(decodedWidth) * 4, QImage::Format_RGBA8888);
             img = img.copy();
+            // WE pads textures to power-of-two sizes with the visible image
+            // in the top-left (e.g. 1920x1080 in a 2048x2048 texture); crop to
+            // the declared image area so layers show the artwork, not padding.
+            if (texImg.width > 0 && texImg.height > 0 &&
+                (texImg.width < decodedWidth || texImg.height < decodedHeight)) {
+                img = img.copy(0, 0,
+                               static_cast<int>(std::min(texImg.width, decodedWidth)),
+                               static_cast<int>(std::min(texImg.height, decodedHeight)));
+            }
             img = img.convertToFormat(QImage::Format_ARGB32);
 
             outImage = img;

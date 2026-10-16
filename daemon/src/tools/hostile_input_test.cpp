@@ -76,7 +76,8 @@ void testUncappedTex(const std::filesystem::path& dir) {
 }
 
 // Raw-entry size mismatch: compSize > uncompSize must not overflow the mip
-// buffer (heap write overflow before the fix).
+// buffer (heap write overflow before the fix). Under the ground-truth layout
+// the destination is always sized to the copy.
 void testTexSizeMismatch(const std::filesystem::path& dir) {
     const auto bytes = readFileBytes(dir / "texb1-size-mismatch.tex");
     expect(!bytes.empty(), "texb1-size-mismatch.tex fixture present");
@@ -86,9 +87,9 @@ void testTexSizeMismatch(const std::filesystem::path& dir) {
     expect(parsed, "texb1-size-mismatch.tex parses");
     bool sized = false;
     for (const auto& mip : img.mipmaps) {
-        if (mip.data.size() <= 16) sized = true;
+        if (mip.data.size() == 64) sized = true;
     }
-    expect(sized, "mip payload clamped to declared size (no overflow)");
+    expect(sized, "mip payload sized to the copy (no overflow)");
 }
 
 // PKG entry length/offset must be validated against the real file size.

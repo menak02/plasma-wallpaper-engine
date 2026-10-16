@@ -29,7 +29,14 @@ def u32(v: int) -> bytes:
     return struct.pack("<I", v & 0xFFFFFFFF)
 
 
-def tex_file(body_tag: bytes, mips: list[bytes]) -> bytes:
+def tex_file(body_tag: bytes, images: list[list[bytes]]) -> bytes:
+    """Build a TEXV0005/TEXI0001 container.
+
+    images: per image, a list of raw mip records (each already carrying that
+    version's own field layout). Layout follows Almamu's parseContainer:
+    body tag, imageCount, [TEXB0003: FIF] [TEXB0004: FIF, isVideoMp4], then
+    per image: mipmapCount + mips.
+    """
     out = b"TEXV0005\x00"
     out += b"TEXI0001\x00"
     out += u32(7)          # format = DXT1
@@ -40,52 +47,48 @@ def tex_file(body_tag: bytes, mips: list[bytes]) -> bytes:
     out += u32(65536)      # height
     out += u32(0)          # reserved
     out += body_tag + b"\x00"
-    out += u32(len(mips))
-    for mip in mips:
-        out += mip
+    out += u32(len(images))
+    if body_tag.startswith(b"TEXB0003"):
+        out += u32(0xFFFFFFFF)  # freeImageFormat (unknown)
+    elif body_tag.startswith(b"TEXB0004"):
+        out += u32(0xFFFFFFFF)  # freeImageFormat
+        out += u32(0)           # isVideoMp4
+    for mips in images:
+        out += u32(len(mips))
+        for mip in mips:
+            out += mip
     return out
+
+
+def mip_v2(width: int, height: int, compression: int, uncomp: int, payload: bytes) -> bytes:
+    """TEXB0002/0003 mip: width, height, compression, uncompressedSize,
+    compressedSize, data."""
+    return (u32(width) + u32(height) + u32(compression)
+            + u32(uncomp) + u32(len(payload)) + payload)
+
+
+def mip_v1(width: int, height: int, payload: bytes) -> bytes:
+    """TEXB0001 mip: width, height, compressedSize, data (no compression
+    fields)."""
+    return u32(width) + u32(height) + u32(len(payload)) + payload
 
 
 def main() -> None:
     # C3: one DXT1 mip, 65536x65536 declared, 16 bytes of payload. A valid
     # DXT1 4x4 block so the decoder reaches the pixel loops.
-    overflow_mip = (
-        u32(7)             # compFormat = DXT1
-        + u32(65536)       # mipWidth
-        + u32(65536)       # mipHeight
-        + u32(0)           # compression = raw
-        + u32(0)           # uncompSize (raw path)
-        + u32(16)          # compSize
-        + b"\x00" * 16     # one DXT1 block
-    )
-    (HERE / "overflow-dims.tex").write_bytes(tex_file(b"TEXB0001", [overflow_mip]))
+    overflow_mip = mip_v1(65536, 65536, b"\x00" * 16)
+    (HERE / "overflow-dims.tex").write_bytes(tex_file(b"TEXB0001", [[overflow_mip]]))
 
-    # H2: TEXB0001 LZ4 entry with an uncapped uncompressed size.
-    uncapped_mip = (
-        u32(0)             # compFormat
-        + u32(4)           # mipWidth
-        + u32(4)           # mipHeight
-        + u32(1)           # compression = LZ4
-        + u32(0xFFFFFFF0)  # uncompSize: ~4 GiB allocation pre-fix
-        + u32(8)           # compSize
-        + b"\x00" * 8      # garbage LZ4 stream
-    )
-    (HERE / "texb1-uncapped.tex").write_bytes(tex_file(b"TEXB0001", [uncapped_mip]))
+    # H2: TEXB0002 LZ4 entry with an uncapped uncompressed size.
+    uncapped_mip = mip_v2(4, 4, 1, 0xFFFFFFF0, b"\x00" * 8)
+    (HERE / "texb1-uncapped.tex").write_bytes(tex_file(b"TEXB0002", [[uncapped_mip]]))
 
-    # Heap write overflow: raw (uncompressed) entry whose payload is larger
+    # Heap write overflow shape: raw entry whose declared payload is larger
     # than the declared uncompressed size. Pre-fix copied compSize bytes into
-    # an uncompSize-byte buffer (heap overflow); post-fix it copies at most
-    # the buffer size and keeps the declared size.
-    mismatch_mip = (
-        u32(0)             # compFormat
-        + u32(4)           # mipWidth
-        + u32(4)           # mipHeight
-        + u32(0)           # compression = raw
-        + u32(16)          # uncompSize: destination buffer
-        + u32(64)          # compSize: 64 bytes of payload for 16 bytes of room
-        + b"\x41" * 64
-    )
-    (HERE / "texb1-size-mismatch.tex").write_bytes(tex_file(b"TEXB0001", [mismatch_mip]))
+    # an uncompSize-byte buffer (heap overflow); post-fix the destination is
+    # always sized to the copy.
+    mismatch_mip = mip_v2(4, 4, 0, 16, b"\x41" * 64)
+    (HERE / "texb1-size-mismatch.tex").write_bytes(tex_file(b"TEXB0002", [[mismatch_mip]]))
 
     # PKG: header + 3 entries against a 4-byte payload section.
     pkg = u32(4) + b"PKGV"
