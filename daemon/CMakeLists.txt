@@ -90,6 +90,7 @@ add_executable(plasma-wallpaper-engine-daemon
     src/assets/library_scanner.h
     src/assets/library_scanner.cpp
     src/scene/scene_parser.cpp
+    src/scene/scene_effects.cpp
     src/scene/js_engine.cpp
     src/scene/web_wallpaper.cpp
     src/scene/web_wallpaper.h
@@ -193,6 +194,7 @@ add_executable(plasma-wallpaper-engine-verifier
     src/assets/library_scanner.h
     src/assets/library_scanner.cpp
     src/scene/scene_parser.cpp
+    src/scene/scene_effects.cpp
     src/scene/js_engine.cpp
     src/scene/web_wallpaper.cpp
     src/scene/web_wallpaper.h
@@ -542,6 +544,7 @@ add_executable(gpu_scene_e2e
     src/assets/dxt_decoder.cpp
     src/assets/video_decoder.cpp
     src/scene/scene_parser.cpp
+    src/scene/scene_effects.cpp
     src/scene/scene_compositor.cpp
     src/scene/js_engine.cpp
     src/scene/web_wallpaper.cpp

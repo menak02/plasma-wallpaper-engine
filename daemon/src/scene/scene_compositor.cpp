@@ -271,6 +271,12 @@ void SceneCompositor::buildGpuFrame(std::vector<Render::GpuLayer>& gpuLayers,
                     animOffsetY += std::cos(shakePhase * 1.7f) * eff.strength * 5.0f;
                     break;
                 }
+                case EffectType::Scroll: {
+                    // Animated translate — pure transform cost, no pixel work.
+                    animOffsetX += std::cos(eff.direction) * time * eff.speed * 40.0f;
+                    animOffsetY += std::sin(eff.direction) * time * eff.speed * 40.0f;
+                    break;
+                }
                 default:
                     break;
             }
@@ -702,6 +708,12 @@ void SceneCompositor::updateAndRender(float dt, float time) {
                     float shakePhase = time * eff.speed * 10.0f;
                     animOffsetX += std::sin(shakePhase * 1.3f) * eff.strength * 5.0f;
                     animOffsetY += std::cos(shakePhase * 1.7f) * eff.strength * 5.0f;
+                    break;
+                }
+                case EffectType::Scroll: {
+                    // Animated translate — pure transform cost, no pixel work.
+                    animOffsetX += std::cos(eff.direction) * time * eff.speed * 40.0f;
+                    animOffsetY += std::sin(eff.direction) * time * eff.speed * 40.0f;
                     break;
                 }
                 case EffectType::Blur:

@@ -1,5 +1,6 @@
 #include "scene_parser.h"
 #include "js_engine.h"
+#include "scene_effects.h"
 #include "../assets/dxt_decoder.h"
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -524,8 +525,13 @@ bool SceneParser::parseScene(Assets::PkgReader& pkgReader, SceneDescription& out
             }
         }
 
-        // 5. Apply opacity masks to layer image (before compositor)
+        // 5. Apply opacity masks and bake static effect passes (Blur/Tint)
+        //    into the layer image before compositing — per-frame cost stays
+        //    zero for time-independent passes.
         applyOpacityMasks(layer);
+        if (Scene::hasStaticEffects(layer.effects)) {
+            layer.image = Scene::applyStaticEffects(layer.image, layer.effects);
+        }
 
         QString layerNameLower = QString::fromStdString(layer.name).toLower();
         if (layerNameLower.contains(QStringLiteral("bloqueo")) || layerNameLower.contains(QStringLiteral("boundary")) || layerNameLower.contains(QStringLiteral("collision"))) {
@@ -767,6 +773,32 @@ bool SceneParser::resolveEffect(Assets::PkgReader& pkgReader, const QJsonObject&
             }
         }
     }
+
+    // Tint/blend passes carry a channel color among the shader constants.
+    for (const auto& passVal : passes) {
+        if (!passVal.isObject()) continue;
+        QJsonObject consts = passVal.toObject().value(QStringLiteral("constantshadervalues")).toObject();
+        for (const char* key : {"color", "tintcolor", "colour"}) {
+            if (consts.contains(QString::fromUtf8(key))) {
+                QVector3D c = parseVector3D(consts.value(QString::fromUtf8(key)), QVector3D(1, 1, 1));
+                outEffect.color = QColor::fromRgbF(std::clamp(c.x(), 0.0f, 4.0f),
+                                                   std::clamp(c.y(), 0.0f, 4.0f),
+                                                   std::clamp(c.z(), 0.0f, 4.0f));
+                break;
+            }
+        }
+    }
+
+    // Clamp every captured constant here — scene.json is untrusted input and
+    // the effect passes assume sane ranges (this also bounds pixel-loop cost).
+    outEffect.speed = std::clamp(outEffect.speed, -100.0f, 100.0f);
+    outEffect.strength = std::clamp(outEffect.strength, 0.0f, 1.0f);
+    outEffect.scale = std::clamp(outEffect.scale, 0.001f, 1000.0f);
+    outEffect.direction = std::clamp(outEffect.direction, -1000.0f, 1000.0f);
+    outEffect.intensity = std::clamp(outEffect.intensity, 0.0f, 2.0f);
+    outEffect.length = std::clamp(outEffect.length, 0.0f, 10.0f);
+    outEffect.center.setX(std::clamp(outEffect.center.x(), -10.0f, 10.0f));
+    outEffect.center.setY(std::clamp(outEffect.center.y(), -10.0f, 10.0f));
 
     return true;
 }
