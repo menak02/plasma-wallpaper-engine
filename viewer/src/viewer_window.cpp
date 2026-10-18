@@ -450,10 +450,21 @@ void ViewerWindow::sendMousePosition(double normX, double normY)
 void ViewerWindow::openPkgFile()
 {
     // Start in the Steam Workshop library when it exists so the common case
-    // is two clicks away; the dialog can reach anything else on disk.
-    const QString workshopDir = QDir::homePath() +
-        QStringLiteral("/.steam/debian-installation/steamapps/workshop/content/431960");
-    const QString startDir = QDir(workshopDir).exists() ? workshopDir : QDir::homePath();
+    // is two clicks away; the dialog can reach anything else on disk. The
+    // Steam root is discovered, not assumed — layouts differ per distro.
+    QString workshopDir;
+    {
+        const QString home = QDir::homePath();
+        const QStringList roots = {
+            home + QStringLiteral("/.steam/steam/steamapps/workshop/content/431960"),
+            home + QStringLiteral("/.steam/debian-installation/steamapps/workshop/content/431960"),
+            home + QStringLiteral("/.local/share/Steam/steamapps/workshop/content/431960"),
+        };
+        for (const QString& root : roots) {
+            if (QDir(root).exists()) { workshopDir = root; break; }
+        }
+    }
+    const QString startDir = workshopDir.isEmpty() ? QDir::homePath() : workshopDir;
 
     // Scene wallpapers ship as scene.pkg inside per-item workshop
     // subdirectories; standalone video wallpapers are selected via their
