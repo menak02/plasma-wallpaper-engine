@@ -141,13 +141,16 @@ int main(int argc, char *argv[]) {
         float timeSec = now / 1000.0f;
 
         // 1. Update multi-layer scene graph and particles
-        service.updateAndRender(dt, timeSec);
+        const bool composited = service.updateAndRender(dt, timeSec);
 
-        // 2. Execute Vulkan render pass into DmaBuf
-        vulkanCtx.renderFrame(timeSec);
+        // 2. Execute Vulkan render pass into DmaBuf — skipped on idle frames
+        //    (static scene, no state change): no composite, no submit.
+        if (composited) {
+            vulkanCtx.renderFrame(timeSec);
 
-        // 3. Notify connected Plasma wallpaper / viewer
-        service.requestFrame();
+            // 3. Notify connected Plasma wallpaper / viewer
+            service.requestFrame();
+        }
     });
 
     frameTimer.start();

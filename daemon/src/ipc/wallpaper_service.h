@@ -33,7 +33,8 @@ public:
                               const QStringList& trustedDirs = {},
                               QObject* parent = nullptr);
 
-    void updateAndRender(float dt, float time);
+    // Returns true when a frame was composited (false on idle-gated skips).
+    bool updateAndRender(float dt, float time);
 
 public Q_SLOTS:
     QVariantMap getBufferInfo();

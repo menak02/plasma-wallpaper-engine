@@ -157,12 +157,12 @@ jobs:
         cmake --build build -j"$(nproc)" 2>&1 | tee build.log
         exit "${PIPESTATUS[0]}"
 
-    - name: Compiler warnings (reported; hard-gate once count is zero)
+    - name: Compiler warnings (hard gate)
       run: |
         n="$(grep -c 'warning:' build.log || true)"
         echo "== compiler warnings: ${n}" | tee -a repo-quality-report.txt
         grep 'warning:' build.log | sed 's/^/  /' | sort -u | head -40 | tee -a repo-quality-report.txt
-        exit 0
+        test "${n}" -eq 0
 
     - name: Hygiene checks (artifacts, whitespace, bare printf)
       env:

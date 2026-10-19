@@ -27,7 +27,7 @@ public:
     // media file — no scene.pkg archive involved).
     bool loadVideo(const std::string& videoFilePath);
     void setWebProperty(const QString& key, const QVariant& value);
-    void updateAndRender(float dt, float time);
+    bool updateAndRender(float dt, float time);
     void setMouseParallax(float normX, float normY);
     void setTargetResolution(uint32_t width, uint32_t height);
 
@@ -46,6 +46,11 @@ public:
     // True while the GPU quad compositor owns the frame pipeline (dmabuf is
     // written directly; updateAndRender skips the CPU composite + upload).
     bool usingGpuCompositor() const { return m_gpuCompositing; }
+
+    // H8 idle gating: content advances with time (animations, scripts, video,
+    // clocks, grain) or audio capture is feeding bands. When false and clean,
+    // updateAndRender skips the composite entirely and returns false.
+    bool isTimeDependent() const { return m_timeDependent || m_audioCaptureActive; }
 
 private:
     Render::VulkanContext* m_vulkanCtx = nullptr;
@@ -97,6 +102,9 @@ private:
     Render::GpuQuadCompositor m_gpuCompositor;
     bool m_gpuCompositing = false;
     bool m_gpuGrain = false; // grain handled on GPU for the current scene
+    bool m_timeDependent = true;
+    bool m_dirty = true;
+    bool m_audioCaptureActive = false;
 };
 
 } // namespace WallpaperEngine::Scene

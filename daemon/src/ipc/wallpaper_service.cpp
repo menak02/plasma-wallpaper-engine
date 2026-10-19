@@ -153,7 +153,7 @@ QString WallpaperService::validateTrustRoot(const QString& dirPath) const {
     return canon;
 }
 
-void WallpaperService::updateAndRender(float dt, float time) {
+bool WallpaperService::updateAndRender(float dt, float time) {
     // Refresh compositor coverage state once per frame. Without this the
     // Hyprland backend's monitor/workspace/client snapshots are taken once
     // at construction and never again, so the pause gate can never see a
@@ -163,12 +163,13 @@ void WallpaperService::updateAndRender(float dt, float time) {
     }
 
     if (!shouldRenderThisFrame()) {
-        return;
+        return false;
     }
 
     if (m_compositor.hasScene()) {
-        m_compositor.updateAndRender(dt, time);
+        return m_compositor.updateAndRender(dt, time);
     }
+    return false;
 }
 
 QDBusUnixFileDescriptor WallpaperService::getBufferFd() {

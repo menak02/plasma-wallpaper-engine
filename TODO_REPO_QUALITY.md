@@ -41,14 +41,13 @@ CPU cost, and keep it non-blocking.
 
 ## Open items
 
-- `png_regression_batch`: 3 of 72 fixtures fail on this machine
-  (3601075812.png, 3673417519.png, 3762441477.png). Root cause pending;
-  resolve (code fix vs stale baseline) before adding new hard gates.
-- The compiler-warning step is advisory because the tree is not warning-clean:
-  96 occurrences / 19 distinct (file,type) under `-Wall -Wextra`, dominated by
-  unused parameters in deliberate stubs. Clean up opportunistically, then flip
-  the step to a hard gate (consider gating with `-Wno-unused-parameter` once
-  the non-stub warnings are gone).
+- `png_regression_batch`: resolved 2026-10-18 — 71/71 mae=0.000 after the
+  baselines were regenerated against the current workshop corpus (the old
+  three failures were content drift (3762441477), missing SceneScript
+  visibility (3601075812), and a scene-less standalone video outside the
+  pkg gate (3673417519)).
+- Compiler warnings: the tree is `-Wall -Wextra` clean (0 occurrences) and
+  the CI step is now a hard gate (`build-and-test.yml`). Keep it at zero.
 - clang-tidy is advisory; promote individual checks to hard as findings are
   triaged.
 - gitleaks image tag is pinned (`zricethezav/gitleaks:v8.21.2`); bump

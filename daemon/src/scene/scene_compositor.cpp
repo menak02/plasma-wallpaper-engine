@@ -133,15 +133,18 @@ void SceneCompositor::setTargetResolution(uint32_t width, uint32_t height) {
 void SceneCompositor::setMouseParallax(float normX, float normY) {
     m_mouseX = std::clamp(normX, 0.0f, 1.0f);
     m_mouseY = std::clamp(normY, 0.0f, 1.0f);
+    m_dirty = true;
 }
 
 bool SceneCompositor::startAudioCapture() {
+    m_audioCaptureActive = true;
     // Capture targets the default sink monitor (system output) only — never
     // a microphone — and also hears the wallpaper's own OST playback.
     return m_audioVisualizer.startLiveCapture();
 }
 
 void SceneCompositor::stopAudioCapture() {
+    m_audioCaptureActive = false;
     m_audioVisualizer.stopLiveCapture();
 }
 
@@ -168,6 +171,45 @@ bool SceneCompositor::loadScene(Assets::PkgReader& pkgReader, const std::unorder
     std::cout << "SceneCompositor: Loaded scene '" << m_scene.title
               << "' with " << m_scene.layers.size() << " layers"
               << " [renderer: " << (m_gpuCompositing ? "gpu" : "cpu") << "]" << std::endl;
+
+    // H8 idle gating: decide once whether anything in this scene advances with
+    // time (animations, scripts, video textures, clocks, film grain). A fully
+    // static scene composites once and then re-renders only on state change.
+    m_timeDependent = false;
+    for (const auto& layer : m_scene.layers) {
+        if (layer.isClock || layer.isDate || layer.hasScriptBinding ||
+            layer.videoDecoder || !layer.videoData.empty()) {
+            m_timeDependent = true;
+            break;
+        }
+        for (const auto& eff : layer.effects) {
+            switch (eff.type) {
+                case EffectType::Breath:
+                case EffectType::Pulse:
+                case EffectType::Shake:
+                case EffectType::Scroll:
+                case EffectType::WaterWaves:
+                case EffectType::WaterRipple:
+                case EffectType::Wind:
+                case EffectType::FoliageSway:
+                case EffectType::GodRays:
+                case EffectType::Shine:
+                    m_timeDependent = true;
+                    break;
+                default:
+                    break;
+            }
+            if (m_timeDependent) break;
+        }
+        if (m_timeDependent) break;
+    }
+    if (!m_timeDependent && m_hasFilmGrain) {
+        m_timeDependent = true; // grain re-randomizes every frame
+    }
+    if (!m_timeDependent) {
+        std::cout << "SceneCompositor: scene is static — compositing on state change only" << std::endl;
+    }
+    m_dirty = true;
     return true;
 }
 
@@ -339,6 +381,8 @@ bool SceneCompositor::reloadWithProperties(const std::unordered_map<std::string,
 }
 
 bool SceneCompositor::loadWeb(const std::string& html) {
+    m_timeDependent = true;
+    m_dirty = true;
     m_hasScene = true;
     m_isWeb = true;
     m_scene = SceneDescription{};
@@ -371,6 +415,8 @@ bool SceneCompositor::loadWeb(const std::string& html) {
 bool SceneCompositor::isWeb() const { return m_isWeb; }
 
 bool SceneCompositor::loadVideo(const std::string& videoFilePath) {
+    m_timeDependent = true;
+    m_dirty = true;
     auto decoder = std::make_shared<Assets::VideoDecoder>();
     if (!decoder->openFromFile(videoFilePath, 0, 0)) {
         std::cerr << "SceneCompositor: failed to open video wallpaper " << videoFilePath << std::endl;
@@ -413,8 +459,13 @@ void SceneCompositor::setWebProperty(const QString& key, const QVariant& value) 
     if (m_web) m_web->setProperty(key, value);
 }
 
-void SceneCompositor::updateAndRender(float dt, float time) {
-    if (!m_hasScene || !m_vulkanCtx) return;
+bool SceneCompositor::updateAndRender(float dt, float time) {
+    if (!m_hasScene || !m_vulkanCtx) return false;
+
+    // H8 idle gating: nothing in this scene advances with time and no state
+    // changed — the export buffer already holds the right frame.
+    if (!isTimeDependent() && !m_dirty) return false;
+    m_dirty = false;
 
     // Audio-reactive tick: sample the visualizer once per frame so band
     // energies reflect the current audio window.
@@ -576,7 +627,7 @@ void SceneCompositor::updateAndRender(float dt, float time) {
 
         if (m_gpuCompositor.renderFrame(gpuLayers, gpuParticles, clearColor, grain, time)
             && m_gpuCompositor.blitIntoShared()) {
-            return; // dmabuf written; CPU canvas skipped this frame
+            return true; // dmabuf written; CPU canvas skipped this frame
         }
         std::cerr << "SceneCompositor: GPU frame failed, falling back to CPU composite" << std::endl;
         m_gpuCompositing = false; // don't retry mid-scene; re-decided at next load
@@ -842,6 +893,8 @@ void SceneCompositor::updateAndRender(float dt, float time) {
     // 4. Upload composite frame to Vulkan Context
     m_vulkanCtx->uploadSceneImage(m_width, m_height,
         std::span<const uint8_t>(m_canvas.constBits(), m_canvas.sizeInBytes()));
+    return true;
+
 }
 
 } // namespace WallpaperEngine::Scene
